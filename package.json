@@ -10,8 +10,16 @@
     "build": "next build",
     "start": "next start",
     "lint": "next lint",
-    "db:generate": "prisma generate",
-    "db:push": "prisma db push"
+    "db:generate": "dotenv -e .env.local -- prisma generate",
+    "db:push": "dotenv -e .env.local -- prisma db push",
+    "db:migrate": "dotenv -e .env.local -- prisma migrate dev",
+    "db:seed": "dotenv -e .env.local -- tsx prisma/seed.ts",
+    "db:seed:reset": "dotenv -e .env.local -- tsx prisma/seed.ts --reset",
+    "db:studio": "dotenv -e .env.local -- prisma studio",
+    "db:validate": "dotenv -e .env.local -- prisma validate"
+  },
+  "prisma": {
+    "seed": "dotenv -e .env.local -- tsx prisma/seed.ts"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.89.0",
@@ -30,11 +38,13 @@
     "@types/react": "^18.3.12",
     "@types/react-dom": "^18.3.1",
     "autoprefixer": "^10.4.20",
+    "dotenv-cli": "^11.0.0",
     "eslint": "^8.57.1",
     "eslint-config-next": "^14.2.35",
     "postcss": "^8.5.0",
     "prisma": "^6.19.3",
     "tailwindcss": "^3.4.19",
+    "tsx": "^4.21.0",
     "typescript": "^5.5.4"
   }
 }

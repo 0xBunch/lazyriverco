@@ -1,8 +1,246 @@
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
 generator client {
   provider = "prisma-client-js"
 }
 
-datasource db {
-  provider = "postgresql"
-  url      = env("DATABASE_URL")
+model User {
+  id          String   @id @default(uuid())
+  name        String   @unique
+  displayName String
+  email       String?  @unique
+  avatarUrl   String?
+  role        Role     @default(MEMBER)
+  createdAt   DateTime @default(now())
+
+  messages    Message[]
+  picks       Pick[]
+  votes       Vote[]
+  rsvps       RSVP[]
+  media       Media[]
+}
+
+enum Role {
+  MEMBER
+  ADMIN
+}
+
+model Character {
+  id                  String   @id @default(uuid())
+  name                String   @unique
+  displayName         String
+  avatarUrl           String?
+  systemPrompt        String   @db.Text
+  isFantasyManager    Boolean  @default(false)
+  triggerKeywords     String[]
+  responseProbability Float    @default(0.3)
+  activeModules       String[]
+  active              Boolean  @default(true)
+  createdAt           DateTime @default(now())
+
+  messages            Message[]
+  picks               Pick[]
+  roster              Roster[]
+}
+
+model Message {
+  id          String      @id @default(uuid())
+  module      String      @default("chat")
+  authorType  AuthorType
+  userId      String?
+  characterId String?
+  content     String      @db.Text
+  mediaUrl    String?
+  parentId    String?
+  createdAt   DateTime    @default(now())
+
+  user        User?       @relation(fields: [userId], references: [id])
+  character   Character?  @relation(fields: [characterId], references: [id])
+  parent      Message?    @relation("Replies", fields: [parentId], references: [id])
+  replies     Message[]   @relation("Replies")
+}
+
+enum AuthorType {
+  USER
+  CHARACTER
+}
+
+model PlayerPool {
+  id         String  @id @default(uuid())
+  playerName String
+  position   String
+  team       String
+  tagline    String?
+  drafted    Boolean @default(false)
+  season     Int
+
+  @@unique([playerName, season])
+}
+
+model Roster {
+  id           String    @id @default(uuid())
+  characterId  String
+  playerName   String
+  position     String
+  acquiredVia  String
+  active       Boolean   @default(true)
+  season       Int
+  weekAcquired Int?
+
+  character    Character        @relation(fields: [characterId], references: [id], onDelete: Cascade)
+  lineups      LineupDecision[]
+}
+
+model LineupDecision {
+  id         String   @id @default(uuid())
+  rosterId   String
+  week       Int
+  slot       String
+  playerName String
+  commentary String?  @db.Text
+  createdAt  DateTime @default(now())
+
+  roster     Roster   @relation(fields: [rosterId], references: [id], onDelete: Cascade)
+}
+
+model Pick {
+  id          String     @id @default(uuid())
+  authorType  AuthorType
+  userId      String?
+  characterId String?
+  type        String
+  description String     @db.Text
+  prediction  String
+  odds        String?
+  analysis    String?    @db.Text
+  result      PickResult @default(PENDING)
+  resolvedAt  DateTime?
+  createdAt   DateTime   @default(now())
+
+  user        User?      @relation(fields: [userId], references: [id])
+  character   Character? @relation(fields: [characterId], references: [id])
+}
+
+enum PickResult {
+  PENDING
+  WIN
+  LOSS
+  PUSH
+}
+
+model Bracket {
+  id          String   @id @default(uuid())
+  title       String
+  description String?
+  size        Int
+  status      String   @default("active")
+  createdBy   String
+  createdAt   DateTime @default(now())
+
+  matchups    Matchup[]
+}
+
+model Matchup {
+  id        String   @id @default(uuid())
+  bracketId String
+  round     Int
+  position  Int
+  entryA    String
+  entryB    String?
+  imageA    String?
+  imageB    String?
+  winner    String?
+  votesA    Int      @default(0)
+  votesB    Int      @default(0)
+  active    Boolean  @default(false)
+  createdAt DateTime @default(now())
+
+  bracket   Bracket  @relation(fields: [bracketId], references: [id], onDelete: Cascade)
+  votes     Vote[]
+}
+
+model Vote {
+  id        String   @id @default(uuid())
+  matchupId String
+  userId    String
+  choice    String
+  createdAt DateTime @default(now())
+
+  matchup   Matchup  @relation(fields: [matchupId], references: [id], onDelete: Cascade)
+  user      User     @relation(fields: [userId], references: [id])
+
+  @@unique([matchupId, userId])
+}
+
+model PowerRanking {
+  id        String   @id @default(uuid())
+  topic     String
+  items     String[]
+  userId    String
+  createdAt DateTime @default(now())
+}
+
+model Media {
+  id           String   @id @default(uuid())
+  uploadedById String
+  url          String
+  thumbnailUrl String?
+  type         String
+  sourceUrl    String?
+  tags         String[]
+  hallOfFame   Boolean  @default(false)
+  createdAt    DateTime @default(now())
+
+  uploadedBy   User     @relation(fields: [uploadedById], references: [id])
+}
+
+model LeaderboardEntry {
+  id          String   @id @default(uuid())
+  userId      String?
+  characterId String?
+  competition String
+  season      Int?
+  wins        Int      @default(0)
+  losses      Int      @default(0)
+  pushes      Int      @default(0)
+  points      Float    @default(0)
+  updatedAt   DateTime @updatedAt
+}
+
+model Event {
+  id          String    @id @default(uuid())
+  title       String
+  description String?   @db.Text
+  location    String?
+  startTime   DateTime
+  endTime     DateTime?
+  createdBy   String
+  createdAt   DateTime  @default(now())
+
+  rsvps       RSVP[]
+}
+
+model RSVP {
+  id      String @id @default(uuid())
+  eventId String
+  userId  String
+  status  String
+
+  event   Event  @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  user    User   @relation(fields: [userId], references: [id])
+
+  @@unique([eventId, userId])
+}
+
+model ScheduledContent {
+  id        String    @id @default(uuid())
+  type      String
+  frequency String
+  dayOfWeek Int?
+  timeOfDay String?
+  lastFired DateTime?
+  active    Boolean   @default(true)
 }
