@@ -74,6 +74,10 @@ export async function POST(): Promise<NextResponse<PickResponse>> {
   const richContext = await buildRichContext({
     characterId: character.id,
     participantUserIds: allUserIds,
+    // Legacy draft path — stays on the channel orchestrator and doesn't
+    // get the shared media bank section. Task 4's conversation path
+    // (includeMedia: true) is where media starts flowing into prompts.
+    includeMedia: false,
   });
 
   // Generate commentary OUTSIDE the transaction — it's slow (Anthropic API

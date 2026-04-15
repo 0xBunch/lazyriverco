@@ -4,6 +4,7 @@
 // displayName/avatarUrl. No passwordHash ever selected.
 
 import type { Message } from "@prisma/client";
+import { parseSentinel } from "@/lib/agent-sentinels";
 
 export type AuthorType = "USER" | "CHARACTER";
 
@@ -20,6 +21,17 @@ export type ChatMessageDTO = {
   createdAt: string; // ISO
   authorType: AuthorType;
   author: ChatAuthor;
+  /**
+   * Derived by the server-side sentinel parser in toDTO(). Present only
+   * on CHARACTER-authored messages whose content contained a valid
+   * <suggest-agent> tag referencing an active character (per the allow-
+   * list passed to toDTO). The client renders an AgentSuggestionButton
+   * below the message bubble when set — no client-side parsing.
+   */
+  suggestion?: {
+    characterName: string;
+    reason: string;
+  };
 };
 
 export type MessagesResponse = {
@@ -55,7 +67,20 @@ export const AUTHOR_SELECT = {
   avatarUrl: true,
 } as const;
 
-export function toDTO(m: MessageWithAuthors): ChatMessageDTO | null {
+/**
+ * Convert a Prisma Message row into the wire DTO.
+ *
+ * @param m - Prisma message with author relations loaded via AUTHOR_SELECT.
+ * @param characterAllowlist - Active `Character.name` slugs used by the
+ *   sentinel parser to validate handoff targets. Pass an empty array
+ *   (or omit) to disable parsing — the legacy /api/messages path uses
+ *   that default because its orchestrator doesn't emit sentinels. The
+ *   new /api/conversations routes pass their active-character list.
+ */
+export function toDTO(
+  m: MessageWithAuthors,
+  characterAllowlist: readonly string[] = [],
+): ChatMessageDTO | null {
   if (m.authorType === "USER" && m.user) {
     return {
       id: m.id,
@@ -66,12 +91,21 @@ export function toDTO(m: MessageWithAuthors): ChatMessageDTO | null {
     };
   }
   if (m.authorType === "CHARACTER" && m.character) {
+    // Sentinel parsing is gated to CHARACTER-authored messages AND to
+    // callers that passed a non-empty allowlist. Two-layer defense so
+    // user content is never parsed and orphaned character messages
+    // (allowlist empty) don't emit spoofed CTAs.
+    const { cleaned, suggestion } =
+      characterAllowlist.length > 0
+        ? parseSentinel(m.content, characterAllowlist)
+        : { cleaned: m.content, suggestion: null };
     return {
       id: m.id,
-      content: m.content,
+      content: cleaned,
       createdAt: m.createdAt.toISOString(),
       authorType: "CHARACTER",
       author: m.character,
+      ...(suggestion ? { suggestion } : {}),
     };
   }
   // FK + authorType invariants should make this unreachable. Log loudly

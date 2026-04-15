@@ -1,13 +1,20 @@
 // Per-user sliding-window rate limiter backed by the RateLimitHit table
-// (added in Task 1 of the lazy-river phase 1 refactor). Ships as a no-op
-// in Task 0 so the module can exist before the migration runs; Task 3
-// flips RATE_LIMIT_ENABLED to true and fills in the real Prisma query
-// after the table lands.
+// (added in Task 1 of the lazy-river phase 1 refactor). Task 2 fills in
+// the real Prisma query against the regenerated client. The feature
+// flag stays FALSE here — Task 3 flips it once the migration has
+// actually been applied in production, to avoid a window where this
+// code queries a table that doesn't exist yet.
 //
 // Design: DB-backed rolling windows (per-minute + per-day) with one row
-// per hit. Phase-1 scale (< 10 users) makes row count trivial; a periodic
-// DELETE for rows older than 24h gets added in Task 3 alongside the real
-// implementation.
+// per hit. Phase-1 scale (< 10 users) makes row count trivial; periodic
+// DELETE of rows older than 24h gets wired up in Task 3.
+//
+// Race note: two parallel calls could both pass the count check and
+// both insert, temporarily exceeding the cap by 1. Benign at phase-1
+// scale — production-grade would use a Postgres advisory lock or a
+// unique partial index on (userId, bucket, minute-bucket).
+
+import { prisma } from "@/lib/prisma";
 
 export type RateLimitBucket =
   | "conversation.create"
@@ -30,11 +37,15 @@ export class RateLimitError extends Error {
   }
 }
 
-// Feature flag. Flipped to `true` in Task 3 once the RateLimitHit table
-// from Task 1 is live and this module has its Prisma implementation.
-// Typed as plain `boolean` (not a `false` literal) so TypeScript doesn't
-// eliminate the post-flag branch below as unreachable code.
+// Feature flag. Stays `false` in Task 2 — the real implementation below
+// is complete and compiles against Task 1's regenerated Prisma client,
+// but we don't turn it on until Task 3 after the migration has been
+// applied in production (see header note). Typed as plain `boolean` so
+// TypeScript doesn't narrow the post-flag branch as unreachable code.
 const RATE_LIMIT_ENABLED: boolean = false;
+
+const ONE_MINUTE_MS = 60 * 1000;
+const ONE_DAY_MS = 24 * 60 * 60 * 1000;
 
 /**
  * Throws RateLimitError if the user has exceeded either the per-minute
@@ -52,16 +63,46 @@ export async function assertWithinLimit(
   bucket: RateLimitBucket,
   options: RateLimitOptions,
 ): Promise<void> {
-  if (!RATE_LIMIT_ENABLED) {
-    // Stub: no backing store exists yet. See header comment.
-    return;
+  if (!RATE_LIMIT_ENABLED) return;
+
+  const now = new Date();
+  const minuteAgo = new Date(now.getTime() - ONE_MINUTE_MS);
+  const dayAgo = new Date(now.getTime() - ONE_DAY_MS);
+
+  // Count in both windows in parallel — one Prisma round trip each.
+  const [minuteCount, dayCount] = await Promise.all([
+    prisma.rateLimitHit.count({
+      where: { userId, bucket, createdAt: { gte: minuteAgo } },
+    }),
+    prisma.rateLimitHit.count({
+      where: { userId, bucket, createdAt: { gte: dayAgo } },
+    }),
+  ]);
+
+  if (minuteCount >= options.maxPerMinute) {
+    throw new RateLimitError(bucket, 60);
+  }
+  if (dayCount >= options.maxPerDay) {
+    // Retry-after: seconds until the oldest hit in the day window rolls off.
+    const oldestInWindow = await prisma.rateLimitHit.findFirst({
+      where: { userId, bucket, createdAt: { gte: dayAgo } },
+      orderBy: { createdAt: "asc" },
+      select: { createdAt: true },
+    });
+    const retryAfterSeconds = oldestInWindow
+      ? Math.max(
+          1,
+          Math.ceil(
+            (ONE_DAY_MS - (now.getTime() - oldestInWindow.createdAt.getTime())) /
+              1000,
+          ),
+        )
+      : 3600;
+    throw new RateLimitError(bucket, retryAfterSeconds);
   }
 
-  // NOTE: the real implementation queries prisma.rateLimitHit with a
-  // window filter and INSERTs a new hit if under the caps. Stubbed here
-  // so referencing the params keeps TypeScript happy without pulling
-  // in the Prisma client model that Task 1 hasn't generated yet.
-  console.debug(
-    `[rate-limit] would check ${bucket} for user ${userId}: ${options.maxPerMinute}/min, ${options.maxPerDay}/day`,
-  );
+  // Passed both windows — record the hit.
+  await prisma.rateLimitHit.create({
+    data: { userId, bucket },
+  });
 }

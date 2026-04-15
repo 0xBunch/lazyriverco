@@ -15,12 +15,21 @@
 // message slice it already fetches for transcript context.
 
 import { prisma } from "@/lib/prisma";
+import { selectMediaForContext } from "@/lib/media-context";
 
 export type RichContextInput = {
   /** The character generating the response. */
   characterId: string;
   /** User IDs that appear in the recent transcript the agent will see. */
   participantUserIds: readonly string[];
+  /**
+   * Whether to append the shared media bank section. Required (not
+   * optional) so every call site states its intent explicitly — the
+   * legacy channel orchestrator passes false to preserve behavior, the
+   * new per-conversation orchestrator passes true. Making this required
+   * prevents the section from being accidentally injected or skipped.
+   */
+  includeMedia: boolean;
 };
 
 /**
@@ -31,7 +40,7 @@ export type RichContextInput = {
 export async function buildRichContext(
   input: RichContextInput,
 ): Promise<string> {
-  const { characterId, participantUserIds } = input;
+  const { characterId, participantUserIds, includeMedia } = input;
   const userIds = [...new Set(participantUserIds)];
 
   const [canon, members, relationships] = await Promise.all([
@@ -110,6 +119,26 @@ export async function buildRichContext(
         ...relationshipLines,
       ].join("\n"),
     );
+  }
+
+  // 4. Shared media bank — phase 1 injects text URLs + tags + captions
+  // only (no vision). Appended AFTER the stable canon/member/relationship
+  // sections so the volatile media list sits at the tail of the prompt,
+  // keeping Anthropic's prompt cache prefix hot across uploads. Retrieval
+  // + sanitization lives in selectMediaForContext, not inlined here, so
+  // future tag/embedding-based strategies are a one-file change.
+  if (includeMedia) {
+    const media = await selectMediaForContext({ characterId });
+    if (media.length > 0) {
+      const lines = media.map((m) => {
+        const parts: string[] = [];
+        if (m.caption) parts.push(m.caption);
+        if (m.tags.length > 0) parts.push(`(tags: ${m.tags.join(", ")})`);
+        parts.push(m.publicUrl);
+        return `- ${parts.join(" ")}`;
+      });
+      sections.push(["# Shared media bank", ...lines].join("\n"));
+    }
   }
 
   return sections.length > 0 ? sections.join("\n\n") : "";

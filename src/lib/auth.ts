@@ -59,3 +59,23 @@ export async function requireAdmin(): Promise<SafeUser> {
   }
   return user;
 }
+
+/**
+ * Trip-wire for mini-app routes (fantasy / picks / brackets / trips /
+ * etc.) that currently render placeholder pages. Called from the page's
+ * server component NOW even though it does nothing — so when a route
+ * upgrades to real data, the author changes ONE line here and every
+ * mini-app becomes admin-gated at once. grep callers for the full set.
+ *
+ * Currently a no-op: phase-1 placeholders are safe to show to any
+ * signed-in user. When real data lands, change the body to:
+ *
+ *     const user = await getCurrentUser();
+ *     if (user?.role !== "ADMIN") notFound();
+ *
+ * and import `notFound` from "next/navigation".
+ */
+export async function requireAdminOrPlaceholder(): Promise<void> {
+  // Intentional no-op — see doc comment above. Keep the import / call
+  // site in every mini-app page.tsx so flipping this on gates them all.
+}

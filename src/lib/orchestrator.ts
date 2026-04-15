@@ -333,9 +333,12 @@ export async function runOrchestrator(messageId: string): Promise<void> {
       try {
         // Per-responder rich context: same canon + member facts but the
         // relationship narrative is filtered to *this* character's takes.
+        // Legacy channel path: includeMedia=false to preserve behavior;
+        // the new runConversationOrchestrator (Task 4) passes true.
         const richContext = await buildRichContext({
           characterId: character.id,
           participantUserIds,
+          includeMedia: false,
         });
         const text = await generateWithRetry(
           character,

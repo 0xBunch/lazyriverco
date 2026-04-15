@@ -45,8 +45,12 @@ export async function GET(req: NextRequest) {
   // Initial load fetched DESC to grab the newest N; reverse for oldest→newest.
   const ordered = after ? rows : rows.reverse();
 
+  // Explicit arrow so Array.map's (value, index, array) callback doesn't
+  // accidentally bind the index to toDTO's characterAllowlist param.
+  // Legacy channel path intentionally omits the allowlist (no sentinel
+  // parsing — runOrchestrator doesn't emit sentinels).
   const messages: ChatMessageDTO[] = ordered
-    .map(toDTO)
+    .map((m) => toDTO(m))
     .filter((m): m is ChatMessageDTO => m !== null);
 
   const res: MessagesResponse = { messages };
