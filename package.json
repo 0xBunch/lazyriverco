@@ -16,7 +16,8 @@
     "db:seed": "dotenv -e .env.local -- tsx prisma/seed.ts",
     "db:seed:reset": "dotenv -e .env.local -- tsx prisma/seed.ts --reset",
     "db:studio": "dotenv -e .env.local -- prisma studio",
-    "db:validate": "dotenv -e .env.local -- prisma validate"
+    "db:validate": "dotenv -e .env.local -- prisma validate",
+    "db:update-bibles": "dotenv -e .env.local -- tsx prisma/update-bibles.ts"
   },
   "prisma": {
     "seed": "dotenv -e .env.local -- tsx prisma/seed.ts"
