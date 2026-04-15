@@ -20,8 +20,15 @@ function isOriginAllowed(req: NextRequest): boolean {
     // treat missing Origin as allowed for first-party flows.
     return true;
   }
+  // Behind Railway/Vercel/etc edge proxies, req.nextUrl.host reflects the
+  // internal container host, NOT the public hostname the client actually
+  // talked to. Prefer x-forwarded-host → host header → parsed URL fallback.
+  const forwardedHost =
+    req.headers.get("x-forwarded-host") ??
+    req.headers.get("host") ??
+    req.nextUrl.host;
   try {
-    return new URL(origin).host === req.nextUrl.host;
+    return new URL(origin).host === forwardedHost;
   } catch {
     return false;
   }

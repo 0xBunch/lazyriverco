@@ -20,10 +20,12 @@ export async function middleware(req: NextRequest) {
 }
 
 export const config = {
-  // Allowlist: Next internals, sign-in page, and ALL /api/auth/* routes
-  // (login, logout, and any future session endpoints). Everything else
-  // hits the auth check above.
+  // Allowlist: Next internals, sign-in page, ALL /api/auth/* routes
+  // (login, logout, and any future session endpoints), and the PWA
+  // chrome (favicon, app icons, manifest) which must be reachable
+  // before the user authenticates. Everything else hits the auth check
+  // above.
   matcher: [
-    "/((?!_next/static|_next/image|favicon.ico|sign-in|api/auth/).*)",
+    "/((?!_next/static|_next/image|favicon.ico|icon|apple-icon|manifest.webmanifest|sign-in|api/auth/).*)",
   ],
 };
