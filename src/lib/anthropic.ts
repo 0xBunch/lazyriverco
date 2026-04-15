@@ -42,13 +42,38 @@ function formatChatContext(lines: readonly ChatContextLine[]): string {
 }
 
 /**
+ * Compose a character's full system prompt. Order:
+ *   1. The character's persona bible (their voice/personality document)
+ *   2. Optional rich context from the curated layers (canon, member facts,
+ *      relationship narratives) — see src/lib/character-context.ts
+ *   3. The standard "respond in character" tail
+ * Empty/missing layers degrade gracefully.
+ */
+function composeSystemPrompt(
+  bible: string,
+  richContext: string | null,
+): string {
+  const parts: string[] = [bible];
+  if (richContext && richContext.trim()) {
+    parts.push("");
+    parts.push(richContext);
+  }
+  return parts.join("\n") + SYSTEM_PROMPT_TAIL;
+}
+
+/**
  * Generate a single character response from Claude. Throws on API errors —
  * the orchestrator decides whether to catch, retry, or drop.
+ *
+ * `richContext` is the optional curated context block (canon + member
+ * facts + relationship narratives). Pass `null` for the legacy bible-only
+ * behavior.
  */
 export async function generateCharacterResponse(
   systemPrompt: string,
   recentContext: readonly ChatContextLine[],
   newMessage: ChatContextLine,
+  richContext: string | null = null,
 ): Promise<string> {
   const transcript = formatChatContext([...recentContext, newMessage]);
   const userPrompt = [
@@ -63,7 +88,7 @@ export async function generateCharacterResponse(
     model: MODEL_HAIKU,
     max_tokens: 200,
     temperature: 0.9,
-    system: `${systemPrompt}${SYSTEM_PROMPT_TAIL}`,
+    system: composeSystemPrompt(systemPrompt, richContext),
     messages: [{ role: "user", content: userPrompt }],
   });
 
@@ -86,10 +111,15 @@ export type DraftPick = {
  * announce a pick with delusional confidence. Shares the character bible
  * as system prompt + the standard tail, but the user message is a
  * direct description of the draft event (not a chat transcript).
+ *
+ * `richContext` is the optional curated context block — same shape as
+ * generateCharacterResponse so Joey "knows the crew" when he's roasting
+ * his own pick.
  */
 export async function generateDraftCommentary(
   systemPrompt: string,
   pick: DraftPick,
+  richContext: string | null = null,
 ): Promise<string> {
   const userPrompt = [
     `You just drafted ${pick.playerName}, ${pick.position} from the ${pick.team},`,
@@ -105,7 +135,7 @@ export async function generateDraftCommentary(
     model: MODEL_HAIKU,
     max_tokens: 200,
     temperature: 0.9,
-    system: `${systemPrompt}${SYSTEM_PROMPT_TAIL}`,
+    system: composeSystemPrompt(systemPrompt, richContext),
     messages: [{ role: "user", content: userPrompt }],
   });
 

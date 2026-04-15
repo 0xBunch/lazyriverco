@@ -6,6 +6,7 @@ import {
   type ChatContextLine,
 } from "@/lib/anthropic";
 import { DEFAULT_CHANNEL_ID } from "@/lib/channels";
+import { buildRichContext } from "@/lib/character-context";
 
 // --- Tuning constants -----------------------------------------------------
 //
@@ -123,12 +124,14 @@ async function generateWithRetry(
   character: Character,
   contextLines: readonly ChatContextLine[],
   newLine: ChatContextLine,
+  richContext: string | null,
 ): Promise<string> {
   try {
     return await generateCharacterResponse(
       character.systemPrompt,
       contextLines,
       newLine,
+      richContext,
     );
   } catch (err) {
     if (isRateLimitError(err)) {
@@ -140,6 +143,7 @@ async function generateWithRetry(
         character.systemPrompt,
         contextLines,
         newLine,
+        richContext,
       );
     }
     throw err;
@@ -226,6 +230,16 @@ export async function runOrchestrator(messageId: string): Promise<void> {
       content: newMessage.content,
     };
 
+    // The set of human users the agent will see in this conversation.
+    // Includes the message's own author plus everyone who appeared in the
+    // recent transcript. Used to fetch member facts + relationship
+    // narratives in buildRichContext below.
+    const participantUserIds = new Set<string>();
+    if (newMessage.user) participantUserIds.add(newMessage.user.id);
+    for (const m of recent) {
+      if (m.user) participantUserIds.add(m.user.id);
+    }
+
     console.log(
       `[orchestrator] ${responders.length} responder(s) for message ${messageId}: ${responders
         .map((c) => c.name)
@@ -234,7 +248,18 @@ export async function runOrchestrator(messageId: string): Promise<void> {
 
     for (const [i, character] of responders.entries()) {
       try {
-        const text = await generateWithRetry(character, contextLines, newLine);
+        // Per-responder rich context: same canon + member facts but the
+        // relationship narrative is filtered to *this* character's takes.
+        const richContext = await buildRichContext({
+          characterId: character.id,
+          participantUserIds: [...participantUserIds],
+        });
+        const text = await generateWithRetry(
+          character,
+          contextLines,
+          newLine,
+          richContext || null,
+        );
         if (!text) {
           console.warn(
             `[orchestrator] ${character.name} returned empty text, skipping`,

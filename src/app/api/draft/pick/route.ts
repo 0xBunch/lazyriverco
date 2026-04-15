@@ -4,6 +4,7 @@ import { getCurrentUser } from "@/lib/auth";
 import { generateDraftCommentary } from "@/lib/anthropic";
 import { runOrchestrator } from "@/lib/orchestrator";
 import { DEFAULT_CHANNEL_ID } from "@/lib/channels";
+import { buildRichContext } from "@/lib/character-context";
 import {
   CURRENT_SEASON,
   DRAFTING_CHARACTER_NAME,
@@ -63,17 +64,33 @@ export async function POST(): Promise<NextResponse<PickResponse>> {
   });
   const round = currentRosterCount + 1;
 
+  // Build rich context so Joey "knows the crew" while announcing his pick.
+  // Pulls every member with curated facts/blurb so the announcement can
+  // namedrop or roast the right people. Falls back to null if nothing is
+  // curated yet — generateDraftCommentary handles that gracefully.
+  const allUserIds = (
+    await prisma.user.findMany({ select: { id: true } })
+  ).map((u) => u.id);
+  const richContext = await buildRichContext({
+    characterId: character.id,
+    participantUserIds: allUserIds,
+  });
+
   // Generate commentary OUTSIDE the transaction — it's slow (Anthropic API
   // call) and we don't want it holding a DB transaction open. If it fails,
   // we fall back to a static line so the pick still lands.
   let commentary: string;
   try {
-    commentary = await generateDraftCommentary(character.systemPrompt, {
-      playerName: picked.playerName,
-      position: picked.position,
-      team: picked.team,
-      round,
-    });
+    commentary = await generateDraftCommentary(
+      character.systemPrompt,
+      {
+        playerName: picked.playerName,
+        position: picked.position,
+        team: picked.team,
+        round,
+      },
+      richContext || null,
+    );
   } catch (err) {
     console.error("[draft/pick] generateDraftCommentary failed:", err);
     commentary = fallbackCommentary(picked.playerName, round);
