@@ -1,69 +1,19 @@
 import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
-import type { Message } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import { getCurrentUser } from "@/lib/auth";
 import { runOrchestrator } from "@/lib/orchestrator";
 import { DEFAULT_CHANNEL_ID } from "@/lib/channels";
 import {
+  AUTHOR_SELECT,
   CHAT_PAGE_SIZE,
+  toDTO,
   type ChatMessageDTO,
   type MessagesResponse,
   type PostMessageResponse,
 } from "@/lib/chat";
 
 export const runtime = "nodejs";
-
-// Shape of a Prisma message with the author relations selected. Narrow enough
-// for toDTO without dragging in the whole generated model.
-type MessageWithAuthors = Message & {
-  user: {
-    id: string;
-    name: string;
-    displayName: string;
-    avatarUrl: string | null;
-  } | null;
-  character: {
-    id: string;
-    name: string;
-    displayName: string;
-    avatarUrl: string | null;
-  } | null;
-};
-
-const AUTHOR_SELECT = {
-  id: true,
-  name: true,
-  displayName: true,
-  avatarUrl: true,
-} as const;
-
-function toDTO(m: MessageWithAuthors): ChatMessageDTO | null {
-  if (m.authorType === "USER" && m.user) {
-    return {
-      id: m.id,
-      content: m.content,
-      createdAt: m.createdAt.toISOString(),
-      authorType: "USER",
-      author: m.user,
-    };
-  }
-  if (m.authorType === "CHARACTER" && m.character) {
-    return {
-      id: m.id,
-      content: m.content,
-      createdAt: m.createdAt.toISOString(),
-      authorType: "CHARACTER",
-      author: m.character,
-    };
-  }
-  // FK + authorType invariants should make this unreachable. Log loudly
-  // rather than silently dropping.
-  console.error(
-    `[api/messages] dropping message with impossible author state: id=${m.id} authorType=${m.authorType}`,
-  );
-  return null;
-}
 
 export async function GET(req: NextRequest) {
   const user = await getCurrentUser();
