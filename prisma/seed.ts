@@ -16,13 +16,13 @@ const SEASON = Number(process.env.SEED_SEASON ?? 2026);
 const BCRYPT_ROUNDS = 12;
 
 const USER_TEMPLATES = [
-  { name: "choobs", displayName: "Choobs", role: Role.ADMIN },
+  { name: "maverick", displayName: "Maverick", role: Role.ADMIN },
+  { name: "choobs", displayName: "Choobs", role: Role.MEMBER },
   { name: "bismarck", displayName: "Bismarck", role: Role.MEMBER },
   { name: "chief", displayName: "Chief", role: Role.MEMBER },
   { name: "blackie", displayName: "Blackie", role: Role.MEMBER },
   { name: "ron", displayName: "Ron", role: Role.MEMBER },
   { name: "mango", displayName: "Mango", role: Role.MEMBER },
-  { name: "maverick", displayName: "Maverick", role: Role.MEMBER },
 ] as const;
 
 function loadCredentials(): Map<string, string> {

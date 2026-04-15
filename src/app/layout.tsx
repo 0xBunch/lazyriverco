@@ -1,5 +1,12 @@
 import type { Metadata } from "next";
+import { DM_Sans } from "next/font/google";
 import "./globals.css";
+
+const sans = DM_Sans({
+  subsets: ["latin"],
+  variable: "--font-sans",
+  display: "swap",
+});
 
 export const metadata: Metadata = {
   title: "The Lazy River Co.",
@@ -12,8 +19,8 @@ export default function RootLayout({
   children: React.ReactNode;
 }) {
   return (
-    <html lang="en">
-      <body className="bg-slate-950 text-slate-100 antialiased">
+    <html lang="en" className={sans.variable}>
+      <body className="bg-bone-950 font-sans text-bone-50 antialiased">
         {children}
       </body>
     </html>

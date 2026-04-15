@@ -23,11 +23,11 @@ export function ModulePlaceholder({
       <div className="text-6xl" aria-hidden="true">
         {icon}
       </div>
-      <h1 className="text-2xl font-semibold tracking-tight text-slate-100">
+      <h1 className="font-display text-2xl font-semibold tracking-tight text-bone-50">
         {title}
       </h1>
       {message ? (
-        <p className="text-sm text-slate-400">{message}</p>
+        <p className="text-sm italic text-bone-300">{message}</p>
       ) : null}
     </div>
   );

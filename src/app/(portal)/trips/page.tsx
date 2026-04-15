@@ -1,5 +1,11 @@
 import { ModulePlaceholder } from "@/components/ModulePlaceholder";
 
 export default function TripsPage() {
-  return <ModulePlaceholder icon="🗺️" title="Trips" message="Coming Soon" />;
+  return (
+    <ModulePlaceholder
+      icon="🗺️"
+      title="No pins dropped."
+      message="Where's the next one?"
+    />
+  );
 }

@@ -2,6 +2,10 @@ import { ModulePlaceholder } from "@/components/ModulePlaceholder";
 
 export default function ChatPage() {
   return (
-    <ModulePlaceholder icon="💬" title="Chat" message="Coming in Task 05" />
+    <ModulePlaceholder
+      icon="💬"
+      title="The chat's not flowing yet."
+      message="Check back when the bots wake up."
+    />
   );
 }
