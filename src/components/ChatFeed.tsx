@@ -12,6 +12,11 @@ import {
 
 type ChatFeedProps = {
   currentUserId: string;
+  channel: {
+    slug: string;
+    displayName: string;
+    description: string | null;
+  };
 };
 
 const GROUPING_WINDOW_MS = 2 * 60 * 1000;
@@ -29,7 +34,7 @@ async function fetchMessages(after?: string): Promise<ChatMessageDTO[]> {
   return data.messages;
 }
 
-export function ChatFeed({ currentUserId }: ChatFeedProps) {
+export function ChatFeed({ currentUserId, channel }: ChatFeedProps) {
   const [messages, setMessages] = useState<ChatMessageDTO[] | null>(null);
   const [error, setError] = useState<string | null>(null);
 
@@ -148,9 +153,25 @@ export function ChatFeed({ currentUserId }: ChatFeedProps) {
 
   return (
     <div className="flex h-[100dvh] min-h-0 flex-col">
+      {/* Channel header — sticky-ish, sits above the scroll area. The
+          pl-16 / md:pl-6 leaves room for the mobile hamburger so the
+          title doesn't collide with it. */}
+      <div className="border-b border-bone-700 bg-bone-900/80 px-6 pb-3 pt-4 backdrop-blur md:pt-5">
+        <div className="mx-auto max-w-3xl pl-12 md:pl-0">
+          <h1 className="font-display text-base font-semibold text-bone-50">
+            #{channel.slug}
+          </h1>
+          {channel.description ? (
+            <p className="mt-0.5 text-xs italic text-bone-400">
+              {channel.description}
+            </p>
+          ) : null}
+        </div>
+      </div>
+
       <div
         ref={scrollRef}
-        className="flex-1 overflow-y-auto pt-16 md:pt-6"
+        className="flex-1 overflow-y-auto pt-4"
       >
         {messages.length === 0 ? (
           <div className="flex h-full items-center justify-center px-6 text-center">
