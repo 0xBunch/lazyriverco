@@ -31,6 +31,8 @@ model User {
   rsvps               RSVP[]
   media               Media[]
   agentRelationships  AgentRelationship[]
+  conversations       Conversation[]
+  rateLimitHits       RateLimitHit[]
 }
 
 enum Role {
@@ -49,6 +51,13 @@ model Character {
   responseProbability Float    @default(0.3)
   activeModules       String[]
   active              Boolean  @default(true)
+  /// Marks the single default/"home" character new Conversations default to
+  /// (Moises, seeded by the phase-1 migration). Enforced as a partial unique
+  /// index in the migration (`CREATE UNIQUE INDEX "Character_isDefault_key"
+  /// ON "Character"("isDefault") WHERE "isDefault" = true`) because Prisma
+  /// can't model partial predicates in @@unique. Mirror constant lives in
+  /// src/lib/characters.ts as DEFAULT_CHARACTER_ID and MUST stay in sync.
+  isDefault           Boolean  @default(false)
   createdAt           DateTime @default(now())
 
   messages            Message[]
@@ -56,6 +65,7 @@ model Character {
   roster              Roster[]
   agentChannels       AgentChannel[]
   agentRelationships  AgentRelationship[]
+  conversations       Conversation[]
 }
 
 /// A conversational lane inside the Mens League clubhouse. v1 ships exactly
@@ -117,30 +127,62 @@ model ClubhouseCanon {
   updatedAt DateTime @updatedAt
 }
 
-model Message {
-  id          String      @id @default(uuid())
-  module      String      @default("chat")
-  /// Which channel inside the clubhouse this message belongs to. Populated
-  /// for every chat message; the migration backfills existing rows to the
-  /// default `mensleague` channel and then enforces NOT NULL.
-  channelId   String
-  authorType  AuthorType
-  userId      String?
-  characterId String?
-  content     String      @db.Text
-  mediaUrl    String?
-  parentId    String?
-  createdAt   DateTime    @default(now())
+/// Per-user conversation thread with a single AI character. Distinct from
+/// Channel (which is a multi-user shared lane). Phase 1 of the lazy-river
+/// refactor introduces Conversations as the default chat surface; the
+/// legacy Channel path is preserved for admin review of #mensleague.
+model Conversation {
+  id            String    @id @default(uuid())
+  ownerId       String
+  characterId   String
+  /// First ~50 chars of the first user message, shown in sidebar history.
+  title         String?   @db.VarChar(200)
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+  /// Mirror of the newest Message.createdAt — cheap sort key for the
+  /// sidebar "recent" list without joining Message on every render.
+  lastMessageAt DateTime  @default(now())
+  /// Soft-delete. Non-null hides from sidebar + routes.
+  archivedAt    DateTime?
 
-  channel     Channel     @relation(fields: [channelId], references: [id], onDelete: Restrict)
-  user        User?       @relation(fields: [userId], references: [id])
-  character   Character?  @relation(fields: [characterId], references: [id])
-  parent      Message?    @relation("Replies", fields: [parentId], references: [id])
-  replies     Message[]   @relation("Replies")
+  owner     User      @relation(fields: [ownerId], references: [id], onDelete: Cascade)
+  character Character @relation(fields: [characterId], references: [id], onDelete: Restrict)
+  messages  Message[]
+
+  // Sidebar read path: "recent conversations for this user".
+  @@index([ownerId, lastMessageAt(sort: Desc)])
+}
+
+model Message {
+  id             String      @id @default(uuid())
+  module         String      @default("chat")
+  /// Legacy group-channel FK. Nullable because new rows written via the
+  /// per-user Conversation path set `conversationId` instead. Exactly one
+  /// of channelId/conversationId is set — enforced at the DB level by a
+  /// raw-SQL CHECK constraint added in the phase-1 migration (Prisma can't
+  /// model CHECK in schema.prisma, so it lives in the migration file).
+  channelId      String?
+  /// Per-user conversation FK, new in phase 1 of the lazy-river refactor.
+  conversationId String?
+  authorType     AuthorType
+  userId         String?
+  characterId    String?
+  content        String      @db.Text
+  mediaUrl       String?
+  parentId       String?
+  createdAt      DateTime    @default(now())
+
+  channel      Channel?      @relation(fields: [channelId], references: [id], onDelete: Restrict)
+  conversation Conversation? @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+  user         User?         @relation(fields: [userId], references: [id])
+  character    Character?    @relation(fields: [characterId], references: [id])
+  parent       Message?      @relation("Replies", fields: [parentId], references: [id])
+  replies      Message[]     @relation("Replies")
 
   // Read pattern: "give me the last N messages in channel X by time".
-  // Composite covers both the channelId filter and the createdAt sort.
   @@index([channelId, createdAt(sort: Desc)])
+  // Same pattern but scoped to a Conversation (the new per-user path).
+  @@index([conversationId, createdAt(sort: Desc)])
 }
 
 enum AuthorType {
@@ -269,17 +311,40 @@ model PowerRanking {
 }
 
 model Media {
-  id           String   @id @default(uuid())
+  id           String      @id @default(uuid())
   uploadedById String
   url          String
   thumbnailUrl String?
   type         String
   sourceUrl    String?
   tags         String[]
-  hallOfFame   Boolean  @default(false)
-  createdAt    DateTime @default(now())
+  hallOfFame   Boolean     @default(false)
+  /// Upload lifecycle: PENDING after presign (before the client PUTs the
+  /// file to R2), READY after the commit endpoint flips it, DELETED on
+  /// soft-delete. buildRichContext only injects READY rows.
+  status       MediaStatus @default(READY)
+  /// Short human-written description injected into agent system prompts
+  /// as part of the shared media bank section. Sanitized before injection
+  /// (strip `#` headers + `<suggest-agent>` substrings + cap 200 chars)
+  /// — see src/lib/media-context.ts.
+  caption      String?
+  /// Canonical mime type captured at presign time. Used by the content-
+  /// type allowlist check and to pick <img> vs <video> rendering.
+  mimeType     String?
+  createdAt    DateTime    @default(now())
 
-  uploadedBy   User     @relation(fields: [uploadedById], references: [id])
+  uploadedBy   User        @relation(fields: [uploadedById], references: [id])
+
+  // Media retrieval path for buildRichContext: filter to READY, hall-of-
+  // fame first, then most recent. Composite matches the ORDER BY so
+  // Postgres can serve it as an index scan once the table grows.
+  @@index([status, hallOfFame, createdAt(sort: Desc)])
+}
+
+enum MediaStatus {
+  PENDING
+  READY
+  DELETED
 }
 
 model LeaderboardEntry {
@@ -328,4 +393,20 @@ model ScheduledContent {
   timeOfDay String?
   lastFired DateTime?
   active    Boolean   @default(true)
+}
+
+/// Per-user sliding-window rate-limit tracking. One row per successful
+/// write on a rate-limited endpoint (conversation.create,
+/// conversation.message). src/lib/rate-limit.ts counts rows inside a
+/// trailing window and throws RateLimitError past the cap. Cleanup is a
+/// periodic DELETE of rows older than 24h, wired in Task 3.
+model RateLimitHit {
+  id        String   @id @default(uuid())
+  userId    String
+  bucket    String
+  createdAt DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, bucket, createdAt])
 }
