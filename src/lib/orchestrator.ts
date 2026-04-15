@@ -6,13 +6,20 @@ import {
   type ChatContextLine,
 } from "@/lib/anthropic";
 
-// --- Tuning constants (spec: TASK 07) -------------------------------------
+// --- Tuning constants -----------------------------------------------------
+//
+// Post-hotfix design: agents speak only when explicitly summoned. Two gates:
+//   1. @mention — `@slug` or `@displayname` (case-insensitive, word-boundary)
+//      appears anywhere in the message content.
+//   2. Reply-to — the new message's `parentId` points to an existing
+//      CHARACTER message; that character is eligible.
+//
+// No probability rolls, no keyword scoring, no cooldowns. Those are all
+// artifacts of the auto-invocation model we scrapped. Earlier lessons:
+// /Users/bunch/_kcb/lessons.md (2026-04-15).
 
 const CONTEXT_MESSAGES = 15;
-const COOLDOWN_MESSAGES = 5;
 const MAX_RESPONDERS = 2;
-const KEYWORD_PROBABILITY = 0.7;
-const NAME_MENTION_PROBABILITY = 0.9;
 const MIN_INTER_RESPONSE_MS = 2_000;
 const MAX_INTER_RESPONSE_MS = 8_000;
 const RATE_LIMIT_RETRY_DELAY_MS = 2_000;
@@ -30,22 +37,21 @@ function randomDelay(): number {
   );
 }
 
-function containsAny(haystack: string, needles: readonly string[]): boolean {
-  const lower = haystack.toLowerCase();
-  return needles.some((n) => n && lower.includes(n.toLowerCase()));
-}
-
-function escapeRegExp(s: string): string {
-  return s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
-}
-
 /**
- * Word-boundary match for character names/displayNames so 2–3 character names
- * (e.g. "ron") don't false-positive on "around", "front", "iron", etc.
+ * Extract `@token` mentions from a message. Matches `@` followed by a run of
+ * word characters (letters, digits, underscore) OR a hyphen. Hyphen support
+ * lets slugs like `@joey-barfdog` work. Case-insensitive by lowercasing at
+ * match time — the caller compares against lowercased character.name /
+ * character.displayName.
  */
-function mentionsWord(haystack: string, word: string): boolean {
-  if (!word) return false;
-  return new RegExp(`\\b${escapeRegExp(word)}\\b`, "i").test(haystack);
+function extractMentionTokens(content: string): string[] {
+  const tokens = new Set<string>();
+  const re = /@([\w-]+)/g;
+  let match: RegExpExecArray | null;
+  while ((match = re.exec(content)) !== null) {
+    tokens.add(match[1]!.toLowerCase());
+  }
+  return [...tokens];
 }
 
 type MessageAuthor = Message & {
@@ -59,71 +65,56 @@ function authorDisplayName(m: MessageAuthor): string {
   return "?";
 }
 
-type Candidate = {
-  character: Character;
-  probability: number;
-};
-
 /**
- * Decide which characters (if any) should respond to the given message.
- * Implements the spec's scoring + cooldown + top-2 selection.
+ * Decide which characters (if any) should respond. Pure explicit-summon
+ * model: union of @mentioned characters and the reply-target character.
+ * Order is deterministic by character.name so repeated runs produce the
+ * same responder order for the same input.
  */
 function pickResponders(
-  newMessageContent: string,
+  mentionTokens: readonly string[],
+  parentCharacterId: string | null,
   characters: readonly Character[],
-  recentAuthors: readonly string[], // character IDs who appear in the last N messages
-): Candidate[] {
-  const cooldown = new Set(recentAuthors);
-  const candidates: Candidate[] = [];
+): Character[] {
+  const chosen = new Map<string, Character>();
 
+  // (1) @mention matches against character slug (name) or displayName.
   for (const c of characters) {
-    // (a) active in "chat" module
-    if (!c.activeModules.includes("chat")) continue;
     if (!c.active) continue;
-
-    // (d) cooldown — character sent in last N messages.
-    // Hoisted ahead of steps (b)/(c)/(f) so we don't waste entropy rolling
-    // against probabilities we'll immediately discard.
-    if (cooldown.has(c.id)) continue;
-
-    // (c): name mention — WORD-BOUNDARY match so short names ("ron") don't
-    // false-positive on "around", "front", "iron", etc.
-    const nameMention =
-      mentionsWord(newMessageContent, c.name) ||
-      mentionsWord(newMessageContent, c.displayName);
-    // (b): trigger keyword — substring match is fine (users often write
-    // fragments like "qb" or emoji/joke tokens that aren't whole words).
-    const keywordMatch = containsAny(newMessageContent, c.triggerKeywords);
-
-    let probability: number;
-    if (nameMention) {
-      probability = NAME_MENTION_PROBABILITY;
-    } else if (keywordMatch) {
-      probability = KEYWORD_PROBABILITY;
-    } else {
-      probability = c.responseProbability;
-    }
-
-    // (f) roll
-    if (Math.random() < probability) {
-      candidates.push({ character: c, probability });
+    const slugHit = mentionTokens.includes(c.name.toLowerCase());
+    // displayName may contain spaces/quotes — compare a compact form
+    // (lowercased, non-word chars stripped) and also the first word.
+    const displayCompact = c.displayName
+      .toLowerCase()
+      .replace(/[^a-z0-9-]/g, "");
+    const firstWord = c.displayName.toLowerCase().split(/\s+/)[0] ?? "";
+    const displayHit =
+      mentionTokens.includes(displayCompact) ||
+      mentionTokens.includes(firstWord);
+    if (slugHit || displayHit) {
+      chosen.set(c.id, c);
     }
   }
 
-  // (4) top MAX_RESPONDERS by probability, stable by character.name for determinism
-  return candidates
-    .sort((a, b) => {
-      if (b.probability !== a.probability) return b.probability - a.probability;
-      return a.character.name.localeCompare(b.character.name);
-    })
+  // (2) reply-to a character message → that character is eligible.
+  if (parentCharacterId) {
+    const parent = characters.find(
+      (c) => c.id === parentCharacterId && c.active,
+    );
+    if (parent) {
+      chosen.set(parent.id, parent);
+    }
+  }
+
+  // Stable order by name, capped at MAX_RESPONDERS.
+  return [...chosen.values()]
+    .sort((a, b) => a.name.localeCompare(b.name))
     .slice(0, MAX_RESPONDERS);
 }
 
 // --- Rate limit handling --------------------------------------------------
 
 function isRateLimitError(err: unknown): boolean {
-  // Prefer the SDK's typed instanceof check — minification and subclassing
-  // make string-based `.name` checks fragile.
   return err instanceof Anthropic.APIError && err.status === 429;
 }
 
@@ -163,6 +154,13 @@ export async function runOrchestrator(messageId: string): Promise<void> {
       include: {
         user: { select: { id: true, displayName: true } },
         character: { select: { id: true, displayName: true } },
+        parent: {
+          select: {
+            id: true,
+            authorType: true,
+            characterId: true,
+          },
+        },
       },
     });
     if (!newMessage) {
@@ -170,13 +168,38 @@ export async function runOrchestrator(messageId: string): Promise<void> {
       return;
     }
     if (newMessage.module !== "chat") return;
-    // Characters CAN trigger the orchestrator — used by the TASK 09 draft
-    // flow to let Billy/Andreea react to Joey's picks. No infinite-loop
-    // risk because runOrchestrator is only called from explicit API routes
-    // (POST /api/messages, POST /api/draft/pick), never self-invoked. The
-    // cooldown check below excludes the character who just posted.
 
-    // Pull the last N messages — used for both cooldown and context.
+    // Resolve the explicit summon gates.
+    const mentionTokens = extractMentionTokens(newMessage.content);
+    const parentCharacterId =
+      newMessage.parent?.authorType === "CHARACTER" &&
+      newMessage.parent.characterId
+        ? newMessage.parent.characterId
+        : null;
+
+    if (mentionTokens.length === 0 && !parentCharacterId) {
+      // No explicit summon. Silence.
+      return;
+    }
+
+    const characters = await prisma.character.findMany({
+      where: { active: true },
+    });
+
+    const responders = pickResponders(
+      mentionTokens,
+      parentCharacterId,
+      characters,
+    );
+
+    if (responders.length === 0) {
+      console.log(
+        `[orchestrator] mention gate matched no known character for message ${messageId}: tokens=[${mentionTokens.join(",")}]`,
+      );
+      return;
+    }
+
+    // Pull the last N messages for prompt context.
     const recent = await prisma.message.findMany({
       where: { module: "chat" },
       orderBy: { createdAt: "desc" },
@@ -187,31 +210,7 @@ export async function runOrchestrator(messageId: string): Promise<void> {
       },
     });
 
-    // Cooldown list: character IDs in the most recent N messages.
-    const cooldownCharacters = recent
-      .slice(0, COOLDOWN_MESSAGES)
-      .map((m) => m.character?.id)
-      .filter((id): id is string => Boolean(id));
-
-    const characters = await prisma.character.findMany({
-      where: { active: true },
-    });
-
-    const responders = pickResponders(
-      newMessage.content,
-      characters,
-      cooldownCharacters,
-    );
-
-    if (responders.length === 0) {
-      console.log(
-        `[orchestrator] no responders for message ${messageId} (content="${newMessage.content.slice(0, 60)}")`,
-      );
-      return;
-    }
-
-    // Build transcript context for the prompt. Reverse to oldest-first and
-    // drop the new message itself (it goes in separately as "newLine").
+    // Oldest-first, drop the new message (passed separately as newLine).
     const contextLines: ChatContextLine[] = recent
       .slice()
       .reverse()
@@ -228,12 +227,11 @@ export async function runOrchestrator(messageId: string): Promise<void> {
 
     console.log(
       `[orchestrator] ${responders.length} responder(s) for message ${messageId}: ${responders
-        .map((r) => `${r.character.name}@${r.probability.toFixed(2)}`)
+        .map((c) => c.name)
         .join(", ")}`,
     );
 
-    for (const [i, responder] of responders.entries()) {
-      const { character } = responder;
+    for (const [i, character] of responders.entries()) {
       try {
         const text = await generateWithRetry(character, contextLines, newLine);
         if (!text) {
@@ -249,6 +247,11 @@ export async function runOrchestrator(messageId: string): Promise<void> {
             authorType: "CHARACTER",
             characterId: character.id,
             module: "chat",
+            // Thread the character reply under the same parent when the
+            // user was replying-to-character; otherwise leave unlinked.
+            parentId: parentCharacterId
+              ? newMessage.parent?.id ?? null
+              : null,
           },
         });
         console.log(
@@ -259,17 +262,13 @@ export async function runOrchestrator(messageId: string): Promise<void> {
           `[orchestrator] ${character.name} failed to respond:`,
           err,
         );
-        // continue to next responder — never let one failure block others
       }
 
-      // Delay before next responder (skip after the last one).
       if (i < responders.length - 1) {
         await sleep(randomDelay());
       }
     }
   } catch (err) {
-    // Top-level catch — the orchestrator is fire-and-forget from the API
-    // route, but we still don't want an unhandled rejection in the server.
     console.error("[orchestrator] top-level failure:", err);
   }
 }
