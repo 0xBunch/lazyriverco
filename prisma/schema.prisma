@@ -8,19 +8,21 @@ generator client {
 }
 
 model User {
-  id          String   @id @default(uuid())
-  name        String   @unique
-  displayName String
-  email       String?  @unique
-  avatarUrl   String?
-  role        Role     @default(MEMBER)
-  createdAt   DateTime @default(now())
+  id           String   @id @default(uuid())
+  name         String   @unique
+  displayName  String
+  email        String?  @unique
+  avatarUrl    String?
+  role         Role     @default(MEMBER)
+  passwordHash String?
+  sessionEpoch Int      @default(0)
+  createdAt    DateTime @default(now())
 
-  messages    Message[]
-  picks       Pick[]
-  votes       Vote[]
-  rsvps       RSVP[]
-  media       Media[]
+  messages     Message[]
+  picks        Pick[]
+  votes        Vote[]
+  rsvps        RSVP[]
+  media        Media[]
 }
 
 enum Role {

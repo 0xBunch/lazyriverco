@@ -8,20 +8,83 @@
 //                                    (Roster + LineupDecision cascade via schema).
 //                                    Gated behind RESEED_OK=true env var.
 
+import bcrypt from "bcryptjs";
 import { Prisma, PrismaClient, Role } from "@prisma/client";
 
 const prisma = new PrismaClient();
 const SEASON = Number(process.env.SEED_SEASON ?? 2026);
+const BCRYPT_ROUNDS = 12;
 
-const USERS: Prisma.UserCreateInput[] = [
-  { name: "KB", displayName: "KB", role: Role.ADMIN },
-  { name: "Joey Fan 1", displayName: "Joey Fan 1", role: Role.MEMBER },
-  { name: "Joey Fan 2", displayName: "Joey Fan 2", role: Role.MEMBER },
-  { name: "Joey Fan 3", displayName: "Joey Fan 3", role: Role.MEMBER },
-  { name: "Joey Fan 4", displayName: "Joey Fan 4", role: Role.MEMBER },
-  { name: "Joey Fan 5", displayName: "Joey Fan 5", role: Role.MEMBER },
-  { name: "Joey Fan 6", displayName: "Joey Fan 6", role: Role.MEMBER },
-];
+const USER_TEMPLATES = [
+  { name: "choobs", displayName: "Choobs", role: Role.ADMIN },
+  { name: "bismarck", displayName: "Bismarck", role: Role.MEMBER },
+  { name: "chief", displayName: "Chief", role: Role.MEMBER },
+  { name: "blackie", displayName: "Blackie", role: Role.MEMBER },
+  { name: "ron", displayName: "Ron", role: Role.MEMBER },
+  { name: "mango", displayName: "Mango", role: Role.MEMBER },
+  { name: "maverick", displayName: "Maverick", role: Role.MEMBER },
+] as const;
+
+function loadCredentials(): Map<string, string> {
+  const raw = process.env.SEED_CREDENTIALS;
+  if (!raw) {
+    throw new Error(
+      "SEED_CREDENTIALS env var is not set. Add it to .env.local as a JSON array of { name, password } for the 7 seeded users before running the seed.",
+    );
+  }
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(raw);
+  } catch (e) {
+    throw new Error(
+      `SEED_CREDENTIALS is not valid JSON: ${(e as Error).message}`,
+    );
+  }
+  if (!Array.isArray(parsed)) {
+    throw new Error("SEED_CREDENTIALS must be a JSON array");
+  }
+  const map = new Map<string, string>();
+  for (const entry of parsed) {
+    if (
+      typeof entry !== "object" ||
+      entry === null ||
+      typeof (entry as { name?: unknown }).name !== "string" ||
+      typeof (entry as { password?: unknown }).password !== "string"
+    ) {
+      throw new Error(
+        "SEED_CREDENTIALS entries must be { name: string, password: string }",
+      );
+    }
+    const { name, password } = entry as { name: string; password: string };
+    map.set(name, password);
+  }
+  for (const tpl of USER_TEMPLATES) {
+    if (!map.has(tpl.name)) {
+      throw new Error(`SEED_CREDENTIALS is missing an entry for "${tpl.name}"`);
+    }
+  }
+  return map;
+}
+
+async function buildUsers(): Promise<Prisma.UserCreateInput[]> {
+  const creds = loadCredentials();
+  const users: Prisma.UserCreateInput[] = [];
+  // Sequential loop, not Promise.all: bcrypt.hash is CPU-bound so parallel
+  // hashing gives no wall-clock benefit and worsens stack traces on failure.
+  for (const tpl of USER_TEMPLATES) {
+    const password = creds.get(tpl.name);
+    if (!password) {
+      throw new Error(`Missing password for "${tpl.name}"`);
+    }
+    users.push({
+      name: tpl.name,
+      displayName: tpl.displayName,
+      role: tpl.role,
+      passwordHash: await bcrypt.hash(password, BCRYPT_ROUNDS),
+    });
+  }
+  return users;
+}
 
 const CHARACTERS: Prisma.CharacterCreateInput[] = [
   {
@@ -104,11 +167,14 @@ const PLAYER_POOL: PlayerSeed[] = [
 ];
 
 async function seedIdempotent() {
+  const users = await buildUsers();
   await prisma.$transaction(
     async (tx) => {
-      for (const u of USERS) {
+      for (const u of users) {
         await tx.user.upsert({
           where: { name: u.name },
+          // passwordHash intentionally omitted from update — write-on-create only,
+          // so a user who rotates their password doesn't get reset on seed re-run.
           update: { displayName: u.displayName, role: u.role },
           create: u,
         });
@@ -154,6 +220,7 @@ async function seedReset() {
     );
   }
 
+  const users = await buildUsers();
   await prisma.$transaction(
     async (tx) => {
       // Order: children first where cascade doesn't cover them.
@@ -163,7 +230,7 @@ async function seedReset() {
       await tx.character.deleteMany({});
       await tx.user.deleteMany({});
 
-      for (const u of USERS) {
+      for (const u of users) {
         await tx.user.create({ data: u });
       }
       for (const c of CHARACTERS) {
