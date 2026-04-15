@@ -1,0 +1,23 @@
+# Railway deploy config.
+#
+# Why this file exists: without preDeployCommand running `prisma migrate deploy`,
+# Railway ships the build but never applies pending migrations before `next start`
+# takes traffic. That's the exact failure mode from lessons.md 2026-04-10 — a
+# regenerated Prisma client SELECTs columns that don't exist yet and every
+# authenticated request throws P2022.
+#
+# Migration authoring workflow (per lessons.md):
+#   1. `npm run db:migrate -- --create-only --name <slug>` locally
+#   2. Commit the generated SQL in prisma/migrations/
+#   3. Push; Railway runs `prisma migrate deploy` here before the app starts
+#
+# Nixpacks' Next.js provider auto-runs `prisma generate` during build, so
+# @prisma/client is current at runtime. This file only needs to handle the
+# migrate step.
+
+[build]
+builder = "NIXPACKS"
+
+[deploy]
+preDeployCommand = "npx prisma migrate deploy"
+startCommand = "npm run start"
