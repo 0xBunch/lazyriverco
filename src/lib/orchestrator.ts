@@ -379,3 +379,34 @@ export async function runOrchestrator(messageId: string): Promise<void> {
     console.error("[orchestrator] top-level failure:", err);
   }
 }
+
+// --- Conversation orchestrator (Task 3 stub → Task 4 implementation) ------
+
+/**
+ * Per-conversation orchestrator for the personal-chat surface.
+ *
+ * Task 3 ships this stub so the conversation API routes can fire-and-
+ * forget it on every user POST without waiting on Task 4. Today it only
+ * logs. Task 4 replaces the body with the real flow:
+ *
+ *   1. prisma.message.findUnique with the conversation + character include
+ *   2. loadMessageContext({ where: { conversationId }, excludeMessageId })
+ *   3. buildRichContext({ ..., includeMedia: true })
+ *   4. generateCharacterResponse (existing Anthropic path, unchanged)
+ *   5. parseSentinel(reply, knownCharacterNames) — server-side only
+ *   6. createCharacterReply({ conversationId, ... }) — signature extends
+ *      in Task 4 to accept conversationId
+ *   7. Update Conversation.lastMessageAt atomically with the reply write
+ *
+ * Phase 1 constraint: one agent per thread, no @mention picking, no
+ * stagger. That's why this doesn't share runOrchestrator's responder
+ * loop — a per-conversation thread has exactly one character, set at
+ * Conversation.characterId.
+ */
+export async function runConversationOrchestrator(
+  messageId: string,
+): Promise<void> {
+  console.log(
+    `[conversation-orchestrator] stub — would run for message ${messageId}. Task 4 fills this in.`,
+  );
+}

@@ -1,9 +1,7 @@
-// Per-user sliding-window rate limiter backed by the RateLimitHit table
-// (added in Task 1 of the lazy-river phase 1 refactor). Task 2 fills in
-// the real Prisma query against the regenerated client. The feature
-// flag stays FALSE here — Task 3 flips it once the migration has
-// actually been applied in production, to avoid a window where this
-// code queries a table that doesn't exist yet.
+// Per-user sliding-window rate limiter backed by the RateLimitHit table.
+// Task 2 wrote the real Prisma query; Task 3 flips RATE_LIMIT_ENABLED
+// to true (below) now that the migration has been applied in production
+// and the conversation API routes are about to start calling it.
 //
 // Design: DB-backed rolling windows (per-minute + per-day) with one row
 // per hit. Phase-1 scale (< 10 users) makes row count trivial; periodic
@@ -37,12 +35,14 @@ export class RateLimitError extends Error {
   }
 }
 
-// Feature flag. Stays `false` in Task 2 — the real implementation below
-// is complete and compiles against Task 1's regenerated Prisma client,
-// but we don't turn it on until Task 3 after the migration has been
-// applied in production (see header note). Typed as plain `boolean` so
-// TypeScript doesn't narrow the post-flag branch as unreachable code.
-const RATE_LIMIT_ENABLED: boolean = false;
+// Feature flag. Flipped to `true` in Task 3 now that the RateLimitHit
+// table is live in production. Flip back to false in an emergency if
+// the counter ever starts throwing on legitimate traffic — but the
+// phase-1 caps (10 conversation.create/min + 30 conversation.message/min
+// per user) are generous enough for the crew that this shouldn't fire
+// under normal use. Typed as plain `boolean` so TypeScript doesn't
+// narrow the guarded branch as unreachable code.
+const RATE_LIMIT_ENABLED: boolean = true;
 
 const ONE_MINUTE_MS = 60 * 1000;
 const ONE_DAY_MS = 24 * 60 * 60 * 1000;

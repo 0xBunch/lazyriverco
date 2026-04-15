@@ -77,6 +77,57 @@ export const AUTHOR_SELECT = {
  *   that default because its orchestrator doesn't emit sentinels. The
  *   new /api/conversations routes pass their active-character list.
  */
+// -------------------------------------------------------------------
+// Conversation DTOs — phase 1 personal-chat surface.
+// -------------------------------------------------------------------
+
+/** Narrow character shape for sidebar + picker + conversation header. */
+export type ConversationCharacterDTO = {
+  id: string;
+  name: string;
+  displayName: string;
+  avatarUrl: string | null;
+};
+
+/** One entry in the sidebar "recent conversations" list. */
+export type ConversationListItem = {
+  id: string;
+  title: string | null;
+  character: ConversationCharacterDTO;
+  lastMessageAt: string; // ISO
+  createdAt: string; // ISO
+};
+
+export type ListConversationsResponse = {
+  conversations: ConversationListItem[];
+};
+
+/** Full detail — conversation metadata + its ordered message list. */
+export type ConversationDetailDTO = {
+  id: string;
+  title: string | null;
+  character: ConversationCharacterDTO;
+  messages: ChatMessageDTO[];
+  createdAt: string; // ISO
+  lastMessageAt: string; // ISO
+};
+
+export type GetConversationResponse =
+  | { conversation: ConversationDetailDTO }
+  | { error: string };
+
+/**
+ * POST /api/conversations returns both the newly-created list item (so
+ * the sidebar can append it immediately) and the first message DTO (so
+ * the thread page can render it without a second round trip).
+ */
+export type CreateConversationResponse =
+  | {
+      conversation: ConversationListItem;
+      message: ChatMessageDTO;
+    }
+  | { error: string };
+
 export function toDTO(
   m: MessageWithAuthors,
   characterAllowlist: readonly string[] = [],
