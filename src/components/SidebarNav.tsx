@@ -3,14 +3,18 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { cn } from "@/lib/utils";
-import { NAV_ITEMS } from "@/lib/nav";
+import type { NavItem } from "@/lib/nav";
 
-export function SidebarNav() {
+type SidebarNavProps = {
+  items: readonly NavItem[];
+};
+
+export function SidebarNav({ items }: SidebarNavProps) {
   const pathname = usePathname();
 
   return (
     <nav aria-label="Portal navigation" className="flex-1 space-y-1 px-3 py-4">
-      {NAV_ITEMS.map((item) => {
+      {items.map((item) => {
         const active =
           pathname === item.href || pathname.startsWith(`${item.href}/`);
         return (

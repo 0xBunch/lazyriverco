@@ -16,4 +16,12 @@ export const NAV_ITEMS = [
   { href: "/calendar", icon: "📅", label: "Calendar" },
 ] as const satisfies readonly NavItem[];
 
+/// Admin-only — appended to NAV_ITEMS when the current user has role=ADMIN.
+/// Server-side filtering in Sidebar.tsx keeps this off member screens.
+export const ADMIN_NAV_ITEM: NavItem = {
+  href: "/admin",
+  icon: "🛠️",
+  label: "Commissioner",
+};
+
 export type NavHref = (typeof NAV_ITEMS)[number]["href"];

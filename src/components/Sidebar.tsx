@@ -1,5 +1,6 @@
 import { getCurrentUser } from "@/lib/auth";
 import { SidebarNav } from "@/components/SidebarNav";
+import { ADMIN_NAV_ITEM, NAV_ITEMS, type NavItem } from "@/lib/nav";
 
 function initials(displayName: string): string {
   const [first, second] = displayName.trim().split(/\s+/).filter(Boolean);
@@ -10,6 +11,11 @@ function initials(displayName: string): string {
 
 export async function Sidebar() {
   const user = await getCurrentUser();
+
+  // Admins see one extra entry — Commissioner Room. Filtered server-side
+  // so the link never enters the bundle for non-admin users.
+  const navItems: readonly NavItem[] =
+    user?.role === "ADMIN" ? [...NAV_ITEMS, ADMIN_NAV_ITEM] : NAV_ITEMS;
 
   return (
     <div className="flex h-full flex-col">
@@ -24,7 +30,7 @@ export async function Sidebar() {
       </div>
 
       {/* Nav */}
-      <SidebarNav />
+      <SidebarNav items={navItems} />
 
       {/* User footer */}
       {user ? (

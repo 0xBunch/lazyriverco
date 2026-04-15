@@ -46,3 +46,16 @@ export async function requireUser(): Promise<SafeUser> {
   }
   return user;
 }
+
+/**
+ * Server-component / server-action gate: throws unless the current user
+ * is signed in AND has role=ADMIN. Use at the top of every /admin route
+ * and every admin server action so the check is enforced in one place.
+ */
+export async function requireAdmin(): Promise<SafeUser> {
+  const user = await requireUser();
+  if (user.role !== "ADMIN") {
+    throw new Error("Forbidden — admin only");
+  }
+  return user;
+}
