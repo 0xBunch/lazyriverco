@@ -7,6 +7,7 @@ import {
   CHAT_POLL_INTERVAL_MS,
   type ChatMessageDTO,
   type MessagesResponse,
+  type PostMessageResponse,
 } from "@/lib/chat";
 
 type ChatFeedProps = {
@@ -110,8 +111,23 @@ export function ChatFeed({ currentUserId }: ChatFeedProps) {
   }, [messages]);
 
   async function handleSubmit(content: string) {
-    // Task 05: UI only. Task 06 wires real POST /api/messages.
-    console.log("[chat/input]", content);
+    const res = await fetch("/api/messages", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ content }),
+    });
+    if (!res.ok) {
+      // Let the ChatInput reset itself; surfacing errors in the feed area
+      // will come in a future polish pass.
+      throw new Error(`send failed: ${res.status}`);
+    }
+    const data = (await res.json()) as PostMessageResponse;
+    if ("message" in data) {
+      // Optimistic append so the user's own message shows up immediately
+      // instead of waiting for the next poll tick. The polling cursor
+      // dedupes by id so there's no double-render.
+      appendMessages([data.message]);
+    }
   }
 
   if (messages === null) {
@@ -148,7 +164,7 @@ export function ChatFeed({ currentUserId }: ChatFeedProps) {
               const prev = i > 0 ? messages[i - 1] : undefined;
               const sameAuthor =
                 prev?.author.id === m.author.id &&
-                prev?.author.kind === m.author.kind;
+                prev?.authorType === m.authorType;
               const withinWindow =
                 prev &&
                 new Date(m.createdAt).getTime() -
@@ -156,7 +172,7 @@ export function ChatFeed({ currentUserId }: ChatFeedProps) {
                   GROUPING_WINDOW_MS;
               const showHeader = !(sameAuthor && withinWindow);
               const isMe =
-                m.author.kind === "USER" && m.author.id === currentUserId;
+                m.authorType === "USER" && m.author.id === currentUserId;
               return (
                 <ChatMessage
                   key={m.id}

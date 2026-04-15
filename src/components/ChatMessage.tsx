@@ -41,7 +41,7 @@ function RelativeTime({ iso }: { iso: string }) {
 }
 
 export function ChatMessage({ message, isMe, showHeader }: ChatMessageProps) {
-  const isCharacter = message.author.kind === "CHARACTER";
+  const isCharacter = message.authorType === "CHARACTER";
 
   return (
     <div
