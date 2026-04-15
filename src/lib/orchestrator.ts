@@ -7,6 +7,7 @@ import {
 } from "@/lib/anthropic";
 import { DEFAULT_CHANNEL_ID } from "@/lib/channels";
 import { buildRichContext } from "@/lib/character-context";
+import { parseSentinel } from "@/lib/agent-sentinels";
 
 // --- Tuning constants -----------------------------------------------------
 //
@@ -25,6 +26,11 @@ const MAX_RESPONDERS = 2;
 const MIN_INTER_RESPONSE_MS = 2_000;
 const MAX_INTER_RESPONSE_MS = 8_000;
 const RATE_LIMIT_RETRY_DELAY_MS = 2_000;
+// Max chars we persist as a CHARACTER reply. The Anthropic call already
+// caps at max_tokens: 200 (~800 chars typical), so this is mainly defense-
+// in-depth against a streaming regression or runaway output — per
+// security-sentinel L4.
+const MAX_REPLY_CHARS = 8_000;
 
 // --- Helpers --------------------------------------------------------------
 
@@ -141,27 +147,51 @@ type CreateCharacterReplyOptions = {
   character: Pick<Character, "id" | "name">;
   content: string;
   /**
-   * Legacy channel write. Task 4 will extend this signature with an
-   * optional `conversationId` once the new column exists in the schema
-   * (added in Task 1). For now, channel-only.
+   * Exactly one of channelId / conversationId must be set. The DB
+   * CHECK constraint added in the phase-1 migration enforces this at
+   * write time; the runtime guard below fails fast with a clearer
+   * error message when the invariant is violated at a call site.
    */
-  channelId: string;
+  channelId?: string | null;
+  conversationId?: string | null;
   parentId?: string | null;
+  /**
+   * Optional transaction client. When provided, the message create
+   * runs inside the caller's prisma.$transaction so related writes
+   * (e.g. Conversation.lastMessageAt bump) stay atomic.
+   */
+  tx?: Prisma.TransactionClient;
 };
 
-export async function createCharacterReply({
-  character,
-  content,
-  channelId,
-  parentId = null,
-}: CreateCharacterReplyOptions): Promise<Message> {
-  return prisma.message.create({
+export async function createCharacterReply(
+  options: CreateCharacterReplyOptions,
+): Promise<Message> {
+  const {
+    character,
+    content,
+    channelId = null,
+    conversationId = null,
+    parentId = null,
+    tx,
+  } = options;
+
+  const hasChannel = channelId != null;
+  const hasConversation = conversationId != null;
+  if (hasChannel === hasConversation) {
+    throw new Error(
+      `createCharacterReply: exactly one of channelId/conversationId must be set (got channelId=${String(channelId)}, conversationId=${String(conversationId)})`,
+    );
+  }
+
+  const client = tx ?? prisma;
+  return client.message.create({
     data: {
       content,
       authorType: "CHARACTER",
       characterId: character.id,
       module: "chat",
       channelId,
+      conversationId,
       parentId,
     },
   });
@@ -380,33 +410,178 @@ export async function runOrchestrator(messageId: string): Promise<void> {
   }
 }
 
-// --- Conversation orchestrator (Task 3 stub → Task 4 implementation) ------
+// --- Conversation orchestrator -------------------------------------------
 
 /**
  * Per-conversation orchestrator for the personal-chat surface.
  *
- * Task 3 ships this stub so the conversation API routes can fire-and-
- * forget it on every user POST without waiting on Task 4. Today it only
- * logs. Task 4 replaces the body with the real flow:
+ * Fire-and-forget from POST /api/conversations and POST
+ * /api/conversations/[id]/messages. One agent per thread, fixed at
+ * Conversation.characterId — no @mention picking, no stagger, no
+ * responder loop. Shares loadMessageContext + createCharacterReply
+ * with runOrchestrator (Task 0d extraction) so prompt assembly and
+ * reply writes stay in one place.
  *
- *   1. prisma.message.findUnique with the conversation + character include
- *   2. loadMessageContext({ where: { conversationId }, excludeMessageId })
- *   3. buildRichContext({ ..., includeMedia: true })
- *   4. generateCharacterResponse (existing Anthropic path, unchanged)
- *   5. parseSentinel(reply, knownCharacterNames) — server-side only
- *   6. createCharacterReply({ conversationId, ... }) — signature extends
- *      in Task 4 to accept conversationId
- *   7. Update Conversation.lastMessageAt atomically with the reply write
- *
- * Phase 1 constraint: one agent per thread, no @mention picking, no
- * stagger. That's why this doesn't share runOrchestrator's responder
- * loop — a per-conversation thread has exactly one character, set at
- * Conversation.characterId.
+ * Security posture:
+ *   - Reply is truncated to MAX_REPLY_CHARS before persistence
+ *     (security-sentinel L4 — guards against runaway model output).
+ *   - Raw truncated content (including any <suggest-agent> tag) is
+ *     stored; toDTO strips the sentinel on every read and emits
+ *     `suggestion` on the client DTO. No separate column needed.
+ *   - A sentinel-only reply is dropped rather than writing an empty
+ *     bubble with a floating handoff CTA.
+ *   - CHARACTER-authored messages never trigger a reply (no self-loop).
  */
 export async function runConversationOrchestrator(
   messageId: string,
 ): Promise<void> {
-  console.log(
-    `[conversation-orchestrator] stub — would run for message ${messageId}. Task 4 fills this in.`,
-  );
+  try {
+    // 1. Hydrate: the triggering message, its conversation, the
+    //    conversation's character, and the triggering user for name
+    //    display in the prompt. One round trip.
+    const triggerMessage = await prisma.message.findUnique({
+      where: { id: messageId },
+      include: {
+        user: { select: { id: true, displayName: true } },
+        conversation: {
+          include: { character: true },
+        },
+      },
+    });
+
+    if (!triggerMessage) {
+      console.error(
+        `[conversation-orchestrator] message ${messageId} not found`,
+      );
+      return;
+    }
+    if (!triggerMessage.conversation) {
+      // Should never fire — this orchestrator is only called from
+      // POST /api/conversations/* routes that always set conversationId.
+      // Defense in depth: if the wrong orchestrator is fired for a
+      // channel message, drop silently rather than crashing.
+      console.error(
+        `[conversation-orchestrator] message ${messageId} has no conversationId — wrong orchestrator?`,
+      );
+      return;
+    }
+    if (triggerMessage.conversation.archivedAt) {
+      // User archived the thread between POST and this fire-and-forget
+      // tick. Drop silently; no reply to a deleted conversation.
+      return;
+    }
+    if (triggerMessage.authorType !== "USER") {
+      // Only USER messages trigger a reply — never self-loop on a
+      // CHARACTER reply we just wrote. Defense in depth against a
+      // misfired orchestrator call.
+      return;
+    }
+    if (triggerMessage.module !== "chat") return;
+
+    const { conversation } = triggerMessage;
+    const character = conversation.character;
+    if (!character.active) {
+      // Admin deactivated the character between thread start and this
+      // fire. Drop silently; the user sees their message but no reply.
+      console.warn(
+        `[conversation-orchestrator] character ${character.name} is inactive, skipping reply for message ${messageId}`,
+      );
+      return;
+    }
+
+    // 2. Pull the recent message slice via the shared helper. Filters
+    //    the triggering message out of contextLines — it's passed
+    //    separately as `newLine` below.
+    const { contextLines } = await loadMessageContext({
+      where: { conversationId: conversation.id },
+      take: CONTEXT_MESSAGES,
+      excludeMessageId: triggerMessage.id,
+    });
+
+    // 3. Rich context. Owner is the only human participant in a 1:1
+    //    personal chat, so we pass [ownerId] directly rather than
+    //    walking the transcript for participants. includeMedia: true
+    //    so the shared media bank section lands in the prompt.
+    const richContext = await buildRichContext({
+      characterId: character.id,
+      participantUserIds: [conversation.ownerId],
+      includeMedia: true,
+    });
+
+    const newLine: ChatContextLine = {
+      displayName: triggerMessage.user?.displayName ?? "?",
+      content: triggerMessage.content,
+    };
+
+    // 4. Generate the reply (existing 429 retry-once wrapper).
+    let rawReply: string;
+    try {
+      rawReply = await generateWithRetry(
+        character,
+        contextLines,
+        newLine,
+        richContext || null,
+      );
+    } catch (err) {
+      console.error(
+        `[conversation-orchestrator] ${character.name} failed to generate reply for message ${messageId}:`,
+        err,
+      );
+      return;
+    }
+
+    // 5. Defensive truncation. max_tokens already caps the model; this
+    //    is insurance against a streaming regression or a prompt-
+    //    injection-induced runaway.
+    const truncated = rawReply.slice(0, MAX_REPLY_CHARS).trim();
+    if (!truncated) {
+      console.warn(
+        `[conversation-orchestrator] ${character.name} returned empty reply, skipping`,
+      );
+      return;
+    }
+
+    // 6. Peek at the sentinel-stripped version of the reply so we
+    //    don't write an empty-bubble message when the model returns
+    //    nothing but a <suggest-agent> tag. We store the RAW truncated
+    //    content (not `visible`) below so toDTO can re-parse on every
+    //    read and emit `suggestion` to the client — stripping here
+    //    would lose the suggestion metadata on subsequent loads since
+    //    there's no dedicated column for it.
+    const activeCharacters = await prisma.character.findMany({
+      where: { active: true },
+      select: { name: true },
+    });
+    const allowlist = activeCharacters.map((c) => c.name);
+    const { cleaned: visible } = parseSentinel(truncated, allowlist);
+    if (!visible.trim()) {
+      console.warn(
+        `[conversation-orchestrator] ${character.name} returned sentinel-only reply, skipping write`,
+      );
+      return;
+    }
+
+    // 7 + 8. Persist the reply + bump Conversation.lastMessageAt
+    //    atomically so the sidebar ordering index and the thread
+    //    detail both see a consistent state. Store the raw truncated
+    //    content so toDTO can re-parse the sentinel on every read.
+    await prisma.$transaction(async (tx) => {
+      await createCharacterReply({
+        character,
+        content: truncated,
+        conversationId: conversation.id,
+        tx,
+      });
+      await tx.conversation.update({
+        where: { id: conversation.id },
+        data: { lastMessageAt: new Date() },
+      });
+    });
+
+    console.log(
+      `[conversation-orchestrator] ${character.name} replied in conversation ${conversation.id} (${truncated.length} chars)`,
+    );
+  } catch (err) {
+    console.error("[conversation-orchestrator] top-level failure:", err);
+  }
 }
