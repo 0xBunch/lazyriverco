@@ -166,6 +166,28 @@ const PLAYER_POOL: PlayerSeed[] = [
   { playerName: "Allen Robinson", position: "WR", team: "Free Agent", tagline: "Still waiting on a competent QB." },
 ];
 
+// Sample chat for TASK 05. Each entry picks its author by name; offsetMin is
+// how many minutes ago the message was "sent". Only planted when the Message
+// table is empty so re-running the seed doesn't dupe.
+type SeedMessage =
+  | { kind: "user"; name: string; content: string; offsetMin: number }
+  | { kind: "character"; name: string; content: string; offsetMin: number };
+
+const SAMPLE_MESSAGES: SeedMessage[] = [
+  { kind: "user", name: "choobs", content: "draft this weekend, who's ready", offsetMin: 65 },
+  { kind: "character", name: "joey-barfdog", content: "brothers, i've done the research. trust the process... year of the barfdog", offsetMin: 64 },
+  { kind: "user", name: "bismarck", content: "joey you finished 9th last year", offsetMin: 60 },
+  { kind: "character", name: "joey-barfdog", content: "bad luck, not bad management", offsetMin: 59 },
+  { kind: "user", name: "maverick", content: "commissioner here. draft order finalized tuesday.", offsetMin: 42 },
+  { kind: "character", name: "billy-sarracino", content: "ok first of all that's not even what happened 😤", offsetMin: 28 },
+  { kind: "user", name: "chief", content: "billy nobody said anything", offsetMin: 25 },
+  { kind: "character", name: "billy-sarracino", content: "look just forget it", offsetMin: 24 },
+  { kind: "user", name: "mango", content: "andreea you coming to the draft party?", offsetMin: 12 },
+  { kind: "character", name: "andreea-illiescu", content: "darling, sofia and i were in saint-tropez last week. miami is... cute.", offsetMin: 11 },
+  { kind: "user", name: "ron", content: "lmao", offsetMin: 8 },
+  { kind: "user", name: "blackie", content: "we need a QB tier list before tuesday", offsetMin: 3 },
+];
+
 async function seedIdempotent() {
   const users = await buildUsers();
   await prisma.$transaction(
@@ -208,9 +230,54 @@ async function seedIdempotent() {
           create: { ...p, season: SEASON },
         });
       }
+
+      // Sample chat messages — only if the table is empty, so re-runs don't dupe.
+      const existing = await tx.message.count();
+      if (existing === 0) {
+        await seedMessages(tx);
+      }
     },
     { timeout: 30_000 },
   );
+}
+
+async function seedMessages(tx: Prisma.TransactionClient) {
+  const [userRows, characterRows] = await Promise.all([
+    tx.user.findMany({ select: { id: true, name: true } }),
+    tx.character.findMany({ select: { id: true, name: true } }),
+  ]);
+  const userByName = new Map(userRows.map((u) => [u.name, u.id]));
+  const characterByName = new Map(characterRows.map((c) => [c.name, c.id]));
+
+  const now = Date.now();
+  for (const msg of SAMPLE_MESSAGES) {
+    const createdAt = new Date(now - msg.offsetMin * 60_000);
+    if (msg.kind === "user") {
+      const userId = userByName.get(msg.name);
+      if (!userId) throw new Error(`Seed message: unknown user "${msg.name}"`);
+      await tx.message.create({
+        data: {
+          content: msg.content,
+          authorType: "USER",
+          userId,
+          createdAt,
+        },
+      });
+    } else {
+      const characterId = characterByName.get(msg.name);
+      if (!characterId) {
+        throw new Error(`Seed message: unknown character "${msg.name}"`);
+      }
+      await tx.message.create({
+        data: {
+          content: msg.content,
+          authorType: "CHARACTER",
+          characterId,
+          createdAt,
+        },
+      });
+    }
+  }
 }
 
 async function seedReset() {
@@ -239,6 +306,7 @@ async function seedReset() {
       for (const p of PLAYER_POOL) {
         await tx.playerPool.create({ data: { ...p, season: SEASON } });
       }
+      await seedMessages(tx);
     },
     { timeout: 30_000 },
   );
@@ -254,13 +322,15 @@ async function main() {
     await seedIdempotent();
   }
 
-  const [userCount, characterCount, playerPoolCount] = await Promise.all([
-    prisma.user.count(),
-    prisma.character.count(),
-    prisma.playerPool.count({ where: { season: SEASON } }),
-  ]);
+  const [userCount, characterCount, playerPoolCount, messageCount] =
+    await Promise.all([
+      prisma.user.count(),
+      prisma.character.count(),
+      prisma.playerPool.count({ where: { season: SEASON } }),
+      prisma.message.count(),
+    ]);
   console.log(
-    `Seed complete. users=${userCount} characters=${characterCount} playerPool(season=${SEASON})=${playerPoolCount}`,
+    `Seed complete. users=${userCount} characters=${characterCount} playerPool(season=${SEASON})=${playerPoolCount} messages=${messageCount}`,
   );
 }
 
