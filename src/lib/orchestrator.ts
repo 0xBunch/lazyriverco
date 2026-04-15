@@ -1,5 +1,5 @@
 import Anthropic from "@anthropic-ai/sdk";
-import type { Character, Message } from "@prisma/client";
+import type { Character, Message, Prisma } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import {
   generateCharacterResponse,
@@ -65,6 +65,106 @@ function authorDisplayName(m: MessageAuthor): string {
   if (m.authorType === "USER" && m.user) return m.user.displayName;
   if (m.authorType === "CHARACTER" && m.character) return m.character.displayName;
   return "?";
+}
+
+// --- Shared context + reply helpers ---------------------------------------
+//
+// Extracted in Task 0d so the new per-conversation orchestrator (Task 4) can
+// reuse them. Neither helper decides WHO responds — that stays in
+// runOrchestrator's mention/reply gate. These just load the recent slice
+// and write a reply, parametrized on where/channelId/conversationId.
+
+type LoadMessageContextOptions = {
+  /**
+   * Where clause passed straight to prisma.message.findMany. Current call
+   * sites pass `{channelId: DEFAULT_CHANNEL_ID}` (legacy); Task 4 will pass
+   * `{conversationId}` (new).
+   */
+  where: Prisma.MessageWhereInput;
+  /** Max messages to fetch. Defaults to CONTEXT_MESSAGES (15). */
+  take?: number;
+  /**
+   * Optional message ID to exclude from contextLines. The triggering
+   * message is passed to the LLM separately as `newLine` and shouldn't
+   * appear twice in the prompt.
+   */
+  excludeMessageId?: string;
+};
+
+type LoadMessageContextResult = {
+  /** Oldest-first context lines ready for the LLM prompt. */
+  contextLines: ChatContextLine[];
+  /**
+   * De-duped human user IDs appearing in the fetched slice. Fed to
+   * buildRichContext so member facts + relationship narratives are scoped
+   * to the people actually in the conversation.
+   */
+  participantUserIds: string[];
+};
+
+export async function loadMessageContext({
+  where,
+  take = CONTEXT_MESSAGES,
+  excludeMessageId,
+}: LoadMessageContextOptions): Promise<LoadMessageContextResult> {
+  const recent = await prisma.message.findMany({
+    where,
+    orderBy: { createdAt: "desc" },
+    take,
+    include: {
+      user: { select: { id: true, displayName: true } },
+      character: { select: { id: true, displayName: true } },
+    },
+  });
+
+  const contextLines: ChatContextLine[] = recent
+    .slice()
+    .reverse()
+    .filter((m) => m.id !== excludeMessageId)
+    .map((m) => ({
+      displayName: authorDisplayName(m),
+      content: m.content,
+    }));
+
+  // Walk the full slice (not the filtered contextLines) so the triggering
+  // message's author still ends up in the set — they're the person the
+  // agent is about to reply to.
+  const participantUserIds = new Set<string>();
+  for (const m of recent) {
+    if (m.user) participantUserIds.add(m.user.id);
+  }
+
+  return { contextLines, participantUserIds: [...participantUserIds] };
+}
+
+type CreateCharacterReplyOptions = {
+  character: Pick<Character, "id" | "name">;
+  content: string;
+  /**
+   * Legacy channel write. Task 4 will extend this signature with an
+   * optional `conversationId` once the new column exists in the schema
+   * (added in Task 1). For now, channel-only.
+   */
+  channelId: string;
+  parentId?: string | null;
+};
+
+export async function createCharacterReply({
+  character,
+  content,
+  channelId,
+  parentId = null,
+}: CreateCharacterReplyOptions): Promise<Message> {
+  return prisma.message.create({
+    data: {
+      content,
+      authorType: "CHARACTER",
+      characterId: character.id,
+      module: "chat",
+      channelId,
+      parentId,
+    },
+  });
 }
 
 /**
@@ -152,6 +252,14 @@ async function generateWithRetry(
 
 // --- Entry point ----------------------------------------------------------
 
+/**
+ * @deprecated Legacy group-channel orchestrator. Retire when the Channel
+ * surface has zero new writes for 30 days, or when the #mensleague admin
+ * UI is removed, whichever first. New per-conversation code uses
+ * runConversationOrchestrator (added in Task 4 of the lazy-river phase 1
+ * refactor). Kept alive here so existing #mensleague messages still get
+ * agent replies via the legacy /api/messages path.
+ */
 export async function runOrchestrator(messageId: string): Promise<void> {
   try {
     const newMessage = await prisma.message.findUnique({
@@ -204,41 +312,16 @@ export async function runOrchestrator(messageId: string): Promise<void> {
       return;
     }
 
-    // Pull the last N messages for prompt context.
-    const recent = await prisma.message.findMany({
+    // Pull context via the shared helper extracted in Task 0d.
+    const { contextLines, participantUserIds } = await loadMessageContext({
       where: { channelId: DEFAULT_CHANNEL_ID },
-      orderBy: { createdAt: "desc" },
-      take: CONTEXT_MESSAGES,
-      include: {
-        user: { select: { id: true, displayName: true } },
-        character: { select: { id: true, displayName: true } },
-      },
+      excludeMessageId: newMessage.id,
     });
-
-    // Oldest-first, drop the new message (passed separately as newLine).
-    const contextLines: ChatContextLine[] = recent
-      .slice()
-      .reverse()
-      .filter((m) => m.id !== newMessage.id)
-      .map((m) => ({
-        displayName: authorDisplayName(m),
-        content: m.content,
-      }));
 
     const newLine: ChatContextLine = {
       displayName: authorDisplayName(newMessage),
       content: newMessage.content,
     };
-
-    // The set of human users the agent will see in this conversation.
-    // Includes the message's own author plus everyone who appeared in the
-    // recent transcript. Used to fetch member facts + relationship
-    // narratives in buildRichContext below.
-    const participantUserIds = new Set<string>();
-    if (newMessage.user) participantUserIds.add(newMessage.user.id);
-    for (const m of recent) {
-      if (m.user) participantUserIds.add(m.user.id);
-    }
 
     console.log(
       `[orchestrator] ${responders.length} responder(s) for message ${messageId}: ${responders
@@ -252,7 +335,7 @@ export async function runOrchestrator(messageId: string): Promise<void> {
         // relationship narrative is filtered to *this* character's takes.
         const richContext = await buildRichContext({
           characterId: character.id,
-          participantUserIds: [...participantUserIds],
+          participantUserIds,
         });
         const text = await generateWithRetry(
           character,
@@ -267,19 +350,13 @@ export async function runOrchestrator(messageId: string): Promise<void> {
           continue;
         }
 
-        await prisma.message.create({
-          data: {
-            content: text,
-            authorType: "CHARACTER",
-            characterId: character.id,
-            module: "chat",
-            channelId: DEFAULT_CHANNEL_ID,
-            // Thread the character reply under the same parent when the
-            // user was replying-to-character; otherwise leave unlinked.
-            parentId: parentCharacterId
-              ? newMessage.parent?.id ?? null
-              : null,
-          },
+        await createCharacterReply({
+          character,
+          content: text,
+          channelId: DEFAULT_CHANNEL_ID,
+          // Thread the character reply under the same parent when the
+          // user was replying-to-character; otherwise leave unlinked.
+          parentId: parentCharacterId ? newMessage.parent?.id ?? null : null,
         });
         console.log(
           `[orchestrator] ${character.name} responded (${text.length} chars)`,
