@@ -5,6 +5,7 @@ import {
   generateCharacterResponse,
   type ChatContextLine,
 } from "@/lib/anthropic";
+import { DEFAULT_CHANNEL_ID } from "@/lib/channels";
 
 // --- Tuning constants -----------------------------------------------------
 //
@@ -201,7 +202,7 @@ export async function runOrchestrator(messageId: string): Promise<void> {
 
     // Pull the last N messages for prompt context.
     const recent = await prisma.message.findMany({
-      where: { module: "chat" },
+      where: { channelId: DEFAULT_CHANNEL_ID },
       orderBy: { createdAt: "desc" },
       take: CONTEXT_MESSAGES,
       include: {
@@ -247,6 +248,7 @@ export async function runOrchestrator(messageId: string): Promise<void> {
             authorType: "CHARACTER",
             characterId: character.id,
             module: "chat",
+            channelId: DEFAULT_CHANNEL_ID,
             // Thread the character reply under the same parent when the
             // user was replying-to-character; otherwise leave unlinked.
             parentId: parentCharacterId

@@ -3,6 +3,7 @@ import { prisma } from "@/lib/prisma";
 import { getCurrentUser } from "@/lib/auth";
 import { generateDraftCommentary } from "@/lib/anthropic";
 import { runOrchestrator } from "@/lib/orchestrator";
+import { DEFAULT_CHANNEL_ID } from "@/lib/channels";
 import {
   CURRENT_SEASON,
   DRAFTING_CHARACTER_NAME,
@@ -102,6 +103,7 @@ export async function POST(): Promise<NextResponse<PickResponse>> {
         authorType: "CHARACTER",
         characterId: character.id,
         module: "chat",
+        channelId: DEFAULT_CHANNEL_ID,
       },
     });
 

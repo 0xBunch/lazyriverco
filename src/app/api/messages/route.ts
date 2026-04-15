@@ -4,6 +4,7 @@ import type { Message } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import { getCurrentUser } from "@/lib/auth";
 import { runOrchestrator } from "@/lib/orchestrator";
+import { DEFAULT_CHANNEL_ID } from "@/lib/channels";
 import {
   CHAT_PAGE_SIZE,
   type ChatMessageDTO,
@@ -78,7 +79,7 @@ export async function GET(req: NextRequest) {
 
   const rows = await prisma.message.findMany({
     where: {
-      module: "chat",
+      channelId: DEFAULT_CHANNEL_ID,
       // `gte` (not `gt`) + client-side dedupe-by-id on the feed side avoids
       // losing messages that share a millisecond timestamp under bursty inserts.
       ...(after ? { createdAt: { gte: after } } : {}),
@@ -154,6 +155,7 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
       authorType: "USER",
       userId: user.id,
       module: "chat",
+      channelId: DEFAULT_CHANNEL_ID,
     },
     include: {
       user: { select: AUTHOR_SELECT },

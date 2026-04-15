@@ -231,6 +231,10 @@ async function seedIdempotent() {
         });
       }
 
+      // Make sure every active character is summonable in #mensleague.
+      // Idempotent — upserts the join rows.
+      await linkCharactersToDefaultChannel(tx);
+
       // Sample chat messages — only if the table is empty, so re-runs don't dupe.
       const existing = await tx.message.count();
       if (existing === 0) {
@@ -241,7 +245,40 @@ async function seedIdempotent() {
   );
 }
 
+/**
+ * Idempotent: ensures every active character has an AgentChannel row for
+ * the default channel. Used by both seed paths so newly added characters
+ * become summonable in #mensleague without manual SQL.
+ */
+async function linkCharactersToDefaultChannel(tx: Prisma.TransactionClient) {
+  const channel = await tx.channel.findFirstOrThrow({
+    where: { slug: "mensleague" },
+    select: { id: true },
+  });
+  const characters = await tx.character.findMany({
+    where: { active: true },
+    select: { id: true },
+  });
+  for (const c of characters) {
+    await tx.agentChannel.upsert({
+      where: {
+        characterId_channelId: { characterId: c.id, channelId: channel.id },
+      },
+      update: {},
+      create: { characterId: c.id, channelId: channel.id },
+    });
+  }
+}
+
 async function seedMessages(tx: Prisma.TransactionClient) {
+  // Resolve the default channel by slug rather than importing the constant
+  // from src/lib/channels.ts — keeps the seed script free of @/ aliases
+  // and survives if the constant ever changes.
+  const channel = await tx.channel.findFirstOrThrow({
+    where: { slug: "mensleague" },
+    select: { id: true },
+  });
+
   const [userRows, characterRows] = await Promise.all([
     tx.user.findMany({ select: { id: true, name: true } }),
     tx.character.findMany({ select: { id: true, name: true } }),
@@ -260,6 +297,7 @@ async function seedMessages(tx: Prisma.TransactionClient) {
           content: msg.content,
           authorType: "USER",
           userId,
+          channelId: channel.id,
           createdAt,
         },
       });
@@ -273,6 +311,7 @@ async function seedMessages(tx: Prisma.TransactionClient) {
           content: msg.content,
           authorType: "CHARACTER",
           characterId,
+          channelId: channel.id,
           createdAt,
         },
       });
@@ -306,6 +345,7 @@ async function seedReset() {
       for (const p of PLAYER_POOL) {
         await tx.playerPool.create({ data: { ...p, season: SEASON } });
       }
+      await linkCharactersToDefaultChannel(tx);
       await seedMessages(tx);
     },
     { timeout: 30_000 },

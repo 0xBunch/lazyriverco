@@ -18,11 +18,19 @@ model User {
   sessionEpoch Int      @default(0)
   createdAt    DateTime @default(now())
 
-  messages     Message[]
-  picks        Pick[]
-  votes        Vote[]
-  rsvps        RSVP[]
-  media        Media[]
+  /// Free-form prose blurb the admin curates per member. Injected verbatim
+  /// into agent prompts as part of the "here's the crew" context block.
+  blurb        String?  @db.Text
+  /// Optional structured fields the admin can fill in. Empty by default.
+  city         String?
+  favoriteTeam String?
+
+  messages            Message[]
+  picks               Pick[]
+  votes               Vote[]
+  rsvps               RSVP[]
+  media               Media[]
+  agentRelationships  AgentRelationship[]
 }
 
 enum Role {
@@ -46,11 +54,76 @@ model Character {
   messages            Message[]
   picks               Pick[]
   roster              Roster[]
+  agentChannels       AgentChannel[]
+  agentRelationships  AgentRelationship[]
+}
+
+/// A conversational lane inside the Mens League clubhouse. v1 ships exactly
+/// one channel (`mensleague`) but the schema is multi-channel-ready so we
+/// can add #trips, #picks, #media without another migration.
+model Channel {
+  id          String   @id @default(uuid())
+  slug        String   @unique
+  displayName String
+  description String?
+  isDefault   Boolean  @default(false)
+  createdAt   DateTime @default(now())
+
+  messages    Message[]
+  agents      AgentChannel[]
+}
+
+/// Join table — which agents are eligible to be summoned in which channels.
+/// In v1 all 3 agents live in #mensleague; in the future Joey could be
+/// scoped to #fantasy and Andreea to #trips, etc.
+model AgentChannel {
+  characterId String
+  channelId   String
+
+  character Character @relation(fields: [characterId], references: [id], onDelete: Cascade)
+  channel   Channel   @relation(fields: [channelId], references: [id], onDelete: Cascade)
+
+  @@id([characterId, channelId])
+}
+
+/// Per-(agent, member) free-form narrative — what this specific agent
+/// thinks about this specific member. Edited by the admin via /admin.
+/// Injected into agent prompts when responding in a channel where the
+/// target user is present.
+model AgentRelationship {
+  id           String   @id @default(uuid())
+  characterId  String
+  targetUserId String
+  content      String   @db.Text
+  updatedAt    DateTime @updatedAt
+
+  character  Character @relation(fields: [characterId], references: [id], onDelete: Cascade)
+  targetUser User      @relation(fields: [targetUserId], references: [id], onDelete: Cascade)
+
+  @@unique([characterId, targetUserId])
+  // The compound unique index covers (characterId) leftmost-prefix lookups.
+  // This separate index covers the prompt-injection query path:
+  // "give me every relationship targeting user X."
+  @@index([targetUserId])
+}
+
+/// Single-row convention: the broader Mens League lore. History, running
+/// inside jokes, league rules, rivalries. The `name` field is provisioned
+/// for future per-channel canon docs but unused in v1 (always "default").
+model ClubhouseCanon {
+  id        String   @id @default(uuid())
+  name      String   @unique @default("default")
+  content   String   @db.Text
+  updatedAt DateTime @updatedAt
 }
 
 model Message {
   id          String      @id @default(uuid())
   module      String      @default("chat")
+  /// Which channel inside the clubhouse this message belongs to. Populated
+  /// for every chat message; the migration backfills existing rows to the
+  /// default `mensleague` channel and then enforces NOT NULL.
+  channelId   String
   authorType  AuthorType
   userId      String?
   characterId String?
@@ -59,10 +132,15 @@ model Message {
   parentId    String?
   createdAt   DateTime    @default(now())
 
+  channel     Channel     @relation(fields: [channelId], references: [id], onDelete: Restrict)
   user        User?       @relation(fields: [userId], references: [id])
   character   Character?  @relation(fields: [characterId], references: [id])
   parent      Message?    @relation("Replies", fields: [parentId], references: [id])
   replies     Message[]   @relation("Replies")
+
+  // Read pattern: "give me the last N messages in channel X by time".
+  // Composite covers both the channelId filter and the createdAt sort.
+  @@index([channelId, createdAt(sort: Desc)])
 }
 
 enum AuthorType {
