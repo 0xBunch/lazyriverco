@@ -83,17 +83,22 @@ model PlayerPool {
 }
 
 model Roster {
-  id           String    @id @default(uuid())
-  characterId  String
-  playerName   String
-  position     String
-  acquiredVia  String
-  active       Boolean   @default(true)
-  season       Int
-  weekAcquired Int?
+  id                   String    @id @default(uuid())
+  characterId          String
+  playerName           String
+  position             String
+  acquiredVia          String
+  active               Boolean   @default(true)
+  season               Int
+  weekAcquired         Int?
+  createdAt            DateTime  @default(now())
+  /// Soft FK to Message.id — the chat message where this pick was announced.
+  /// Nullable because waivers / edits may not have a message. Not a Prisma
+  /// relation on purpose (keeps Message→Roster coupling one-way).
+  commentaryMessageId  String?
 
-  character    Character        @relation(fields: [characterId], references: [id], onDelete: Cascade)
-  lineups      LineupDecision[]
+  character Character        @relation(fields: [characterId], references: [id], onDelete: Cascade)
+  lineups   LineupDecision[]
 }
 
 model LineupDecision {

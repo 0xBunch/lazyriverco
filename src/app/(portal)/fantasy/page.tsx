@@ -1,11 +1,9 @@
-import { ModulePlaceholder } from "@/components/ModulePlaceholder";
+import { redirect } from "next/navigation";
+import { getCurrentUser } from "@/lib/auth";
+import { DraftBoard } from "@/components/DraftBoard";
 
-export default function FantasyPage() {
-  return (
-    <ModulePlaceholder
-      icon="🏈"
-      title="Joey hasn't drafted yet."
-      message="The anticipation is killing him."
-    />
-  );
+export default async function FantasyPage() {
+  const user = await getCurrentUser();
+  if (!user) redirect("/sign-in");
+  return <DraftBoard isAdmin={user.role === "ADMIN"} />;
 }

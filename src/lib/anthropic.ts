@@ -73,3 +73,45 @@ export async function generateCharacterResponse(
   }
   return textBlock.text.trim();
 }
+
+export type DraftPick = {
+  playerName: string;
+  position: string;
+  team: string;
+  round: number;
+};
+
+/**
+ * One-shot draft commentary. Used by POST /api/draft/pick to have Joey
+ * announce a pick with delusional confidence. Shares the character bible
+ * as system prompt + the standard tail, but the user message is a
+ * direct description of the draft event (not a chat transcript).
+ */
+export async function generateDraftCommentary(
+  systemPrompt: string,
+  pick: DraftPick,
+): Promise<string> {
+  const userPrompt = [
+    `You just drafted ${pick.playerName}, ${pick.position} from the ${pick.team},`,
+    `in round ${pick.round} of your fantasy draft. Announce your pick to the group chat.`,
+    "Be extremely confident. Explain why this is a genius pick. Make a bold",
+    "prediction about their season. Remember, you think all your picks are",
+    "brilliant even though they're terrible.",
+    "",
+    "Output ONLY the announcement text — no prefixes, no quoting, no meta commentary.",
+  ].join("\n");
+
+  const response = await getClient().messages.create({
+    model: MODEL_HAIKU,
+    max_tokens: 200,
+    temperature: 0.9,
+    system: `${systemPrompt}${SYSTEM_PROMPT_TAIL}`,
+    messages: [{ role: "user", content: userPrompt }],
+  });
+
+  const textBlock = response.content.find((block) => block.type === "text");
+  if (!textBlock || textBlock.type !== "text") {
+    throw new Error("Anthropic response contained no text block");
+  }
+  return textBlock.text.trim();
+}

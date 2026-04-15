@@ -169,12 +169,12 @@ export async function runOrchestrator(messageId: string): Promise<void> {
       console.error(`[orchestrator] message ${messageId} not found`);
       return;
     }
-    if (newMessage.authorType !== "USER") {
-      // Only orchestrate on user messages; characters don't trigger other
-      // characters (prevents runaway loops).
-      return;
-    }
     if (newMessage.module !== "chat") return;
+    // Characters CAN trigger the orchestrator — used by the TASK 09 draft
+    // flow to let Billy/Andreea react to Joey's picks. No infinite-loop
+    // risk because runOrchestrator is only called from explicit API routes
+    // (POST /api/messages, POST /api/draft/pick), never self-invoked. The
+    // cooldown check below excludes the character who just posted.
 
     // Pull the last N messages — used for both cooldown and context.
     const recent = await prisma.message.findMany({

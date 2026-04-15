@@ -1,0 +1,3 @@
+-- AlterTable
+ALTER TABLE "Roster" ADD COLUMN     "commentaryMessageId" TEXT,
+ADD COLUMN     "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP;
