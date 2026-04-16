@@ -1,5 +1,6 @@
 import { prisma } from "@/lib/prisma";
 import { updateRelationship } from "./actions";
+import { SaveButton } from "@/components/SaveButton";
 
 export const dynamic = "force-dynamic";
 
@@ -94,12 +95,10 @@ export default async function AdminRelationshipsPage() {
                       <span className="text-[0.7rem] text-bone-500">
                         {content.length} chars
                       </span>
-                      <button
-                        type="submit"
-                        className="rounded-md border border-bone-700 bg-bone-800 px-3 py-1 text-xs font-medium text-bone-200 transition-colors hover:border-claude-500/60 hover:text-claude-50 focus:outline-none focus-visible:ring-2 focus-visible:ring-claude-500 focus-visible:ring-offset-2 focus-visible:ring-offset-bone-950"
-                      >
-                        Save
-                      </button>
+                      <SaveButton
+                        label="Save"
+                        className="rounded-md border border-bone-700 bg-bone-800 px-3 py-1 text-xs font-medium text-bone-200 hover:border-claude-500/60 hover:text-claude-50"
+                      />
                     </div>
                   </form>
                 </li>

@@ -1,5 +1,7 @@
 import { prisma } from "@/lib/prisma";
 import { updateAgent } from "./actions";
+import { SaveButton } from "@/components/SaveButton";
+import { PromptSuggester } from "@/components/PromptSuggester";
 
 export const dynamic = "force-dynamic";
 
@@ -78,18 +80,19 @@ export default async function AdminAgentsPage() {
                   required
                   className="w-full rounded-lg border border-bone-700 bg-bone-950 px-3 py-2 font-mono text-xs leading-relaxed text-bone-50 focus:border-claude-500 focus:outline-none focus:ring-1 focus:ring-claude-500"
                 />
-                <p className="text-[0.7rem] text-bone-400">
-                  {agent.systemPrompt.length} chars
-                </p>
+                <div className="flex items-center justify-between">
+                  <p className="text-[0.7rem] text-bone-400">
+                    {agent.systemPrompt.length} chars
+                  </p>
+                  <PromptSuggester
+                    textareaId={`systemPrompt-${agent.id}`}
+                    characterName={agent.displayName}
+                  />
+                </div>
               </div>
 
               <div className="flex justify-end">
-                <button
-                  type="submit"
-                  className="rounded-lg bg-claude-500 px-4 py-2 text-sm font-medium text-bone-50 transition-colors hover:bg-claude-600 focus:outline-none focus-visible:ring-2 focus-visible:ring-claude-500 focus-visible:ring-offset-2 focus-visible:ring-offset-bone-950"
-                >
-                  Save {agent.displayName}
-                </button>
+                <SaveButton label={`Save ${agent.displayName}`} />
               </div>
             </form>
           </li>

@@ -1,5 +1,6 @@
 import { prisma } from "@/lib/prisma";
 import { updateMember } from "./actions";
+import { SaveButton } from "@/components/SaveButton";
 
 export const dynamic = "force-dynamic";
 
@@ -133,12 +134,7 @@ export default async function AdminMembersPage() {
               </div>
 
               <div className="flex justify-end">
-                <button
-                  type="submit"
-                  className="rounded-lg bg-claude-500 px-4 py-2 text-sm font-medium text-bone-50 transition-colors hover:bg-claude-600 focus:outline-none focus-visible:ring-2 focus-visible:ring-claude-500 focus-visible:ring-offset-2 focus-visible:ring-offset-bone-950"
-                >
-                  Save {member.displayName}
-                </button>
+                <SaveButton label={`Save ${member.displayName}`} />
               </div>
             </form>
           </li>
