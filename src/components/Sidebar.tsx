@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { getCurrentUser } from "@/lib/auth";
+import { LazyRiverLogo } from "@/components/LazyRiverLogo";
 import { SidebarNav } from "@/components/SidebarNav";
 import { ConversationSidebarList } from "@/components/ConversationSidebarList";
 import {
@@ -26,16 +27,17 @@ export async function Sidebar() {
 
   return (
     <div className="flex h-full flex-col">
-      {/* Logo — full text when expanded, hidden when collapsed
-          (the toggle button replaces it visually at the top) */}
+      {/* Logo — wordmark when expanded, hidden when collapsed
+          (the toggle button replaces it visually at the top).
+          SVG uses currentColor so text-* drives fill — light on
+          dark here, dark on light when placed on light surfaces. */}
       <Link
         href="/"
         className="block px-5 pb-2 pt-4 transition-opacity hover:opacity-80 group-data-[collapsed]:hidden"
+        aria-label="The Lazy River Co. — home"
       >
-        <p className="font-display text-lg font-semibold tracking-tight text-bone-50">
-          The Lazy River Co.
-        </p>
-        <p className="mt-0.5 text-xs italic text-bone-300">Members only.</p>
+        <LazyRiverLogo className="w-36 text-bone-50" />
+        <p className="mt-1.5 text-xs italic text-bone-300">Members only.</p>
       </Link>
 
       {/* New chat CTA — full button expanded, icon-only collapsed */}
