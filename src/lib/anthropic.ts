@@ -21,10 +21,50 @@ function getClient(): Anthropic {
   return _client;
 }
 
-const SYSTEM_PROMPT_TAIL = [
-  "",
-  "Respond in character. Never break character. Never mention that you are an AI.",
-].join("\n");
+// Server-side web_search tool. Anthropic runs the search and feeds results
+// back to the model transparently — no client-side tool loop needed. The
+// model decides when to invoke it. Adds ~3-8s latency on turns that search,
+// none on turns that don't. Tool spec verified against
+// @anthropic-ai/sdk 0.89 docs (web_search_20250305).
+//
+// max_uses caps searches per single turn — cheap insurance against a
+// pathological case where the model chains many searches on one message.
+// Most turns use 0 or 1 searches, so this doesn't change normal behavior.
+// At Anthropic's $10/1k searches, 3 caps a single runaway turn at $0.03.
+const WEB_SEARCH_TOOL = {
+  type: "web_search_20250305",
+  name: "web_search",
+  max_uses: 3,
+} as const;
+
+// Built fresh per call so the date is accurate. The worldliness paragraph
+// unlocks the model's existing knowledge of public figures / current events
+// for in-character riffing — without it personas tend to dodge ("I have no
+// idea who that is") when asked about real people they actually know about
+// from training. The web_search nudge tells them to reach for the tool when
+// genuinely stale.
+function buildSystemPromptTail(): string {
+  const today = new Date().toLocaleDateString("en-US", {
+    weekday: "long",
+    year: "numeric",
+    month: "long",
+    day: "numeric",
+  });
+  return [
+    "",
+    `Today is ${today}.`,
+    "",
+    "You exist in the real world and are aware of public figures, current",
+    "events, news, sports, politics, and pop culture from your training. Riff",
+    "on real people and events from your own POV — never dodge with 'I don't",
+    "know who that is' if it's someone reasonably well-known. If you genuinely",
+    "need fresh or recent info (breaking news, live scores, anything past your",
+    "training), use the web_search tool. Apply your persona's voice and",
+    "opinions to whatever you find.",
+    "",
+    "Respond in character. Never break character. Never mention that you are an AI.",
+  ].join("\n");
+}
 
 export type ChatContextLine = {
   displayName: string;
@@ -44,7 +84,27 @@ function composeSystemPrompt(
     parts.push("");
     parts.push(richContext);
   }
-  return parts.join("\n") + SYSTEM_PROMPT_TAIL;
+  return parts.join("\n") + buildSystemPromptTail();
+}
+
+/**
+ * Concatenate every text block in a Messages response, trimmed. Throws
+ * when the response has no text content. Web_search responses interleave
+ * `text` with `server_tool_use` / `web_search_tool_result` blocks, so
+ * picking "the first text block" drops content — we join in order instead.
+ */
+function extractText(
+  content: readonly Anthropic.Messages.ContentBlock[],
+): string {
+  const text = content
+    .filter((block): block is Anthropic.Messages.TextBlock => block.type === "text")
+    .map((block) => block.text)
+    .join("")
+    .trim();
+  if (!text) {
+    throw new Error("Anthropic response contained no text block");
+  }
+  return text;
 }
 
 function buildUserPrompt(
@@ -78,14 +138,11 @@ export async function generateCharacterResponse(
     max_tokens: MAX_TOKENS,
     temperature: 0.9,
     system: composeSystemPrompt(systemPrompt, richContext),
+    tools: [WEB_SEARCH_TOOL],
     messages: [{ role: "user", content: buildUserPrompt(recentContext, newMessage) }],
   });
 
-  const textBlock = response.content.find((block) => block.type === "text");
-  if (!textBlock || textBlock.type !== "text") {
-    throw new Error("Anthropic response contained no text block");
-  }
-  return textBlock.text.trim();
+  return extractText(response.content);
 }
 
 /**
@@ -110,6 +167,7 @@ export async function streamCharacterResponse(
     max_tokens: MAX_TOKENS,
     temperature: 0.9,
     system: composeSystemPrompt(systemPrompt, richContext),
+    tools: [WEB_SEARCH_TOOL],
     messages: [{ role: "user", content: buildUserPrompt(recentContext, newMessage) }],
   });
 
@@ -150,12 +208,9 @@ export async function generateDraftCommentary(
     max_tokens: MAX_TOKENS,
     temperature: 0.9,
     system: composeSystemPrompt(systemPrompt, richContext),
+    tools: [WEB_SEARCH_TOOL],
     messages: [{ role: "user", content: userPrompt }],
   });
 
-  const textBlock = response.content.find((block) => block.type === "text");
-  if (!textBlock || textBlock.type !== "text") {
-    throw new Error("Anthropic response contained no text block");
-  }
-  return textBlock.text.trim();
+  return extractText(response.content);
 }
