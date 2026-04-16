@@ -122,12 +122,12 @@ export function SidebarShell({ sidebar, children }: SidebarShellProps) {
             : "md:sticky md:top-0 md:h-screen md:w-64 md:translate-x-0",
         )}
       >
-        {/* Desktop collapse toggle — always visible at the top */}
+        {/* Desktop collapse toggle — top-right corner, overlaps logo row */}
         <button
           type="button"
           onClick={toggleCollapsed}
           aria-label={collapsed ? "Expand sidebar" : "Collapse sidebar"}
-          className="mx-auto mt-3 hidden rounded-md p-1.5 text-bone-400 transition-colors hover:bg-bone-800 hover:text-bone-200 md:block"
+          className="absolute right-2 top-5 z-10 hidden rounded-md p-1.5 text-bone-400 transition-colors hover:bg-bone-800 hover:text-bone-200 group-data-[collapsed]:static group-data-[collapsed]:mx-auto group-data-[collapsed]:mt-3 md:block"
         >
           <svg
             aria-hidden="true"
