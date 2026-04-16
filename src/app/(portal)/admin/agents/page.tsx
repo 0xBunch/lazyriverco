@@ -1,5 +1,5 @@
 import { prisma } from "@/lib/prisma";
-import { updateAgent } from "./actions";
+import { createAgent, updateAgent } from "./actions";
 import { SaveButton } from "@/components/SaveButton";
 import { PromptSuggester } from "@/components/PromptSuggester";
 
@@ -20,6 +20,90 @@ export default async function AdminAgentsPage() {
         automatically.
       </p>
 
+      {/* --- Create new agent --- */}
+      <div className="rounded-2xl border border-dashed border-bone-600 bg-bone-900/50 p-6">
+        <h2 className="font-display text-lg font-semibold text-bone-50">
+          Create New Agent
+        </h2>
+        <p className="mb-4 mt-1 text-xs text-bone-400">
+          Add a new character to the roster. Pick a short @handle, give it
+          a name, and write (or AI-generate) its persona bible.
+        </p>
+        <form action={createAgent} className="space-y-4">
+          <div className="grid gap-4 sm:grid-cols-2">
+            <div className="space-y-1">
+              <label
+                htmlFor="new-name"
+                className="text-xs font-medium text-bone-200"
+              >
+                Slug (@handle)
+              </label>
+              <input
+                id="new-name"
+                name="name"
+                type="text"
+                required
+                placeholder="e.g. barfdog"
+                className="w-full rounded-lg border border-bone-700 bg-bone-950 px-3 py-2 text-sm text-bone-50 placeholder-bone-500 focus:border-claude-500 focus:outline-none focus:ring-1 focus:ring-claude-500"
+              />
+            </div>
+            <div className="space-y-1">
+              <label
+                htmlFor="new-displayName"
+                className="text-xs font-medium text-bone-200"
+              >
+                Display name
+              </label>
+              <input
+                id="new-displayName"
+                name="displayName"
+                type="text"
+                required
+                placeholder='e.g. Joey "Barfdog" Freedman'
+                className="w-full rounded-lg border border-bone-700 bg-bone-950 px-3 py-2 text-sm text-bone-50 placeholder-bone-500 focus:border-claude-500 focus:outline-none focus:ring-1 focus:ring-claude-500"
+              />
+            </div>
+          </div>
+
+          <div className="space-y-1">
+            <label
+              htmlFor="new-systemPrompt"
+              className="text-xs font-medium text-bone-200"
+            >
+              System prompt (persona bible)
+            </label>
+            <textarea
+              id="new-systemPrompt"
+              name="systemPrompt"
+              rows={8}
+              required
+              placeholder="Write the character's persona — who they are, how they talk, what topics they're experts on, what makes them funny. Or type a few sentences and hit 'Suggest improvements' to let Claude flesh it out."
+              className="w-full rounded-lg border border-bone-700 bg-bone-950 px-3 py-2 font-mono text-xs leading-relaxed text-bone-50 placeholder-bone-500 focus:border-claude-500 focus:outline-none focus:ring-1 focus:ring-claude-500"
+            />
+            <div className="flex justify-end">
+              <PromptSuggester
+                textareaId="new-systemPrompt"
+                characterName="New agent"
+              />
+            </div>
+          </div>
+
+          <div className="flex items-center justify-between">
+            <label className="flex items-center gap-2 text-xs text-bone-300">
+              <input
+                type="checkbox"
+                name="active"
+                defaultChecked
+                className="h-4 w-4 rounded border-bone-600 bg-bone-950 text-claude-500 focus:ring-claude-500"
+              />
+              Active
+            </label>
+            <SaveButton label="Create Agent" />
+          </div>
+        </form>
+      </div>
+
+      {/* --- Existing agents --- */}
       <ul className="space-y-6">
         {agents.map((agent) => (
           <li
