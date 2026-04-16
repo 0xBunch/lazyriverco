@@ -2,6 +2,26 @@
 @tailwind components;
 @tailwind utilities;
 
+/* Global dark scrollbars — kills the bright white default on dark bg */
+* {
+  scrollbar-width: thin;
+  scrollbar-color: theme("colors.bone.700") transparent;
+}
+*::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+*::-webkit-scrollbar-track {
+  background: transparent;
+}
+*::-webkit-scrollbar-thumb {
+  background: theme("colors.bone.700");
+  border-radius: 3px;
+}
+*::-webkit-scrollbar-thumb:hover {
+  background: theme("colors.bone.600");
+}
+
 /* Thin sidebar scrollbar — only visible on hover, matches Claude.ai's
    minimal style. Applied via the .sidebar-scroll class. */
 .sidebar-scroll {
