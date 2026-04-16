@@ -20,42 +20,64 @@ export async function Sidebar() {
   const user = await getCurrentUser();
   const isAdmin = user?.role === "ADMIN";
 
-  // Admin gets the Commissioner tab appended to the main nav
   const mainNav: readonly NavItem[] = isAdmin
     ? [...MAIN_NAV_ITEMS, ADMIN_NAV_ITEM]
     : MAIN_NAV_ITEMS;
 
   return (
     <div className="flex h-full flex-col">
-      {/* Header / logo — links back to chat landing */}
-      <Link href="/" className="block px-5 pb-2 pt-6 transition-opacity hover:opacity-80">
+      {/* Logo — full text when expanded, hidden when collapsed
+          (the toggle button replaces it visually at the top) */}
+      <Link
+        href="/"
+        className="block px-5 pb-2 pt-4 transition-opacity hover:opacity-80 group-data-[collapsed]:hidden"
+      >
         <p className="font-display text-lg font-semibold tracking-tight text-bone-50">
           The Lazy River Co.
         </p>
-        <p className="mt-1 text-xs italic text-bone-300">Members only.</p>
+        <p className="mt-0.5 text-xs italic text-bone-300">Members only.</p>
       </Link>
 
-      {/* New chat CTA */}
+      {/* New chat CTA — full button expanded, icon-only collapsed */}
       {user ? (
-        <div className="px-3 pb-1 pt-3">
+        <div className="px-3 pb-1 pt-2 group-data-[collapsed]:px-1 group-data-[collapsed]:pt-1">
           <Link
             href="/"
-            className="flex items-center justify-center gap-2 rounded-lg border border-bone-700 bg-bone-800 px-3 py-2 text-xs font-medium text-bone-100 transition-colors hover:border-claude-500/60 hover:text-claude-50 focus:outline-none focus-visible:ring-2 focus-visible:ring-claude-500 focus-visible:ring-offset-2 focus-visible:ring-offset-bone-950"
+            title="New chat"
+            className="flex items-center justify-center gap-2 rounded-lg border border-bone-700 bg-bone-800 px-3 py-2 text-xs font-medium text-bone-100 transition-colors hover:border-claude-500/60 hover:text-claude-50 focus:outline-none focus-visible:ring-2 focus-visible:ring-claude-500 focus-visible:ring-offset-2 focus-visible:ring-offset-bone-950 group-data-[collapsed]:border-0 group-data-[collapsed]:bg-transparent group-data-[collapsed]:px-0 group-data-[collapsed]:py-1.5"
           >
-            + New chat
+            <svg
+              aria-hidden="true"
+              viewBox="0 0 24 24"
+              className="hidden h-5 w-5 group-data-[collapsed]:block"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="2"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+            >
+              <line x1="12" y1="5" x2="12" y2="19" />
+              <line x1="5" y1="12" x2="19" y2="12" />
+            </svg>
+            <span className="group-data-[collapsed]:hidden">+ New chat</span>
           </Link>
         </div>
       ) : null}
 
-      {/* Main nav — always visible: Chat, Calendar, Media (+Commissioner for admin) */}
+      {/* Main nav */}
       <SidebarNav items={mainNav} />
 
-      {/* Recent conversations */}
-      {user ? <ConversationSidebarList /> : null}
+      {/* Conversation list — hidden when collapsed */}
+      <div className="min-h-0 flex-1 group-data-[collapsed]:hidden">
+        {user ? <ConversationSidebarList /> : null}
+      </div>
 
-      {/* Apps section — collapsible, visible to everyone */}
+      {/* Apps section — hidden when collapsed */}
       {user ? (
-        <details open className="border-t border-bone-800 px-2 py-2">
+        <details
+          open
+          className="border-t border-bone-800 px-2 py-2 group-data-[collapsed]:hidden"
+        >
           <summary className="cursor-pointer select-none list-none rounded-lg px-3 py-1.5 text-xs font-semibold uppercase tracking-wide text-bone-400 transition-colors hover:text-bone-200 [&::-webkit-details-marker]:hidden">
             Apps
           </summary>
@@ -67,15 +89,17 @@ export async function Sidebar() {
 
       {/* User footer */}
       {user ? (
-        <div className="mt-auto border-t border-bone-700 px-3 py-4">
-          <div className="flex items-center gap-3 px-2 pb-3">
+        <div className="mt-auto border-t border-bone-700 px-3 py-3 group-data-[collapsed]:px-1 group-data-[collapsed]:py-2">
+          {/* Avatar — always visible */}
+          <div className="flex items-center gap-3 px-2 pb-2 group-data-[collapsed]:justify-center group-data-[collapsed]:px-0 group-data-[collapsed]:pb-0">
             <div
               aria-hidden="true"
-              className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-claude-500/20 text-xs font-semibold text-claude-200"
+              className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-claude-500/20 text-xs font-semibold text-claude-200"
             >
               {initials(user.displayName)}
             </div>
-            <div className="min-w-0 flex-1">
+            {/* Name + role — hidden when collapsed */}
+            <div className="min-w-0 flex-1 group-data-[collapsed]:hidden">
               <p className="truncate text-sm font-medium text-bone-50">
                 {user.displayName}
               </p>
@@ -85,7 +109,12 @@ export async function Sidebar() {
             </div>
           </div>
 
-          <form action="/api/auth/logout" method="post">
+          {/* Logout button — hidden when collapsed */}
+          <form
+            action="/api/auth/logout"
+            method="post"
+            className="group-data-[collapsed]:hidden"
+          >
             <button
               type="submit"
               className="w-full rounded-lg border border-bone-700 bg-bone-800 px-3 py-2 text-xs font-medium text-bone-200 transition-colors hover:border-claude-500/60 hover:text-claude-50 focus:outline-none focus-visible:ring-2 focus-visible:ring-claude-500 focus-visible:ring-offset-2 focus-visible:ring-offset-bone-950"

@@ -12,18 +12,15 @@ type SidebarShellProps = {
 const COLLAPSED_KEY = "lr-sidebar-collapsed";
 
 export function SidebarShell({ sidebar, children }: SidebarShellProps) {
-  const [open, setOpen] = useState(false); // mobile drawer
-  const [collapsed, setCollapsed] = useState(false); // desktop collapse
+  const [open, setOpen] = useState(false);
+  const [collapsed, setCollapsed] = useState(false);
   const [isMobile, setIsMobile] = useState(false);
   const pathname = usePathname();
 
-  // Hydrate collapsed state from localStorage after mount
   useEffect(() => {
     try {
       setCollapsed(localStorage.getItem(COLLAPSED_KEY) === "1");
-    } catch {
-      // SSR or localStorage unavailable — default to expanded
-    }
+    } catch {}
   }, []);
 
   const toggleCollapsed = useCallback(() => {
@@ -31,9 +28,7 @@ export function SidebarShell({ sidebar, children }: SidebarShellProps) {
       const next = !prev;
       try {
         localStorage.setItem(COLLAPSED_KEY, next ? "1" : "0");
-      } catch {
-        // ignore
-      }
+      } catch {}
       return next;
     });
   }, []);
@@ -46,7 +41,6 @@ export function SidebarShell({ sidebar, children }: SidebarShellProps) {
     return () => mql.removeEventListener("change", update);
   }, []);
 
-  // Close mobile drawer on navigation
   useEffect(() => {
     setOpen(false);
   }, [pathname]);
@@ -73,18 +67,14 @@ export function SidebarShell({ sidebar, children }: SidebarShellProps) {
 
   return (
     <div className="flex min-h-screen">
-      {/* Mobile hamburger — visible < md OR when desktop sidebar is collapsed */}
+      {/* Mobile hamburger — only visible < md */}
       <button
         type="button"
-        onClick={() => (isMobile ? setOpen(true) : toggleCollapsed())}
-        aria-label={collapsed ? "Open sidebar" : "Open navigation"}
-        aria-expanded={isMobile ? open : !collapsed}
+        onClick={() => setOpen(true)}
+        aria-label="Open navigation"
+        aria-expanded={open}
         aria-controls="portal-sidebar"
-        className={cn(
-          "fixed left-4 top-4 z-40 rounded-lg border border-bone-700 bg-bone-800/80 p-2 text-bone-100 backdrop-blur transition-all hover:bg-bone-700 focus:outline-none focus-visible:ring-2 focus-visible:ring-claude-500",
-          // Mobile: always show. Desktop: only show when collapsed.
-          isMobile ? "" : collapsed ? "md:block" : "md:hidden",
-        )}
+        className="fixed left-4 top-4 z-40 rounded-lg border border-bone-700 bg-bone-800/80 p-2 text-bone-100 backdrop-blur transition-all hover:bg-bone-700 focus:outline-none focus-visible:ring-2 focus-visible:ring-claude-500 md:hidden"
       >
         <svg
           aria-hidden="true"
@@ -112,46 +102,62 @@ export function SidebarShell({ sidebar, children }: SidebarShellProps) {
         />
       ) : null}
 
-      {/* Sidebar */}
+      {/* Sidebar — desktop: sticky with icon-rail collapse.
+          The `group` class + `data-collapsed` attribute lets child
+          components use `group-data-[collapsed]:` Tailwind variants
+          to toggle between full and icon-only modes without prop drilling
+          into the server-rendered Sidebar component. */}
       <aside
         id="portal-sidebar"
         aria-label="Primary navigation"
         aria-hidden={drawerHidden ? "true" : undefined}
+        data-collapsed={collapsed ? "" : undefined}
         className={cn(
-          "fixed inset-y-0 left-0 z-30 flex w-64 flex-col border-r border-bone-700 bg-bone-900 transition-transform duration-200 ease-out",
-          // Mobile: slide from left
-          open ? "translate-x-0" : "-translate-x-full",
-          // Desktop: when expanded, sticky (takes flow space). When
-          // collapsed, stays fixed + slides fully off-screen so main
-          // content gets full width.
+          "group fixed inset-y-0 left-0 z-30 flex flex-col border-r border-bone-700 bg-bone-900 transition-all duration-200 ease-out",
+          // Mobile: full width drawer
+          open ? "w-64 translate-x-0" : "w-64 -translate-x-full",
+          // Desktop: sticky column, width toggles between full and icon rail
           collapsed
-            ? "md:fixed md:-translate-x-full"
-            : "md:sticky md:top-0 md:h-screen md:translate-x-0",
+            ? "md:sticky md:top-0 md:h-screen md:w-14 md:translate-x-0"
+            : "md:sticky md:top-0 md:h-screen md:w-64 md:translate-x-0",
         )}
       >
-        {/* Desktop collapse button — inside the sidebar at the top */}
+        {/* Desktop collapse toggle — always visible at the top */}
         <button
           type="button"
           onClick={toggleCollapsed}
-          aria-label="Collapse sidebar"
-          className="absolute right-2 top-6 z-10 hidden rounded-md p-1 text-bone-400 transition-colors hover:bg-bone-800 hover:text-bone-200 md:block"
+          aria-label={collapsed ? "Expand sidebar" : "Collapse sidebar"}
+          className="mx-auto mt-3 hidden rounded-md p-1.5 text-bone-400 transition-colors hover:bg-bone-800 hover:text-bone-200 md:block"
         >
           <svg
             aria-hidden="true"
             viewBox="0 0 24 24"
-            className="h-4 w-4"
+            className="h-5 w-5"
             fill="none"
             stroke="currentColor"
             strokeWidth="2"
             strokeLinecap="round"
             strokeLinejoin="round"
           >
-            <path d="M11 19l-7-7 7-7" />
-            <path d="M18 19l-7-7 7-7" />
+            {collapsed ? (
+              // Expand icon (panel open)
+              <>
+                <rect x="3" y="3" width="18" height="18" rx="2" />
+                <line x1="9" y1="3" x2="9" y2="21" />
+              </>
+            ) : (
+              // Collapse icon (panel close)
+              <>
+                <rect x="3" y="3" width="18" height="18" rx="2" />
+                <line x1="9" y1="3" x2="9" y2="21" />
+              </>
+            )}
           </svg>
         </button>
 
-        {sidebar}
+        <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
+          {sidebar}
+        </div>
       </aside>
 
       {/* Main content */}
