@@ -13,7 +13,7 @@ export const metadata: Metadata = {
     default: "The Lazy River Co.",
     template: "%s · The Lazy River Co.",
   },
-  description: "Private portal for the MLF.",
+  description: "Corporate extranet of the Lazy River Corporation, a subsidiary of Mens League.",
   applicationName: "The Lazy River Co.",
   appleWebApp: {
     title: "Lazy River",

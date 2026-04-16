@@ -15,10 +15,10 @@ export default async function AdminCanonPage() {
   return (
     <div className="space-y-4">
       <p className="text-sm text-bone-300">
-        The broader Mens League canon. League history, ongoing rivalries,
-        running inside jokes, traditions, anything an agent should
-        reference unprompted. Prepended to every agent prompt as the
-        first context block — every agent reads this on every message.
+        The broader Mens League / Lazy River Corporation canon. Club
+        history, ongoing rivalries, running inside jokes, traditions,
+        anything an agent should reference unprompted. Prepended to every
+        agent prompt as the first context block.
       </p>
 
       <form
@@ -37,7 +37,7 @@ export default async function AdminCanonPage() {
             name="content"
             defaultValue={canon.content}
             rows={20}
-            placeholder={`e.g.\n\nThe Mens League is a group of 7 friends who play fantasy football, take trips, and argue about everything. Founded 2015. The MLF (our fantasy league) is one slice — most of the chat is about other stuff: dating, food, travel, terrible takes about pop culture.\n\nRunning bits:\n- "the kicker pickle" — Joey insists on drafting kickers in the first 5 rounds\n- Maverick's $20 lineup-late fines\n- Andreea's saint-tropez references\n- Billy's eternal "ok first of all"\n\n...etc.`}
+            placeholder={`e.g.\n\nMens League is the world's leading male philanthropic club for well-hung men. The Lazy River Corporation is a wholly-owned subsidiary that runs LAZYRIVER.CO, the club's corporate extranet. MLF (Mens League Fantasy) is our fantasy football league — just one piece of the broader Mens League ecosystem.\n\nThe crew: 7 members who argue about everything — sports, dating, food, travel, pop culture, celebrities.\n\nRunning bits:\n- "the kicker pickle" — Joey insists on drafting kickers in the first 5 rounds\n- Maverick's $20 lineup-late fines\n- Andreea's saint-tropez references\n- Billy's eternal "ok first of all"\n\n...etc.`}
             className="w-full rounded-lg border border-bone-700 bg-bone-950 px-3 py-2 text-sm leading-relaxed text-bone-50 placeholder-bone-500 focus:border-claude-500 focus:outline-none focus:ring-1 focus:ring-claude-500"
           />
           <p className="text-[0.7rem] text-bone-500">

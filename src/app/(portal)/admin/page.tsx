@@ -23,7 +23,7 @@ const CARDS = [
     href: "/admin/canon",
     title: "Canon",
     body:
-      "The broader Mens League lore. League history, running inside jokes, rivalries, anything an agent should reference. One big text doc, prepended to every agent prompt.",
+      "The broader Mens League / Lazy River lore. Club history, running inside jokes, rivalries, anything an agent should reference. One big text doc, prepended to every agent prompt.",
   },
 ];
 
