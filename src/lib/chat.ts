@@ -46,7 +46,7 @@ export type PostMessageResponse =
   | { message: ChatMessageDTO }
   | { error: string };
 
-export const CHAT_POLL_INTERVAL_MS = 3000;
+export const CHAT_POLL_INTERVAL_MS = 1500;
 export const CHAT_PAGE_SIZE = 50;
 
 // Shape of a Prisma message row with the author relations narrowed to the

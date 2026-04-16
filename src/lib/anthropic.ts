@@ -1,12 +1,16 @@
 import Anthropic from "@anthropic-ai/sdk";
 
-// Sonnet 4.5 — major upgrade from Haiku 4.5 for creative quality. The model
-// alias resolves to the latest snapshot server-side. Using the pinned
-// snapshot rather than an alias keeps behavior deterministic across
-// deploys; swap to "claude-sonnet-4-5" (alias) if you want auto-upgrades.
-export const CHAT_MODEL = "claude-sonnet-4-5-20250514" as const;
+// Haiku 4.5 with a generous token budget. Haiku is fast enough for
+// responsive chat (~3-5s replies) while 800 tokens lets it write
+// full creative responses instead of the clipped 2-sentence output
+// the original 200-token cap produced.
+//
+// When streaming (phase 2) is wired, swap to "claude-sonnet-4-6" —
+// Sonnet is dramatically better for creative work but too slow
+// without token-by-token rendering (10-20s wall time feels dead).
+export const CHAT_MODEL = "claude-haiku-4-5" as const;
 
-const MAX_TOKENS = 1500;
+const MAX_TOKENS = 800;
 
 // Lazy singleton — constructing the client at module load would make every
 // import of this file (including Next's build-time page data collection)
