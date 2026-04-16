@@ -57,7 +57,7 @@ export async function ConversationSidebarList() {
   return (
     <nav
       aria-label="Recent conversations"
-      className="sidebar-scroll flex-1 overflow-y-auto py-1"
+      className="py-1"
     >
       {GROUP_ORDER.map((key) => {
         const items = grouped.get(key);

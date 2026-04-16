@@ -67,16 +67,19 @@ export async function Sidebar() {
       {/* Main nav */}
       <SidebarNav items={mainNav} />
 
-      {/* Conversation list — hidden when collapsed */}
-      <div className="min-h-0 flex-1 group-data-[collapsed]:hidden">
+      {/* Conversation list — scrolls in its lane, doesn't push
+          Apps/footer off-screen. min-h-0 lets flex shrink it;
+          overflow-y-auto gives it its own scrollbar. */}
+      <div className="min-h-0 flex-1 overflow-y-auto sidebar-scroll group-data-[collapsed]:hidden">
         {user ? <ConversationSidebarList /> : null}
       </div>
 
-      {/* Apps section — hidden when collapsed */}
+      {/* Apps section — pinned above footer, never pushed off-screen.
+          shrink-0 prevents flex from compressing it. */}
       {user ? (
         <details
           open
-          className="border-t border-bone-800 px-2 py-2 group-data-[collapsed]:hidden"
+          className="shrink-0 border-t border-bone-800 px-2 py-2 group-data-[collapsed]:hidden"
         >
           <summary className="cursor-pointer select-none list-none rounded-lg px-3 py-1.5 text-xs font-semibold uppercase tracking-wide text-bone-400 transition-colors hover:text-bone-200 [&::-webkit-details-marker]:hidden">
             Apps
