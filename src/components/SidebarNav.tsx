@@ -13,7 +13,7 @@ export function SidebarNav({ items }: SidebarNavProps) {
   const pathname = usePathname();
 
   return (
-    <nav aria-label="Portal navigation" className="flex-1 space-y-1 px-3 py-4">
+    <nav aria-label="Portal navigation" className="space-y-1 px-3 py-3">
       {items.map((item) => {
         const active =
           pathname === item.href || pathname.startsWith(`${item.href}/`);
