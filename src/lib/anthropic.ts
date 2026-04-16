@@ -1,20 +1,13 @@
 import Anthropic from "@anthropic-ai/sdk";
 
-// Haiku 4.5 with a generous token budget. Haiku is fast enough for
-// responsive chat (~3-5s replies) while 800 tokens lets it write
-// full creative responses instead of the clipped 2-sentence output
-// the original 200-token cap produced.
-//
-// When streaming (phase 2) is wired, swap to "claude-sonnet-4-6" —
-// Sonnet is dramatically better for creative work but too slow
-// without token-by-token rendering (10-20s wall time feels dead).
-export const CHAT_MODEL = "claude-haiku-4-5" as const;
+// Sonnet 4.6 — the latest and most capable Sonnet. Now that streaming
+// is wired, the 10-20s generation time is invisible to the user because
+// tokens flow in at ~1s TTFB. Verified model ID against Anthropic docs:
+// "claude-sonnet-4-6" is the alias for the current Sonnet family.
+export const CHAT_MODEL = "claude-sonnet-4-6" as const;
 
-const MAX_TOKENS = 800;
+const MAX_TOKENS = 1500;
 
-// Lazy singleton — constructing the client at module load would make every
-// import of this file (including Next's build-time page data collection)
-// require a valid API key. We only care about the key at call time.
 let _client: Anthropic | null = null;
 function getClient(): Anthropic {
   if (_client) return _client;
@@ -54,27 +47,38 @@ function composeSystemPrompt(
   return parts.join("\n") + SYSTEM_PROMPT_TAIL;
 }
 
-export async function generateCharacterResponse(
-  systemPrompt: string,
+function buildUserPrompt(
   recentContext: readonly ChatContextLine[],
   newMessage: ChatContextLine,
-  richContext: string | null = null,
-): Promise<string> {
+): string {
   const transcript = formatChatContext([...recentContext, newMessage]);
-  const userPrompt = [
+  return [
     "Here is the recent conversation, oldest first. Reply to the most recent",
     "message in your own voice. Output ONLY the reply text — no prefixes,",
     "no quoting, no meta commentary.",
     "",
     transcript,
   ].join("\n");
+}
 
+/**
+ * One-shot (non-streaming) character response. Used by:
+ *   - runOrchestrator (legacy channel path)
+ *   - runConversationOrchestrator (fire-and-forget on initial conversation create)
+ *   - generateDraftCommentary
+ */
+export async function generateCharacterResponse(
+  systemPrompt: string,
+  recentContext: readonly ChatContextLine[],
+  newMessage: ChatContextLine,
+  richContext: string | null = null,
+): Promise<string> {
   const response = await getClient().messages.create({
     model: CHAT_MODEL,
     max_tokens: MAX_TOKENS,
     temperature: 0.9,
     system: composeSystemPrompt(systemPrompt, richContext),
-    messages: [{ role: "user", content: userPrompt }],
+    messages: [{ role: "user", content: buildUserPrompt(recentContext, newMessage) }],
   });
 
   const textBlock = response.content.find((block) => block.type === "text");
@@ -82,6 +86,41 @@ export async function generateCharacterResponse(
     throw new Error("Anthropic response contained no text block");
   }
   return textBlock.text.trim();
+}
+
+/**
+ * Streaming character response with callback. Fires `onDelta` for each
+ * text chunk as it arrives from the Anthropic API. Returns the full
+ * accumulated reply text when the stream completes. Used by the SSE
+ * stream endpoint (POST /api/conversations/[id]/stream) to pipe tokens
+ * to the client in real time.
+ *
+ * Uses `stream.on("text")` rather than the async-iterable `.textStream`
+ * property, which isn't available in SDK 0.89.0.
+ */
+export async function streamCharacterResponse(
+  systemPrompt: string,
+  recentContext: readonly ChatContextLine[],
+  newMessage: ChatContextLine,
+  richContext: string | null = null,
+  onDelta: (delta: string) => void = () => {},
+): Promise<string> {
+  const stream = getClient().messages.stream({
+    model: CHAT_MODEL,
+    max_tokens: MAX_TOKENS,
+    temperature: 0.9,
+    system: composeSystemPrompt(systemPrompt, richContext),
+    messages: [{ role: "user", content: buildUserPrompt(recentContext, newMessage) }],
+  });
+
+  let fullText = "";
+  stream.on("text", (delta) => {
+    fullText += delta;
+    onDelta(delta);
+  });
+
+  await stream.finalMessage();
+  return fullText;
 }
 
 export type DraftPick = {

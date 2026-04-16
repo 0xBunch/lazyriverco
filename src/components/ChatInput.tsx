@@ -5,9 +5,13 @@ import { cn } from "@/lib/utils";
 
 type ChatInputProps = {
   onSubmit: (content: string) => Promise<void> | void;
+  /** External disable — used by ConversationView to lock input while
+   *  the agent reply is streaming. Stacks with the internal `sending`
+   *  state so both gates must be clear for the input to be active. */
+  disabled?: boolean;
 };
 
-export function ChatInput({ onSubmit }: ChatInputProps) {
+export function ChatInput({ onSubmit, disabled = false }: ChatInputProps) {
   const [value, setValue] = useState("");
   const [sending, setSending] = useState(false);
   const ref = useRef<HTMLTextAreaElement | null>(null);
@@ -43,7 +47,7 @@ export function ChatInput({ onSubmit }: ChatInputProps) {
     }
   }
 
-  const busy = sending;
+  const busy = sending || disabled;
 
   return (
     <form
@@ -80,7 +84,7 @@ export function ChatInput({ onSubmit }: ChatInputProps) {
           "disabled:cursor-not-allowed disabled:opacity-60",
         )}
       >
-        {sending ? "…" : "Send"}
+        {busy ? "…" : "Send"}
       </button>
     </form>
   );

@@ -12,6 +12,9 @@ type ChatMessageProps = {
   message: ChatMessageDTO;
   isMe: boolean;
   showHeader: boolean;
+  /** When true, renders a blinking cursor after the content — used for
+   *  the streaming agent bubble while tokens are still arriving. */
+  isStreaming?: boolean;
 };
 
 function initials(name: string): string {
@@ -140,7 +143,7 @@ function RelativeTime({ iso }: { iso: string }) {
 
 // --- ChatMessage component ------------------------------------------------
 
-export function ChatMessage({ message, isMe, showHeader }: ChatMessageProps) {
+export function ChatMessage({ message, isMe, showHeader, isStreaming = false }: ChatMessageProps) {
   const isCharacter = message.authorType === "CHARACTER";
   const mediaUrls =
     isCharacter && message.content ? extractSafeMediaUrls(message.content) : [];
@@ -220,6 +223,11 @@ export function ChatMessage({ message, isMe, showHeader }: ChatMessageProps) {
           ) : (
             message.content
           )}
+          {isStreaming ? (
+            <span className="ml-0.5 inline-block animate-pulse text-claude-400">
+              ▍
+            </span>
+          ) : null}
         </div>
 
         {mediaUrls.length > 0 ? (

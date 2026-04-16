@@ -1,12 +1,13 @@
 "use client";
 
+import { useCallback, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { ChatInput } from "@/components/ChatInput";
 import { MessageList } from "@/components/MessageList";
 import { useChatPolling } from "@/lib/hooks/use-chat-polling";
 import type {
+  ChatMessageDTO,
   ConversationCharacterDTO,
-  PostMessageResponse,
 } from "@/lib/chat";
 import { cn } from "@/lib/utils";
 
@@ -24,6 +25,33 @@ function initials(name: string): string {
   return (first.charAt(0) + second.charAt(0)).toUpperCase();
 }
 
+// --- SSE parser helpers ---------------------------------------------------
+
+type SSEEvent = {
+  event: string;
+  data: string;
+};
+
+function parseSSEChunk(buffer: string): { events: SSEEvent[]; rest: string } {
+  const events: SSEEvent[] = [];
+  const parts = buffer.split("\n\n");
+  const rest = parts.pop() ?? "";
+
+  for (const part of parts) {
+    if (!part.trim()) continue;
+    let event = "";
+    let data = "";
+    for (const line of part.split("\n")) {
+      if (line.startsWith("event: ")) event = line.slice(7);
+      else if (line.startsWith("data: ")) data = line.slice(6);
+    }
+    if (event && data) events.push({ event, data });
+  }
+  return { events, rest };
+}
+
+// --------------------------------------------------------------------------
+
 export function ConversationView({
   conversationId,
   character,
@@ -35,30 +63,114 @@ export function ConversationView({
     fetchUrl: `/api/conversations/${conversationId}/messages`,
   });
 
-  async function handleSubmit(content: string) {
-    const res = await fetch(
-      `/api/conversations/${conversationId}/messages`,
-      {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ content }),
-      },
-    );
-    if (!res.ok) {
-      throw new Error(`send failed: ${res.status}`);
-    }
-    const data = (await res.json()) as PostMessageResponse;
-    if ("message" in data) {
-      // Optimistic append so the user's own message shows up immediately.
-      // The polling cursor dedupes by id so there's no double-render.
-      appendMessages([data.message]);
-    }
-  }
+  // Streaming state: null = idle, string = accumulated agent text
+  const [streamingContent, setStreamingContent] = useState<string | null>(null);
+  const isStreaming = streamingContent !== null;
+  const abortRef = useRef<AbortController | null>(null);
+
+  const handleSubmit = useCallback(
+    (content: string) => {
+      if (isStreaming) return;
+      // Fire the stream in the background — DON'T return a Promise so
+      // ChatInput clears immediately. The `disabled` prop keeps it locked
+      // until the stream finishes.
+      void (async () => {
+        setStreamingContent("");
+        const abort = new AbortController();
+        abortRef.current = abort;
+
+        try {
+          const res = await fetch(
+            `/api/conversations/${conversationId}/stream`,
+            {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({ content }),
+              signal: abort.signal,
+            },
+          );
+
+          if (!res.ok) {
+            const errData = await res
+              .json()
+              .catch(() => ({ error: "Stream failed" }));
+            console.error("[stream] HTTP error:", errData);
+            setStreamingContent(null);
+            return;
+          }
+          if (!res.body) {
+            setStreamingContent(null);
+            return;
+          }
+
+          const reader = res.body.getReader();
+          const decoder = new TextDecoder();
+          let buffer = "";
+
+          while (true) {
+            const { done, value } = await reader.read();
+            if (done) break;
+
+            buffer += decoder.decode(value, { stream: true });
+            const { events, rest } = parseSSEChunk(buffer);
+            buffer = rest;
+
+            for (const sse of events) {
+              const data = JSON.parse(sse.data);
+              switch (sse.event) {
+                case "user_message":
+                  appendMessages([data.message as ChatMessageDTO]);
+                  break;
+                case "token":
+                  setStreamingContent(
+                    (prev) => (prev ?? "") + (data.delta as string),
+                  );
+                  break;
+                case "done":
+                  if (data.message) {
+                    appendMessages([data.message as ChatMessageDTO]);
+                  }
+                  setStreamingContent(null);
+                  break;
+                case "error":
+                  console.error("[stream] server:", data.message);
+                  setStreamingContent(null);
+                  break;
+              }
+            }
+          }
+        } catch (err) {
+          if (err instanceof DOMException && err.name === "AbortError") return;
+          console.error("[stream] client error:", err);
+        } finally {
+          setStreamingContent(null);
+          abortRef.current = null;
+        }
+      })();
+    },
+    [conversationId, isStreaming, appendMessages],
+  );
+
+  // Build a synthetic ChatMessageDTO for the streaming bubble
+  const streamingMessage: ChatMessageDTO | null =
+    streamingContent !== null
+      ? {
+          id: "streaming",
+          content: streamingContent,
+          createdAt: new Date().toISOString(),
+          authorType: "CHARACTER",
+          author: {
+            id: character.id,
+            name: character.name,
+            displayName: character.displayName,
+            avatarUrl: character.avatarUrl,
+          },
+        }
+      : null;
 
   return (
     <div className="flex h-[100dvh] min-h-0 flex-col">
-      {/* Header — sticky-ish, sits above the scroll area. The pl-12 on
-          mobile leaves room for the SidebarShell hamburger. */}
+      {/* Header */}
       <div className="border-b border-bone-700 bg-bone-900/80 px-6 pb-3 pt-4 backdrop-blur md:pt-5">
         <div className="mx-auto flex max-w-3xl items-center justify-between gap-3 pl-12 md:pl-0">
           <div className="flex min-w-0 items-center gap-3">
@@ -93,9 +205,19 @@ export function ConversationView({
         </div>
       </div>
 
+      {/* Messages */}
       {messages === null ? (
-        <div className="flex flex-1 items-center justify-center text-sm text-bone-400">
-          Loading…
+        <div className="flex flex-1 flex-col items-center justify-center gap-3 text-sm text-bone-400">
+          <div className="flex gap-1.5">
+            {[0, 150, 300].map((d) => (
+              <div
+                key={d}
+                className="h-2 w-2 animate-bounce rounded-full bg-bone-600"
+                style={{ animationDelay: `${d}ms`, animationDuration: "0.8s" }}
+              />
+            ))}
+          </div>
+          Loading conversation…
         </div>
       ) : error ? (
         <div className="flex flex-1 items-center justify-center px-6 text-center text-sm text-red-300">
@@ -105,7 +227,10 @@ export function ConversationView({
         <MessageList
           messages={messages}
           currentUserId={currentUserId}
-          typingCharacterName={character.displayName}
+          typingCharacterName={
+            !isStreaming ? character.displayName : undefined
+          }
+          streamingMessage={streamingMessage}
           emptyState={
             <div className="flex h-full items-center justify-center px-6 text-center">
               <p className="text-sm italic text-bone-300">
@@ -116,7 +241,7 @@ export function ConversationView({
         />
       )}
 
-      <ChatInput onSubmit={handleSubmit} />
+      <ChatInput onSubmit={handleSubmit} disabled={isStreaming} />
     </div>
   );
 }

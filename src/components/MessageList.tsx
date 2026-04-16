@@ -12,10 +12,10 @@ type MessageListProps = {
   messages: ChatMessageDTO[];
   currentUserId: string;
   emptyState?: ReactNode;
-  /** Character name for the typing indicator. When set and the last
-   *  message is a recent USER message, a "thinking" shimmer renders
-   *  below the message list. */
   typingCharacterName?: string;
+  /** When non-null, renders a streaming agent bubble with a blinking
+   *  cursor after the regular messages. Content grows as tokens arrive. */
+  streamingMessage?: ChatMessageDTO | null;
 };
 
 function TypingIndicator({ name }: { name: string }) {
@@ -28,8 +28,11 @@ function TypingIndicator({ name }: { name: string }) {
           {[0, 150, 300].map((delay) => (
             <span
               key={delay}
-              className="inline-block h-1 w-1 rounded-full bg-claude-400 animate-bounce"
-              style={{ animationDelay: `${delay}ms`, animationDuration: "0.8s" }}
+              className="inline-block h-1 w-1 animate-bounce rounded-full bg-claude-400"
+              style={{
+                animationDelay: `${delay}ms`,
+                animationDuration: "0.8s",
+              }}
             />
           ))}
         </span>
@@ -43,22 +46,24 @@ export function MessageList({
   currentUserId,
   emptyState,
   typingCharacterName,
+  streamingMessage,
 }: MessageListProps) {
   const scrollRef = useRef<HTMLDivElement | null>(null);
   const bottomRef = useRef<HTMLDivElement | null>(null);
   const shouldReduceMotion = useReducedMotion();
 
-  // Show the typing indicator when the last message is a recent USER
-  // message — meaning the orchestrator is likely still running. Hides
-  // once a CHARACTER message lands (via the next poll tick), or if the
-  // USER message is older than 60s (orchestrator probably failed).
+  // Show the typing indicator when:
+  //   - No streaming is active (streaming replaces the indicator)
+  //   - The last message is a recent USER message (orchestrator running)
   const lastMsg = messages.length > 0 ? messages[messages.length - 1] : null;
   const isAgentTyping =
+    !streamingMessage &&
     !!typingCharacterName &&
     !!lastMsg &&
     lastMsg.authorType === "USER" &&
     Date.now() - new Date(lastMsg.createdAt).getTime() < 60_000;
 
+  // Auto-scroll on new messages, streaming content growth, or typing indicator
   useEffect(() => {
     const scroller = scrollRef.current;
     const bottom = bottomRef.current;
@@ -68,11 +73,11 @@ export function MessageList({
     if (distanceFromBottom <= NEAR_BOTTOM_THRESHOLD_PX) {
       bottom.scrollIntoView({ behavior: "smooth", block: "end" });
     }
-  }, [messages, isAgentTyping]);
+  }, [messages, isAgentTyping, streamingMessage?.content]);
 
   return (
     <div ref={scrollRef} className="flex-1 overflow-y-auto pt-4">
-      {messages.length === 0 ? (
+      {messages.length === 0 && !streamingMessage ? (
         emptyState ?? (
           <div className="flex h-full items-center justify-center px-6 text-center">
             <p className="text-sm italic text-bone-300">
@@ -110,6 +115,27 @@ export function MessageList({
               </motion.div>
             );
           })}
+
+          {/* Streaming agent bubble — grows as tokens arrive */}
+          {streamingMessage ? (
+            <motion.div
+              key="streaming"
+              initial={shouldReduceMotion ? false : { opacity: 0, y: 6 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ duration: 0.15, ease: "easeOut" }}
+            >
+              <ChatMessage
+                message={streamingMessage}
+                isMe={false}
+                showHeader={true}
+                isStreaming={true}
+              />
+            </motion.div>
+          ) : null}
+
+          {/* Typing indicator — shown while waiting for fire-and-forget
+              orchestrator (initial conversation create), hidden when
+              streaming is active since the streaming bubble IS the reply */}
           {isAgentTyping ? (
             <motion.div
               initial={shouldReduceMotion ? false : { opacity: 0 }}
@@ -119,6 +145,7 @@ export function MessageList({
               <TypingIndicator name={typingCharacterName!} />
             </motion.div>
           ) : null}
+
           <div ref={bottomRef} />
         </div>
       )}
