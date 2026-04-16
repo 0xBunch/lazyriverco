@@ -121,9 +121,11 @@ export function SidebarShell({ sidebar, children }: SidebarShellProps) {
           "fixed inset-y-0 left-0 z-30 flex w-64 flex-col border-r border-bone-700 bg-bone-900 transition-transform duration-200 ease-out",
           // Mobile: slide from left
           open ? "translate-x-0" : "-translate-x-full",
-          // Desktop: sticky, collapsible
+          // Desktop: when expanded, sticky (takes flow space). When
+          // collapsed, stays fixed + slides fully off-screen so main
+          // content gets full width.
           collapsed
-            ? "md:sticky md:top-0 md:h-screen md:-translate-x-full md:w-0 md:border-0"
+            ? "md:fixed md:-translate-x-full"
             : "md:sticky md:top-0 md:h-screen md:translate-x-0",
         )}
       >
