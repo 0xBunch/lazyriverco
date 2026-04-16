@@ -25,3 +25,22 @@ export const ADMIN_NAV_ITEM: NavItem = {
 };
 
 export type NavHref = (typeof NAV_ITEMS)[number]["href"];
+
+/**
+ * Gate for mini-app tabs (fantasy / picks / brackets / trips / etc.).
+ * Phase 1: mini-app tabs are hidden from members; only the commissioner
+ * (ADMIN role) sees them. When phase 2 opens tabs up to the whole crew,
+ * split this from the admin-surface check and keep ADMIN_NAV_ITEM gated
+ * on role separately.
+ *
+ * User type kept inline so this module stays client-safe — nav.ts is
+ * imported by both server components (Sidebar) and client components
+ * (SidebarNav). Importing SafeUser from auth.ts would pull in the
+ * "server-only" marker and break the client bundle.
+ */
+export function canSeeMiniApps(
+  user: { role: "MEMBER" | "ADMIN" } | null | undefined,
+): boolean {
+  if (!user) return false;
+  return user.role === "ADMIN";
+}

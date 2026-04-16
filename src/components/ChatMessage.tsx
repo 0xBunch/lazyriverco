@@ -4,6 +4,7 @@ import { formatDistanceToNowStrict } from "date-fns";
 import { useEffect, useState } from "react";
 import { cn } from "@/lib/utils";
 import type { ChatMessageDTO } from "@/lib/chat";
+import { AgentSuggestionButton } from "@/components/AgentSuggestionButton";
 
 type ChatMessageProps = {
   message: ChatMessageDTO;
@@ -18,6 +19,67 @@ function initials(name: string): string {
   if (!first) return "?";
   if (!second) return first.slice(0, 2).toUpperCase();
   return (first.charAt(0) + second.charAt(0)).toUpperCase();
+}
+
+// --- Safe media URL rendering ---------------------------------------------
+//
+// Auto-detect URLs in agent-authored content that point at our R2 bucket
+// and render them as <img> previews below the message bubble. Strict
+// allow-list: the URL must (a) have the exact origin configured via
+// NEXT_PUBLIC_R2_PUBLIC_BASE_URL and (b) match the server-generated
+// `media/<uuid>.<ext>` key shape from r2.ts. Any URL that doesn't match
+// BOTH conditions stays as plain text.
+//
+// Security rationale (security-sentinel M2):
+//   - A loose substring match would let prompt-injected `https://evil.com/pixel.png`
+//     exfil conversation content via referrer or URL params. Host-exact
+//     + path-regex closes that hole.
+//   - `<img src={url}>` is set via a React prop, not HTML string
+//     interpolation, so React escapes the attribute automatically.
+//   - referrerPolicy="no-referrer" on the <img> prevents the browser
+//     from leaking the conversation URL to the image host even if the
+//     host is trusted.
+
+const MEDIA_ORIGIN: string | null = (() => {
+  const base = process.env.NEXT_PUBLIC_R2_PUBLIC_BASE_URL;
+  if (!base) return null;
+  try {
+    return new URL(base).origin;
+  } catch {
+    return null;
+  }
+})();
+
+const MEDIA_KEY_REGEX =
+  /^\/media\/[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}\.(jpg|jpeg|png|webp|gif|mp4)$/i;
+
+function isSafeMediaUrl(raw: string): boolean {
+  if (!MEDIA_ORIGIN) return false;
+  try {
+    const u = new URL(raw);
+    return u.origin === MEDIA_ORIGIN && MEDIA_KEY_REGEX.test(u.pathname);
+  } catch {
+    return false;
+  }
+}
+
+function extractSafeMediaUrls(content: string): string[] {
+  const matches = content.match(/https?:\/\/[^\s<>)]+/g) ?? [];
+  const seen = new Set<string>();
+  const safe: string[] = [];
+  for (const m of matches) {
+    // Strip trailing punctuation from common prose patterns like
+    // "check out https://example.com/foo.jpg." or "(https://...)"
+    const cleaned = m.replace(/[.,;:!?)]+$/, "");
+    if (seen.has(cleaned)) continue;
+    seen.add(cleaned);
+    if (isSafeMediaUrl(cleaned)) safe.push(cleaned);
+  }
+  return safe;
+}
+
+function isVideoUrl(url: string): boolean {
+  return url.toLowerCase().endsWith(".mp4");
 }
 
 // Relative timestamp. Seeded with the computed label so there's no flash of
@@ -42,6 +104,10 @@ function RelativeTime({ iso }: { iso: string }) {
 
 export function ChatMessage({ message, isMe, showHeader }: ChatMessageProps) {
   const isCharacter = message.authorType === "CHARACTER";
+  const mediaUrls =
+    isCharacter && message.content ? extractSafeMediaUrls(message.content) : [];
+  const suggestion =
+    isCharacter && message.suggestion ? message.suggestion : null;
 
   return (
     <div
@@ -109,6 +175,39 @@ export function ChatMessage({ message, isMe, showHeader }: ChatMessageProps) {
         >
           {message.content}
         </div>
+
+        {mediaUrls.length > 0 ? (
+          <div className="mt-2 flex max-w-[min(42rem,100%)] flex-col gap-2">
+            {mediaUrls.map((url) =>
+              isVideoUrl(url) ? (
+                <video
+                  key={url}
+                  src={url}
+                  controls
+                  preload="metadata"
+                  className="max-h-80 rounded-xl border border-bone-700 bg-bone-950"
+                />
+              ) : (
+                // eslint-disable-next-line @next/next/no-img-element
+                <img
+                  key={url}
+                  src={url}
+                  alt=""
+                  loading="lazy"
+                  referrerPolicy="no-referrer"
+                  className="max-h-80 rounded-xl border border-bone-700 bg-bone-950 object-contain"
+                />
+              ),
+            )}
+          </div>
+        ) : null}
+
+        {suggestion ? (
+          <AgentSuggestionButton
+            characterName={suggestion.characterName}
+            reason={suggestion.reason}
+          />
+        ) : null}
       </div>
     </div>
   );
