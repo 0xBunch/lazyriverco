@@ -105,6 +105,7 @@ export function ConversationView({
         <MessageList
           messages={messages}
           currentUserId={currentUserId}
+          typingCharacterName={character.displayName}
           emptyState={
             <div className="flex h-full items-center justify-center px-6 text-center">
               <p className="text-sm italic text-bone-300">

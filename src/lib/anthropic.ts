@@ -1,10 +1,12 @@
 import Anthropic from "@anthropic-ai/sdk";
 
-// Haiku 4.5 alias — resolves to the latest snapshot server-side. Verified via
-// Anthropic's TS SDK docs this session (`/anthropics/anthropic-sdk-typescript`
-// uses the same alias form in its messages.create example). Using the alias
-// instead of a pinned snapshot keeps us resilient to Anthropic's versioning.
-export const MODEL_HAIKU = "claude-haiku-4-5" as const;
+// Sonnet 4.5 — major upgrade from Haiku 4.5 for creative quality. The model
+// alias resolves to the latest snapshot server-side. Using the pinned
+// snapshot rather than an alias keeps behavior deterministic across
+// deploys; swap to "claude-sonnet-4-5" (alias) if you want auto-upgrades.
+export const CHAT_MODEL = "claude-sonnet-4-5-20250514" as const;
+
+const MAX_TOKENS = 1500;
 
 // Lazy singleton — constructing the client at module load would make every
 // import of this file (including Next's build-time page data collection)
@@ -24,7 +26,7 @@ function getClient(): Anthropic {
 
 const SYSTEM_PROMPT_TAIL = [
   "",
-  "Respond in character. Keep it to 1-3 short sentences. You are texting in a group chat — be punchy, not verbose. Never break character. Never mention that you are an AI.",
+  "Respond in character. Never break character. Never mention that you are an AI.",
 ].join("\n");
 
 export type ChatContextLine = {
@@ -32,23 +34,10 @@ export type ChatContextLine = {
   content: string;
 };
 
-/**
- * Build a formatted transcript for the character prompt. Each line is
- * `[DisplayName]: content`, oldest first. The final line is the message
- * the character is reacting to.
- */
 function formatChatContext(lines: readonly ChatContextLine[]): string {
   return lines.map((l) => `[${l.displayName}]: ${l.content}`).join("\n");
 }
 
-/**
- * Compose a character's full system prompt. Order:
- *   1. The character's persona bible (their voice/personality document)
- *   2. Optional rich context from the curated layers (canon, member facts,
- *      relationship narratives) — see src/lib/character-context.ts
- *   3. The standard "respond in character" tail
- * Empty/missing layers degrade gracefully.
- */
 function composeSystemPrompt(
   bible: string,
   richContext: string | null,
@@ -61,14 +50,6 @@ function composeSystemPrompt(
   return parts.join("\n") + SYSTEM_PROMPT_TAIL;
 }
 
-/**
- * Generate a single character response from Claude. Throws on API errors —
- * the orchestrator decides whether to catch, retry, or drop.
- *
- * `richContext` is the optional curated context block (canon + member
- * facts + relationship narratives). Pass `null` for the legacy bible-only
- * behavior.
- */
 export async function generateCharacterResponse(
   systemPrompt: string,
   recentContext: readonly ChatContextLine[],
@@ -77,7 +58,7 @@ export async function generateCharacterResponse(
 ): Promise<string> {
   const transcript = formatChatContext([...recentContext, newMessage]);
   const userPrompt = [
-    "Here is the recent group chat, oldest first. Reply to the most recent",
+    "Here is the recent conversation, oldest first. Reply to the most recent",
     "message in your own voice. Output ONLY the reply text — no prefixes,",
     "no quoting, no meta commentary.",
     "",
@@ -85,8 +66,8 @@ export async function generateCharacterResponse(
   ].join("\n");
 
   const response = await getClient().messages.create({
-    model: MODEL_HAIKU,
-    max_tokens: 200,
+    model: CHAT_MODEL,
+    max_tokens: MAX_TOKENS,
     temperature: 0.9,
     system: composeSystemPrompt(systemPrompt, richContext),
     messages: [{ role: "user", content: userPrompt }],
@@ -106,16 +87,6 @@ export type DraftPick = {
   round: number;
 };
 
-/**
- * One-shot draft commentary. Used by POST /api/draft/pick to have Joey
- * announce a pick with delusional confidence. Shares the character bible
- * as system prompt + the standard tail, but the user message is a
- * direct description of the draft event (not a chat transcript).
- *
- * `richContext` is the optional curated context block — same shape as
- * generateCharacterResponse so Joey "knows the crew" when he's roasting
- * his own pick.
- */
 export async function generateDraftCommentary(
   systemPrompt: string,
   pick: DraftPick,
@@ -132,8 +103,8 @@ export async function generateDraftCommentary(
   ].join("\n");
 
   const response = await getClient().messages.create({
-    model: MODEL_HAIKU,
-    max_tokens: 200,
+    model: CHAT_MODEL,
+    max_tokens: MAX_TOKENS,
     temperature: 0.9,
     system: composeSystemPrompt(systemPrompt, richContext),
     messages: [{ role: "user", content: userPrompt }],

@@ -1,16 +1,16 @@
 "use client";
 
 import { formatDistanceToNowStrict } from "date-fns";
-import { useEffect, useState } from "react";
+import { useEffect, useState, type ReactNode } from "react";
+import ReactMarkdown from "react-markdown";
+import remarkGfm from "remark-gfm";
 import { cn } from "@/lib/utils";
 import type { ChatMessageDTO } from "@/lib/chat";
 import { AgentSuggestionButton } from "@/components/AgentSuggestionButton";
 
 type ChatMessageProps = {
   message: ChatMessageDTO;
-  /** True when this message is sent by the currently-authed user. */
   isMe: boolean;
-  /** True when this is the first message in a 2-minute author cluster. */
   showHeader: boolean;
 };
 
@@ -22,23 +22,6 @@ function initials(name: string): string {
 }
 
 // --- Safe media URL rendering ---------------------------------------------
-//
-// Auto-detect URLs in agent-authored content that point at our R2 bucket
-// and render them as <img> previews below the message bubble. Strict
-// allow-list: the URL must (a) have the exact origin configured via
-// NEXT_PUBLIC_R2_PUBLIC_BASE_URL and (b) match the server-generated
-// `media/<uuid>.<ext>` key shape from r2.ts. Any URL that doesn't match
-// BOTH conditions stays as plain text.
-//
-// Security rationale (security-sentinel M2):
-//   - A loose substring match would let prompt-injected `https://evil.com/pixel.png`
-//     exfil conversation content via referrer or URL params. Host-exact
-//     + path-regex closes that hole.
-//   - `<img src={url}>` is set via a React prop, not HTML string
-//     interpolation, so React escapes the attribute automatically.
-//   - referrerPolicy="no-referrer" on the <img> prevents the browser
-//     from leaking the conversation URL to the image host even if the
-//     host is trusted.
 
 const MEDIA_ORIGIN: string | null = (() => {
   const base = process.env.NEXT_PUBLIC_R2_PUBLIC_BASE_URL;
@@ -68,8 +51,6 @@ function extractSafeMediaUrls(content: string): string[] {
   const seen = new Set<string>();
   const safe: string[] = [];
   for (const m of matches) {
-    // Strip trailing punctuation from common prose patterns like
-    // "check out https://example.com/foo.jpg." or "(https://...)"
     const cleaned = m.replace(/[.,;:!?)]+$/, "");
     if (seen.has(cleaned)) continue;
     seen.add(cleaned);
@@ -82,9 +63,64 @@ function isVideoUrl(url: string): boolean {
   return url.toLowerCase().endsWith(".mp4");
 }
 
-// Relative timestamp. Seeded with the computed label so there's no flash of
-// empty state on first paint. `formatDistanceToNowStrict` is deterministic
-// for a given ISO, so SSR and CSR agree.
+// --- Markdown for agent replies -------------------------------------------
+
+function AgentMarkdown({ children }: { children: string }) {
+  return (
+    <ReactMarkdown
+      remarkPlugins={[remarkGfm]}
+      components={{
+        // Override default elements to match our design tokens.
+        // The prose class handles most of it; these are edge-case
+        // refinements so links and code blocks don't clash with the
+        // dark theme.
+        a: ({ children: c, ...props }: { children?: ReactNode; href?: string }) => (
+          <a
+            {...props}
+            className="text-claude-300 underline decoration-claude-500/40 underline-offset-2 hover:text-claude-200"
+            target="_blank"
+            rel="noopener noreferrer"
+          >
+            {c}
+          </a>
+        ),
+        code: ({
+          children: c,
+          className,
+          ...props
+        }: {
+          children?: ReactNode;
+          className?: string;
+        }) => {
+          const isBlock = className?.startsWith("language-");
+          if (isBlock) {
+            return (
+              <code
+                className="block overflow-x-auto rounded-lg bg-bone-950 px-3 py-2 text-xs"
+                {...props}
+              >
+                {c}
+              </code>
+            );
+          }
+          return (
+            <code
+              className="rounded bg-bone-900 px-1 py-0.5 text-xs"
+              {...props}
+            >
+              {c}
+            </code>
+          );
+        },
+      }}
+    >
+      {children}
+    </ReactMarkdown>
+  );
+}
+
+// --- Relative timestamp ----------------------------------------------------
+
 function RelativeTime({ iso }: { iso: string }) {
   const [label, setLabel] = useState<string>(() =>
     formatDistanceToNowStrict(new Date(iso), { addSuffix: true }),
@@ -102,6 +138,8 @@ function RelativeTime({ iso }: { iso: string }) {
   );
 }
 
+// --- ChatMessage component ------------------------------------------------
+
 export function ChatMessage({ message, isMe, showHeader }: ChatMessageProps) {
   const isCharacter = message.authorType === "CHARACTER";
   const mediaUrls =
@@ -117,7 +155,7 @@ export function ChatMessage({ message, isMe, showHeader }: ChatMessageProps) {
         isMe && "flex-row-reverse",
       )}
     >
-      {/* Avatar column — fixed width even when hidden, keeps text aligned. */}
+      {/* Avatar column */}
       <div className="w-9 shrink-0">
         {showHeader ? (
           <div
@@ -165,15 +203,23 @@ export function ChatMessage({ message, isMe, showHeader }: ChatMessageProps) {
         <div
           className={cn(
             "max-w-[min(42rem,100%)] rounded-2xl px-4 py-2 text-sm leading-relaxed",
-            "whitespace-pre-wrap break-words",
             isMe
               ? "bg-claude-500/90 text-bone-50 rounded-br-md"
               : isCharacter
                 ? "border-l-2 border-claude-500/60 bg-bone-800/70 text-bone-100 rounded-bl-md"
                 : "bg-bone-800 text-bone-100 rounded-bl-md",
+            // Markdown prose styles for character replies; plain
+            // whitespace-pre-wrap for user messages.
+            isCharacter
+              ? "prose prose-sm prose-invert max-w-none prose-p:my-1 prose-ul:my-1 prose-ol:my-1 prose-li:my-0 prose-headings:mb-1 prose-headings:mt-2 prose-headings:text-bone-50"
+              : "whitespace-pre-wrap break-words",
           )}
         >
-          {message.content}
+          {isCharacter ? (
+            <AgentMarkdown>{message.content}</AgentMarkdown>
+          ) : (
+            message.content
+          )}
         </div>
 
         {mediaUrls.length > 0 ? (
