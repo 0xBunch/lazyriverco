@@ -41,6 +41,34 @@ export type SelectMediaForContextInput = {
  * prompt. Never inlined into buildRichContext directly so swapping
  * retrieval strategies (tag-match, embeddings) is a one-file change.
  */
+/**
+ * Fetch specific Media rows by ID — used by the two-pass Haiku selection
+ * pipeline when selectContext returns mediaIds. Same sanitization as the
+ * fallback selectMediaForContext below.
+ */
+export async function selectMediaByIds(
+  ids: string[],
+): Promise<MediaContextRow[]> {
+  if (ids.length === 0) return [];
+
+  const rows = await prisma.media.findMany({
+    where: { id: { in: ids }, status: "READY" },
+    select: {
+      url: true,
+      tags: true,
+      caption: true,
+      hallOfFame: true,
+    },
+  });
+
+  return rows.map((row) => ({
+    publicUrl: row.url,
+    tags: sanitizeTags(row.tags),
+    caption: sanitizeCaption(row.caption),
+    hallOfFame: row.hallOfFame,
+  }));
+}
+
 export async function selectMediaForContext(
   input: SelectMediaForContextInput,
 ): Promise<MediaContextRow[]> {

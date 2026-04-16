@@ -1,21 +1,26 @@
 // Build the per-call "rich context" block injected into a character's
-// system prompt. Three layers, all admin-curated, all degrade gracefully
-// when empty:
+// system prompt. Six layers, assembled in a stable order so Anthropic's
+// prompt cache keeps the prefix hot:
 //
-//   1. Clubhouse canon — the broader Mens League lore (one big text doc
-//      shared by every agent).
-//   2. Member facts — for every user appearing in the recent transcript,
-//      a short blurb plus structured fields (city, favorite team).
-//   3. Relationship narrative — this agent's specific take on each of
-//      those users, free-form text. Only included when set.
+//   1. Core identity (ClubhouseCanon) — always injected
+//   2. Core lore (isCore=true Lore entries) — always injected
+//   3. Member facts — per participant
+//   4. Relationship narratives — agent-specific
+//   5. Selected lore — Haiku-picked topic-relevant entries
+//   6. Selected media — Haiku-picked topic-relevant assets/links
+//   7. Upcoming dates — calendar entries within ±7 days
 //
-// The helper takes the SET of user IDs that appear in the recent transcript
-// (so we don't dump irrelevant facts on a 7-person clubhouse). Caller is
-// responsible for assembling that set; orchestrator extracts it from the
-// message slice it already fetches for transcript context.
+// Sections 1-4 are stable (change rarely). Sections 5-7 vary per
+// message and sit at the tail for cache efficiency.
 
 import { prisma } from "@/lib/prisma";
-import { selectMediaForContext } from "@/lib/media-context";
+import {
+  selectMediaForContext,
+  selectMediaByIds,
+} from "@/lib/media-context";
+import type { CalendarContextRow } from "@/lib/calendar-context";
+
+const MAX_LORE_CHARS = 4000; // ~1000 tokens budget for selected lore
 
 export type RichContextInput = {
   /** The character generating the response. */
@@ -23,13 +28,29 @@ export type RichContextInput = {
   /** User IDs that appear in the recent transcript the agent will see. */
   participantUserIds: readonly string[];
   /**
-   * Whether to append the shared media bank section. Required (not
-   * optional) so every call site states its intent explicitly — the
-   * legacy channel orchestrator passes false to preserve behavior, the
-   * new per-conversation orchestrator passes true. Making this required
-   * prevents the section from being accidentally injected or skipped.
+   * Whether to include media context. Required so every call site
+   * states its intent explicitly.
    */
   includeMedia: boolean;
+  /**
+   * Lore entry IDs selected by the Haiku two-pass call. When present,
+   * only these entries (plus isCore entries) are injected. When absent,
+   * no topic-selected lore is injected (backward compatible).
+   */
+  selectedLoreIds?: string[];
+  /**
+   * Media entry IDs selected by the Haiku two-pass call. When present,
+   * these specific entries are fetched instead of the hall-of-fame +
+   * recent fallback. When absent AND includeMedia is true, falls back
+   * to the existing selectMediaForContext behavior.
+   */
+  selectedMediaIds?: string[];
+  /**
+   * Calendar entries within the date window (pre-fetched by the caller
+   * via getUpcomingCalendarEntries). When present, injected as
+   * "# Upcoming dates". When absent, skipped.
+   */
+  calendarEntries?: CalendarContextRow[];
 };
 
 /**
@@ -40,13 +61,26 @@ export type RichContextInput = {
 export async function buildRichContext(
   input: RichContextInput,
 ): Promise<string> {
-  const { characterId, participantUserIds, includeMedia } = input;
+  const {
+    characterId,
+    participantUserIds,
+    includeMedia,
+    selectedLoreIds,
+    selectedMediaIds,
+    calendarEntries,
+  } = input;
   const userIds = [...new Set(participantUserIds)];
 
-  const [canon, members, relationships] = await Promise.all([
+  // --- Parallel fetch: stable layers ---
+  const [canon, coreLore, members, relationships] = await Promise.all([
     prisma.clubhouseCanon.findFirst({
       where: { name: "default" },
       select: { content: true },
+    }),
+    prisma.lore.findMany({
+      where: { isCore: true },
+      orderBy: { sortOrder: "asc" },
+      select: { topic: true, content: true },
     }),
     userIds.length > 0
       ? prisma.user.findMany({
@@ -77,13 +111,21 @@ export async function buildRichContext(
 
   const sections: string[] = [];
 
-  // 1. Clubhouse canon
+  // 1. Core identity (ClubhouseCanon)
   const canonContent = canon?.content?.trim();
   if (canonContent) {
     sections.push(["# Mens League canon", canonContent].join("\n"));
   }
 
-  // 2. Member facts — only for members with at least one populated field.
+  // 2. Core lore (always injected, no Haiku selection)
+  if (coreLore.length > 0) {
+    const lines = coreLore.map(
+      (l) => `**${l.topic}**: ${l.content.trim()}`,
+    );
+    sections.push(["# Core knowledge", ...lines].join("\n\n"));
+  }
+
+  // 3. Member facts — only for members with at least one populated field.
   const memberLines: string[] = [];
   for (const m of members) {
     const blurb = m.blurb?.trim();
@@ -92,7 +134,9 @@ export async function buildRichContext(
     if (m.favoriteTeam) fields.push(`roots for the ${m.favoriteTeam}`);
     if (m.role === "ADMIN") fields.push("commissioner");
     if (!blurb && fields.length === 0) continue;
-    const header = `- ${m.displayName}` + (fields.length > 0 ? ` (${fields.join("; ")})` : "");
+    const header =
+      `- ${m.displayName}` +
+      (fields.length > 0 ? ` (${fields.join("; ")})` : "");
     if (blurb) {
       memberLines.push(`${header}: ${blurb}`);
     } else {
@@ -101,11 +145,14 @@ export async function buildRichContext(
   }
   if (memberLines.length > 0) {
     sections.push(
-      ["# The crew (the people in this conversation)", ...memberLines].join("\n"),
+      [
+        "# The crew (the people in this conversation)",
+        ...memberLines,
+      ].join("\n"),
     );
   }
 
-  // 3. Relationship narratives — agent-specific.
+  // 4. Relationship narratives — agent-specific.
   const relationshipLines: string[] = [];
   for (const r of relationships) {
     const content = r.content?.trim();
@@ -121,14 +168,41 @@ export async function buildRichContext(
     );
   }
 
-  // 4. Shared media bank — phase 1 injects text URLs + tags + captions
-  // only (no vision). Appended AFTER the stable canon/member/relationship
-  // sections so the volatile media list sits at the tail of the prompt,
-  // keeping Anthropic's prompt cache prefix hot across uploads. Retrieval
-  // + sanitization lives in selectMediaForContext, not inlined here, so
-  // future tag/embedding-based strategies are a one-file change.
+  // --- Volatile layers (vary per message, at the tail for cache) ---
+
+  // 5. Selected lore — Haiku-picked topic-relevant entries
+  if (selectedLoreIds && selectedLoreIds.length > 0) {
+    const selectedLore = await prisma.lore.findMany({
+      where: { id: { in: selectedLoreIds } },
+      orderBy: { sortOrder: "asc" },
+      select: { topic: true, content: true },
+    });
+    if (selectedLore.length > 0) {
+      let charCount = 0;
+      const lines: string[] = [];
+      for (const l of selectedLore) {
+        const entry = `**${l.topic}**: ${l.content.trim()}`;
+        if (charCount + entry.length > MAX_LORE_CHARS) break;
+        charCount += entry.length;
+        lines.push(entry);
+      }
+      if (lines.length > 0) {
+        sections.push(
+          ["# Relevant lore (selected for this conversation)", ...lines].join(
+            "\n\n",
+          ),
+        );
+      }
+    }
+  }
+
+  // 6. Media — Haiku-selected if IDs provided, else fallback to
+  // hall-of-fame + recent (backward compatible).
   if (includeMedia) {
-    const media = await selectMediaForContext({ characterId });
+    const media =
+      selectedMediaIds && selectedMediaIds.length > 0
+        ? await selectMediaByIds(selectedMediaIds)
+        : await selectMediaForContext({ characterId });
     if (media.length > 0) {
       const lines = media.map((m) => {
         const parts: string[] = [];
@@ -137,8 +211,23 @@ export async function buildRichContext(
         parts.push(m.publicUrl);
         return `- ${parts.join(" ")}`;
       });
-      sections.push(["# Shared media bank", ...lines].join("\n"));
+      sections.push(["# Relevant media", ...lines].join("\n"));
     }
+  }
+
+  // 7. Calendar — upcoming dates within ±7 days
+  if (calendarEntries && calendarEntries.length > 0) {
+    const lines = calendarEntries.map((c) => {
+      const dateStr = c.date.toLocaleDateString("en-US", {
+        month: "short",
+        day: "numeric",
+      });
+      const recurrenceNote =
+        c.recurrence === "annual" ? " (every year)" : "";
+      const desc = c.description ? ` — ${c.description}` : "";
+      return `- ${c.title}: ${dateStr}${recurrenceNote}${desc}`;
+    });
+    sections.push(["# Upcoming dates", ...lines].join("\n"));
   }
 
   return sections.length > 0 ? sections.join("\n\n") : "";

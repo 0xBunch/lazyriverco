@@ -23,7 +23,25 @@ const CARDS = [
     href: "/admin/canon",
     title: "Canon",
     body:
-      "The broader Mens League / Lazy River lore. Club history, running inside jokes, rivalries, anything an agent should reference. One big text doc, prepended to every agent prompt.",
+      "The core identity — always injected into every agent prompt. Org hierarchy, essential context, the stuff every agent should know on every message.",
+  },
+  {
+    href: "/admin/lore",
+    title: "Lore",
+    body:
+      "Topic-tagged knowledge chunks. Fantasy draft history, trip stories, roast archives — selectively injected when relevant to the conversation via a two-pass Haiku call.",
+  },
+  {
+    href: "/admin/media",
+    title: "Media",
+    body:
+      "Photos, videos, YouTube links, Instagram posts, tweets, articles. Tagged and captioned so agents can reference them. Add external links or upload files.",
+  },
+  {
+    href: "/admin/calendar",
+    title: "Calendar",
+    body:
+      "Birthdays, cultural moments, trip dates. Auto-injected into agent prompts when the date is within a week. Recurrence support for annual events.",
   },
 ];
 
@@ -31,9 +49,9 @@ export default function AdminLanding() {
   return (
     <div className="space-y-4">
       <p className="text-sm text-bone-300">
-        Five things you can curate. The agents read all of them on every
-        message — empty fields just don&rsquo;t appear in the prompt, so you
-        can build the personality up incrementally.
+        Eight things you can curate. Canon, members, and relationships are
+        always injected. Lore and media are selectively pulled in based on
+        conversation topic. Calendar entries auto-appear near their dates.
       </p>
       <ul className="grid gap-3 sm:grid-cols-2">
         {CARDS.map((card) => (

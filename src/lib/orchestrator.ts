@@ -7,6 +7,8 @@ import {
 } from "@/lib/anthropic";
 import { DEFAULT_CHANNEL_ID } from "@/lib/channels";
 import { buildRichContext } from "@/lib/character-context";
+import { selectContext } from "@/lib/select-context";
+import { getUpcomingCalendarEntries } from "@/lib/calendar-context";
 import { parseSentinel } from "@/lib/agent-sentinels";
 
 // --- Tuning constants -----------------------------------------------------
@@ -489,23 +491,27 @@ export async function runConversationOrchestrator(
       return;
     }
 
-    // 2. Pull the recent message slice via the shared helper. Filters
-    //    the triggering message out of contextLines — it's passed
-    //    separately as `newLine` below.
-    const { contextLines } = await loadMessageContext({
-      where: { conversationId: conversation.id },
-      take: CONTEXT_MESSAGES,
-      excludeMessageId: triggerMessage.id,
-    });
+    // 2. Three-way parallel fan-out: load transcript, select relevant
+    //    knowledge via Haiku, and fetch upcoming calendar entries.
+    const [{ contextLines }, selection, calendarEntries] =
+      await Promise.all([
+        loadMessageContext({
+          where: { conversationId: conversation.id },
+          take: CONTEXT_MESSAGES,
+          excludeMessageId: triggerMessage.id,
+        }),
+        selectContext(triggerMessage.content),
+        getUpcomingCalendarEntries(),
+      ]);
 
-    // 3. Rich context. Owner is the only human participant in a 1:1
-    //    personal chat, so we pass [ownerId] directly rather than
-    //    walking the transcript for participants. includeMedia: true
-    //    so the shared media bank section lands in the prompt.
+    // 3. Rich context with Haiku-selected lore + media + calendar.
     const richContext = await buildRichContext({
       characterId: character.id,
       participantUserIds: [conversation.ownerId],
       includeMedia: true,
+      selectedLoreIds: selection.loreIds,
+      selectedMediaIds: selection.mediaIds,
+      calendarEntries,
     });
 
     const newLine: ChatContextLine = {

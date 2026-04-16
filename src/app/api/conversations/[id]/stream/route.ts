@@ -6,6 +6,8 @@ import { assertWithinLimit, RateLimitError } from "@/lib/rate-limit";
 import { streamCharacterResponse } from "@/lib/anthropic";
 import { buildRichContext } from "@/lib/character-context";
 import { loadMessageContext } from "@/lib/orchestrator";
+import { selectContext } from "@/lib/select-context";
+import { getUpcomingCalendarEntries } from "@/lib/calendar-context";
 import { parseSentinel } from "@/lib/agent-sentinels";
 import { AUTHOR_SELECT, toDTO } from "@/lib/chat";
 
@@ -163,16 +165,26 @@ export async function POST(
 
   const character = conversation.character;
 
-  const { contextLines } = await loadMessageContext({
-    where: { conversationId: conversation.id },
-    take: CONTEXT_MESSAGES,
-    excludeMessageId: userMessage.id,
-  });
+  // Three-way parallel fan-out: load transcript, select relevant
+  // knowledge via Haiku, and fetch upcoming calendar entries. All three
+  // are independent and complete before buildRichContext runs.
+  const [{ contextLines }, selection, calendarEntries] = await Promise.all([
+    loadMessageContext({
+      where: { conversationId: conversation.id },
+      take: CONTEXT_MESSAGES,
+      excludeMessageId: userMessage.id,
+    }),
+    selectContext(userMessage.content),
+    getUpcomingCalendarEntries(),
+  ]);
 
   const richContext = await buildRichContext({
     characterId: character.id,
     participantUserIds: [conversation.ownerId],
     includeMedia: true,
+    selectedLoreIds: selection.loreIds,
+    selectedMediaIds: selection.mediaIds,
+    calendarEntries,
   });
 
   const newLine = {

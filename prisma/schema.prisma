@@ -410,3 +410,41 @@ model RateLimitHit {
 
   @@index([userId, bucket, createdAt])
 }
+
+/// Topic-tagged knowledge chunk. Selected by a two-pass Haiku call based
+/// on conversation relevance — only matching entries get injected into
+/// the agent's system prompt, replacing the "dump everything" approach.
+/// `isCore` entries bypass selection and are always injected (org
+/// identity, essential rules). Admin-managed via /admin/lore.
+model Lore {
+  id        String   @id @default(uuid())
+  topic     String
+  tags      String[]
+  content   String   @db.Text
+  isCore    Boolean  @default(false)
+  sortOrder Int      @default(0)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([isCore, sortOrder])
+}
+
+/// Date-based knowledge entry. Birthdays, cultural moments (Super Bowl,
+/// draft day), trip dates. Auto-injected into agent prompts when the
+/// date is within ±7 days of today — no Haiku selection needed, purely
+/// temporal relevance. `recurrence: "annual"` for birthdays; "none" for
+/// one-time events. Separate from the Event/RSVP model (that's for trip
+/// planning logistics, not agent knowledge). Admin-managed via
+/// /admin/calendar.
+model CalendarEntry {
+  id          String   @id @default(uuid())
+  title       String
+  date        DateTime @db.Date
+  recurrence  String   @default("none")
+  tags        String[]
+  description String?  @db.Text
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@index([date])
+}
