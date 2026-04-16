@@ -55,8 +55,8 @@ export async function Sidebar() {
 
       {/* Apps section — collapsible, visible to everyone */}
       {user ? (
-        <details className="border-t border-bone-800 px-2 py-2">
-          <summary className="cursor-pointer select-none rounded-lg px-3 py-1.5 text-[0.6rem] font-semibold uppercase tracking-wider text-bone-500 transition-colors hover:text-bone-300">
+        <details open className="border-t border-bone-800 px-2 py-2">
+          <summary className="cursor-pointer select-none list-none rounded-lg px-3 py-1.5 text-xs font-semibold uppercase tracking-wide text-bone-400 transition-colors hover:text-bone-200 [&::-webkit-details-marker]:hidden">
             Apps
           </summary>
           <div className="mt-1">
