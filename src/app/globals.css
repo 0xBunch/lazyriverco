@@ -1,3 +1,27 @@
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
+
+/* Thin sidebar scrollbar — only visible on hover, matches Claude.ai's
+   minimal style. Applied via the .sidebar-scroll class. */
+.sidebar-scroll {
+  scrollbar-width: thin;
+  scrollbar-color: transparent transparent;
+}
+.sidebar-scroll:hover {
+  scrollbar-color: theme("colors.bone.700") transparent;
+}
+/* WebKit (Chrome/Safari/Edge) */
+.sidebar-scroll::-webkit-scrollbar {
+  width: 4px;
+}
+.sidebar-scroll::-webkit-scrollbar-track {
+  background: transparent;
+}
+.sidebar-scroll::-webkit-scrollbar-thumb {
+  background: transparent;
+  border-radius: 2px;
+}
+.sidebar-scroll:hover::-webkit-scrollbar-thumb {
+  background: theme("colors.bone.700");
+}

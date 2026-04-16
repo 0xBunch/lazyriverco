@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { usePathname } from "next/navigation";
 import { cn } from "@/lib/utils";
 
@@ -9,14 +9,35 @@ type SidebarShellProps = {
   children: React.ReactNode;
 };
 
+const COLLAPSED_KEY = "lr-sidebar-collapsed";
+
 export function SidebarShell({ sidebar, children }: SidebarShellProps) {
-  const [open, setOpen] = useState(false);
+  const [open, setOpen] = useState(false); // mobile drawer
+  const [collapsed, setCollapsed] = useState(false); // desktop collapse
   const [isMobile, setIsMobile] = useState(false);
   const pathname = usePathname();
 
-  // Track mobile viewport via matchMedia so we can hide the drawer from AT
-  // when it's off-screen. Starts `false` on both server and first client
-  // render (no SSR mismatch), then updates after mount.
+  // Hydrate collapsed state from localStorage after mount
+  useEffect(() => {
+    try {
+      setCollapsed(localStorage.getItem(COLLAPSED_KEY) === "1");
+    } catch {
+      // SSR or localStorage unavailable — default to expanded
+    }
+  }, []);
+
+  const toggleCollapsed = useCallback(() => {
+    setCollapsed((prev) => {
+      const next = !prev;
+      try {
+        localStorage.setItem(COLLAPSED_KEY, next ? "1" : "0");
+      } catch {
+        // ignore
+      }
+      return next;
+    });
+  }, []);
+
   useEffect(() => {
     const mql = window.matchMedia("(max-width: 767px)");
     const update = () => setIsMobile(mql.matches);
@@ -25,12 +46,11 @@ export function SidebarShell({ sidebar, children }: SidebarShellProps) {
     return () => mql.removeEventListener("change", update);
   }, []);
 
-  // Close drawer whenever the route changes.
+  // Close mobile drawer on navigation
   useEffect(() => {
     setOpen(false);
   }, [pathname]);
 
-  // Close on Escape.
   useEffect(() => {
     if (!open) return;
     const handler = (e: KeyboardEvent) => {
@@ -40,7 +60,6 @@ export function SidebarShell({ sidebar, children }: SidebarShellProps) {
     return () => window.removeEventListener("keydown", handler);
   }, [open]);
 
-  // Lock body scroll when drawer is open on mobile.
   useEffect(() => {
     if (!open) return;
     const original = document.body.style.overflow;
@@ -54,14 +73,18 @@ export function SidebarShell({ sidebar, children }: SidebarShellProps) {
 
   return (
     <div className="flex min-h-screen">
-      {/* Mobile hamburger — only visible < md */}
+      {/* Mobile hamburger — visible < md OR when desktop sidebar is collapsed */}
       <button
         type="button"
-        onClick={() => setOpen(true)}
-        aria-label="Open navigation"
-        aria-expanded={open}
+        onClick={() => (isMobile ? setOpen(true) : toggleCollapsed())}
+        aria-label={collapsed ? "Open sidebar" : "Open navigation"}
+        aria-expanded={isMobile ? open : !collapsed}
         aria-controls="portal-sidebar"
-        className="fixed left-4 top-4 z-40 rounded-lg border border-bone-700 bg-bone-800/80 p-2 text-bone-100 backdrop-blur transition-colors hover:bg-bone-700 focus:outline-none focus-visible:ring-2 focus-visible:ring-claude-500 md:hidden"
+        className={cn(
+          "fixed left-4 top-4 z-40 rounded-lg border border-bone-700 bg-bone-800/80 p-2 text-bone-100 backdrop-blur transition-all hover:bg-bone-700 focus:outline-none focus-visible:ring-2 focus-visible:ring-claude-500",
+          // Mobile: always show. Desktop: only show when collapsed.
+          isMobile ? "" : collapsed ? "md:block" : "md:hidden",
+        )}
       >
         <svg
           aria-hidden="true"
@@ -79,7 +102,7 @@ export function SidebarShell({ sidebar, children }: SidebarShellProps) {
         </svg>
       </button>
 
-      {/* Backdrop — only on mobile when open */}
+      {/* Mobile backdrop */}
       {open ? (
         <button
           type="button"
@@ -89,18 +112,43 @@ export function SidebarShell({ sidebar, children }: SidebarShellProps) {
         />
       ) : null}
 
-      {/* Sidebar — desktop: fixed column; mobile: slide-in drawer.
-          aria-hidden flips true only when closed on mobile; on desktop or
-          when the drawer is open, it stays reachable by AT. */}
+      {/* Sidebar */}
       <aside
         id="portal-sidebar"
         aria-label="Primary navigation"
         aria-hidden={drawerHidden ? "true" : undefined}
         className={cn(
-          "fixed inset-y-0 left-0 z-30 flex w-64 flex-col border-r border-bone-700 bg-bone-900 transition-transform duration-200 ease-out md:sticky md:top-0 md:h-screen md:translate-x-0",
+          "fixed inset-y-0 left-0 z-30 flex w-64 flex-col border-r border-bone-700 bg-bone-900 transition-transform duration-200 ease-out",
+          // Mobile: slide from left
           open ? "translate-x-0" : "-translate-x-full",
+          // Desktop: sticky, collapsible
+          collapsed
+            ? "md:sticky md:top-0 md:h-screen md:-translate-x-full md:w-0 md:border-0"
+            : "md:sticky md:top-0 md:h-screen md:translate-x-0",
         )}
       >
+        {/* Desktop collapse button — inside the sidebar at the top */}
+        <button
+          type="button"
+          onClick={toggleCollapsed}
+          aria-label="Collapse sidebar"
+          className="absolute right-2 top-6 z-10 hidden rounded-md p-1 text-bone-400 transition-colors hover:bg-bone-800 hover:text-bone-200 md:block"
+        >
+          <svg
+            aria-hidden="true"
+            viewBox="0 0 24 24"
+            className="h-4 w-4"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth="2"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+          >
+            <path d="M11 19l-7-7 7-7" />
+            <path d="M18 19l-7-7 7-7" />
+          </svg>
+        </button>
+
         {sidebar}
       </aside>
 

@@ -4,9 +4,9 @@ export type NavItem = {
   label: string;
 };
 
-// Always visible to every signed-in user — the three core surfaces.
+// Always visible to every signed-in user. Chat is accessed via the
+// "+ New chat" button and the logo link — no dedicated nav item needed.
 export const MAIN_NAV_ITEMS = [
-  { href: "/", icon: "💬", label: "Chat" },
   { href: "/calendar", icon: "📅", label: "Calendar" },
   { href: "/media", icon: "📸", label: "Media" },
 ] as const satisfies readonly NavItem[];

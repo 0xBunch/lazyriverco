@@ -27,13 +27,13 @@ export async function Sidebar() {
 
   return (
     <div className="flex h-full flex-col">
-      {/* Header / logo */}
-      <div className="px-5 pb-2 pt-6">
+      {/* Header / logo — links back to chat landing */}
+      <Link href="/" className="block px-5 pb-2 pt-6 transition-opacity hover:opacity-80">
         <p className="font-display text-lg font-semibold tracking-tight text-bone-50">
           The Lazy River Co.
         </p>
         <p className="mt-1 text-xs italic text-bone-300">Members only.</p>
-      </div>
+      </Link>
 
       {/* New chat CTA */}
       {user ? (
