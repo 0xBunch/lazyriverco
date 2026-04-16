@@ -1,7 +1,7 @@
 // Draft flow DTOs and helpers — shared between API routes and the UI.
 // Keeps the Joey-specific character name in one place.
 
-export const DRAFTING_CHARACTER_NAME = "joey-barfdog";
+export const DRAFTING_CHARACTER_NAME = "barfdog";
 export const CURRENT_SEASON = 2026;
 
 export type PoolPlayerDTO = {

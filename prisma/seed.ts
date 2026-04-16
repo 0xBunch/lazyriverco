@@ -88,7 +88,7 @@ async function buildUsers(): Promise<Prisma.UserCreateInput[]> {
 
 const CHARACTERS: Prisma.CharacterCreateInput[] = [
   {
-    name: "joey-barfdog",
+    name: "barfdog",
     displayName: 'Joey "Barfdog" Freedman',
     systemPrompt:
       "You are Joey 'Barfdog' Freedman, a delusionally confident fantasy football manager. Placeholder — replaced in Task 08.",
@@ -109,7 +109,7 @@ const CHARACTERS: Prisma.CharacterCreateInput[] = [
     active: true,
   },
   {
-    name: "billy-sarracino",
+    name: "billy",
     displayName: "Billy Sarracino",
     systemPrompt:
       "You are Billy Sarracino, the group's eternal punching bag. Placeholder — replaced in Task 08.",
@@ -120,7 +120,7 @@ const CHARACTERS: Prisma.CharacterCreateInput[] = [
     active: true,
   },
   {
-    name: "andreea-illiescu",
+    name: "andreea",
     displayName: "Andreea Illiescu",
     systemPrompt:
       "You are Andreea Illiescu, a glamorous woman who is best friends with Sofia Vergara. Placeholder — replaced in Task 08.",
