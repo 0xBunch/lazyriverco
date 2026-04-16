@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { ChatInput } from "@/components/ChatInput";
 import { MessageList } from "@/components/MessageList";
@@ -67,25 +67,25 @@ export function ConversationView({
   const [streamingContent, setStreamingContent] = useState<string | null>(null);
   const isStreaming = streamingContent !== null;
   const abortRef = useRef<AbortController | null>(null);
+  const didAutoStreamRef = useRef(false);
 
-  const handleSubmit = useCallback(
-    (content: string) => {
+  // Core streaming function — used by both handleSubmit (user types) and
+  // the auto-trigger effect (initial mount, reply-to-latest mode).
+  const runStream = useCallback(
+    (body: Record<string, unknown>) => {
       if (isStreaming) return;
-      // Fire the stream in the background — DON'T return a Promise so
-      // ChatInput clears immediately. The `disabled` prop keeps it locked
-      // until the stream finishes.
-      void (async () => {
-        setStreamingContent("");
-        const abort = new AbortController();
-        abortRef.current = abort;
+      setStreamingContent("");
+      const abort = new AbortController();
+      abortRef.current = abort;
 
+      void (async () => {
         try {
           const res = await fetch(
             `/api/conversations/${conversationId}/stream`,
             {
               method: "POST",
               headers: { "Content-Type": "application/json" },
-              body: JSON.stringify({ content }),
+              body: JSON.stringify(body),
               signal: abort.signal,
             },
           );
@@ -150,6 +150,30 @@ export function ConversationView({
     },
     [conversationId, isStreaming, appendMessages],
   );
+
+  // User-initiated submit: creates a new USER message + streams the reply.
+  const handleSubmit = useCallback(
+    (content: string) => {
+      runStream({ content });
+    },
+    [runStream],
+  );
+
+  // Auto-trigger: when the initial poll lands and the last message is USER
+  // with no CHARACTER reply, stream the first reply immediately. This
+  // covers the landing-page flow where POST /api/conversations creates the
+  // user message but no longer fires the orchestrator.
+  useEffect(() => {
+    if (didAutoStreamRef.current) return;
+    if (!messages || messages.length === 0) return;
+    const last = messages[messages.length - 1];
+    if (!last || last.authorType !== "USER") return;
+    // Only auto-trigger if the message is recent (< 30s old) — prevents
+    // re-streaming an abandoned conversation on revisit.
+    if (Date.now() - new Date(last.createdAt).getTime() > 30_000) return;
+    didAutoStreamRef.current = true;
+    runStream({}); // empty body = reply-to-latest mode
+  }, [messages, runStream]);
 
   // Build a synthetic ChatMessageDTO for the streaming bubble
   const streamingMessage: ChatMessageDTO | null =

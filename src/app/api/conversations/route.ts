@@ -231,15 +231,11 @@ export async function POST(
     );
   }
 
-  // Fire-and-forget the conversation orchestrator. Task 4 replaces the
-  // stub with the real agent-reply path; today it's a log line.
-  void runConversationOrchestrator(message.id).catch((e) => {
-    console.error(
-      "[conversation-orchestrator] failed for message",
-      message.id,
-      e,
-    );
-  });
+  // Don't fire the orchestrator here. ConversationView will auto-trigger
+  // the streaming endpoint on mount when it detects the first USER message
+  // has no CHARACTER reply. This ensures ALL replies — including the first
+  // one — stream token-by-token instead of waiting for fire-and-forget +
+  // poll pickup.
 
   return NextResponse.json<CreateConversationResponse>(
     {

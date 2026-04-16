@@ -83,57 +83,80 @@ export async function POST(
     return NextResponse.json({ error: "Invalid JSON body" }, { status: 400 });
   }
 
-  const contentRaw =
+  // Two modes:
+  //   { content: "..." } → create a new USER message + stream the reply
+  //   {} (no content)     → stream a reply for the latest USER message
+  //                         (used on mount when ConversationView detects
+  //                         a USER message with no CHARACTER reply yet)
+  const hasContent =
     typeof body === "object" &&
     body !== null &&
     "content" in body &&
-    typeof (body as { content: unknown }).content === "string"
-      ? (body as { content: string }).content
-      : "";
-  const content = contentRaw.trim();
+    typeof (body as { content: unknown }).content === "string";
 
-  if (!content) {
-    return NextResponse.json(
-      { error: "Message cannot be empty" },
-      { status: 400 },
-    );
-  }
-  if (content.length > MAX_CONTENT_LENGTH) {
-    return NextResponse.json(
-      { error: `Message too long (max ${MAX_CONTENT_LENGTH})` },
-      { status: 400 },
-    );
-  }
+  let userMessage;
+  let userDTO;
 
-  // --- Create user message -------------------------------------------------
+  if (hasContent) {
+    const content = ((body as { content: string }).content).trim();
+    if (!content) {
+      return NextResponse.json(
+        { error: "Message cannot be empty" },
+        { status: 400 },
+      );
+    }
+    if (content.length > MAX_CONTENT_LENGTH) {
+      return NextResponse.json(
+        { error: `Message too long (max ${MAX_CONTENT_LENGTH})` },
+        { status: 400 },
+      );
+    }
 
-  const userMessage = await prisma.$transaction(async (tx) => {
-    const msg = await tx.message.create({
-      data: {
-        content,
-        authorType: "USER",
-        userId: user.id,
-        module: "chat",
-        conversationId: params.id,
-      },
+    userMessage = await prisma.$transaction(async (tx) => {
+      const msg = await tx.message.create({
+        data: {
+          content,
+          authorType: "USER",
+          userId: user.id,
+          module: "chat",
+          conversationId: params.id,
+        },
+        include: {
+          user: { select: AUTHOR_SELECT },
+          character: { select: AUTHOR_SELECT },
+        },
+      });
+      await tx.conversation.update({
+        where: { id: params.id },
+        data: { lastMessageAt: new Date() },
+      });
+      return msg;
+    });
+
+    userDTO = toDTO(userMessage);
+    if (!userDTO) {
+      return NextResponse.json(
+        { error: "Failed to serialize user message" },
+        { status: 500 },
+      );
+    }
+  } else {
+    // Reply-to-latest mode: find the most recent USER message.
+    userMessage = await prisma.message.findFirst({
+      where: { conversationId: params.id, authorType: "USER" },
+      orderBy: { createdAt: "desc" },
       include: {
         user: { select: AUTHOR_SELECT },
         character: { select: AUTHOR_SELECT },
       },
     });
-    await tx.conversation.update({
-      where: { id: params.id },
-      data: { lastMessageAt: new Date() },
-    });
-    return msg;
-  });
-
-  const userDTO = toDTO(userMessage);
-  if (!userDTO) {
-    return NextResponse.json(
-      { error: "Failed to serialize user message" },
-      { status: 500 },
-    );
+    if (!userMessage) {
+      return NextResponse.json(
+        { error: "No user message to reply to" },
+        { status: 400 },
+      );
+    }
+    userDTO = null; // client already has this message via poll
   }
 
   // --- Build context for the agent -----------------------------------------
@@ -171,9 +194,11 @@ export async function POST(
         );
       }
 
-      // First event: the confirmed user message so the client can render
-      // it immediately (no optimistic append needed).
-      send("user_message", { message: userDTO });
+      // Send the confirmed user message only when we created a new one.
+      // In reply-to-latest mode, the client already has the message via poll.
+      if (userDTO) {
+        send("user_message", { message: userDTO });
+      }
 
       try {
         let charCount = 0;
