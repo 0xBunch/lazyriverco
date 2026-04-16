@@ -4,35 +4,35 @@ export type NavItem = {
   label: string;
 };
 
-export const NAV_ITEMS = [
-  { href: "/chat", icon: "💬", label: "Chat" },
-  { href: "/fantasy", icon: "🏈", label: "MLF" },
-  { href: "/media", icon: "📸", label: "Media" },
-  { href: "/trips", icon: "🗺️", label: "Trips" },
+// Always visible to every signed-in user — the three core surfaces.
+export const MAIN_NAV_ITEMS = [
+  { href: "/", icon: "💬", label: "Chat" },
   { href: "/calendar", icon: "📅", label: "Calendar" },
+  { href: "/media", icon: "📸", label: "Media" },
 ] as const satisfies readonly NavItem[];
 
-/// Admin-only — appended to NAV_ITEMS when the current user has role=ADMIN.
-/// Server-side filtering in Sidebar.tsx keeps this off member screens.
+// Collapsible "Apps" section — mini-apps built over time. Visible to
+// everyone (the pages themselves handle access gating internally).
+export const APP_NAV_ITEMS = [
+  { href: "/fantasy", icon: "🏈", label: "MLF" },
+  { href: "/trips", icon: "🗺️", label: "World Tour" },
+] as const satisfies readonly NavItem[];
+
+// Admin-only — only shown when the user has role=ADMIN.
 export const ADMIN_NAV_ITEM: NavItem = {
   href: "/admin",
   icon: "🛠️",
   label: "Commissioner",
 };
 
-export type NavHref = (typeof NAV_ITEMS)[number]["href"];
+export type NavHref =
+  | (typeof MAIN_NAV_ITEMS)[number]["href"]
+  | (typeof APP_NAV_ITEMS)[number]["href"];
 
 /**
- * Gate for mini-app tabs (fantasy / picks / brackets / trips / etc.).
- * Phase 1: mini-app tabs are hidden from members; only the commissioner
- * (ADMIN role) sees them. When phase 2 opens tabs up to the whole crew,
- * split this from the admin-surface check and keep ADMIN_NAV_ITEM gated
- * on role separately.
- *
- * User type kept inline so this module stays client-safe — nav.ts is
- * imported by both server components (Sidebar) and client components
- * (SidebarNav). Importing SafeUser from auth.ts would pull in the
- * "server-only" marker and break the client bundle.
+ * Gate for admin-only surfaces (Commissioner Room). Kept separate
+ * from the app nav so non-admins can see the Apps section but not
+ * the admin tools.
  */
 export function canSeeMiniApps(
   user: { role: "MEMBER" | "ADMIN" } | null | undefined,
