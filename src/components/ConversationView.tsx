@@ -16,6 +16,9 @@ type ConversationViewProps = {
   character: ConversationCharacterDTO;
   title: string | null;
   currentUserId: string;
+  /** Server-fetched pin state — drives the initial star UI without
+   *  waiting on a client round-trip. */
+  initialPinned: boolean;
 };
 
 function initials(name: string): string {
@@ -57,6 +60,7 @@ export function ConversationView({
   character,
   title,
   currentUserId,
+  initialPinned,
 }: ConversationViewProps) {
   const router = useRouter();
   const { messages, error, appendMessages } = useChatPolling({
@@ -68,6 +72,39 @@ export function ConversationView({
   const isStreaming = streamingContent !== null;
   const abortRef = useRef<AbortController | null>(null);
   const didAutoStreamRef = useRef(false);
+
+  // Pin state — optimistic toggle with server rollback. No spinner; the
+  // write is fast and the visual state flips immediately. If the server
+  // rejects, we revert and log. Non-blocking: pinning is never critical
+  // path for the chat itself.
+  const [pinned, setPinned] = useState(initialPinned);
+  const [pinning, setPinning] = useState(false);
+  const togglePin = useCallback(async () => {
+    if (pinning) return;
+    const next = !pinned;
+    setPinned(next);
+    setPinning(true);
+    try {
+      const res = await fetch("/api/pins", {
+        method: next ? "POST" : "DELETE",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ conversationId }),
+      });
+      if (!res.ok) {
+        setPinned(!next);
+        console.error("[pin] HTTP", res.status);
+      } else {
+        // Server-component sidebar reads the Pin table directly; refresh
+        // so the Starred section reflects the new state on next paint.
+        router.refresh();
+      }
+    } catch (err) {
+      setPinned(!next);
+      console.error("[pin] network", err);
+    } finally {
+      setPinning(false);
+    }
+  }, [conversationId, pinned, pinning, router]);
 
   // Core streaming function — used by both handleSubmit (user types) and
   // the auto-trigger effect (initial mount, reply-to-latest mode).
@@ -215,17 +252,48 @@ export function ConversationView({
               ) : null}
             </div>
           </div>
-          <button
-            type="button"
-            onClick={() => router.push("/")}
-            className={cn(
-              "shrink-0 rounded-lg border border-bone-700 bg-bone-800 px-3 py-1.5 text-xs font-medium text-bone-200 transition-colors",
-              "hover:border-claude-500/60 hover:text-claude-50",
-              "focus:outline-none focus-visible:ring-2 focus-visible:ring-claude-500 focus-visible:ring-offset-2 focus-visible:ring-offset-bone-950",
-            )}
-          >
-            + New chat
-          </button>
+          <div className="flex shrink-0 items-center gap-2">
+            {/* Pin toggle — optimistic, non-blocking. Filled gold-ish
+                star when pinned, outline when not. */}
+            <button
+              type="button"
+              onClick={togglePin}
+              aria-label={pinned ? "Unpin conversation" : "Pin conversation"}
+              aria-pressed={pinned}
+              className={cn(
+                "flex h-8 w-8 items-center justify-center rounded-lg border transition-colors",
+                pinned
+                  ? "border-claude-500/60 bg-claude-500/15 text-claude-300 hover:bg-claude-500/25"
+                  : "border-bone-700 bg-bone-800 text-bone-300 hover:border-claude-500/60 hover:text-claude-100",
+                "focus:outline-none focus-visible:ring-2 focus-visible:ring-claude-500 focus-visible:ring-offset-2 focus-visible:ring-offset-bone-950",
+              )}
+            >
+              <svg
+                aria-hidden="true"
+                viewBox="0 0 24 24"
+                className="h-4 w-4"
+                fill={pinned ? "currentColor" : "none"}
+                stroke="currentColor"
+                strokeWidth="2"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+              >
+                <polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2" />
+              </svg>
+            </button>
+
+            <button
+              type="button"
+              onClick={() => router.push("/")}
+              className={cn(
+                "rounded-lg border border-bone-700 bg-bone-800 px-3 py-1.5 text-xs font-medium text-bone-200 transition-colors",
+                "hover:border-claude-500/60 hover:text-claude-50",
+                "focus:outline-none focus-visible:ring-2 focus-visible:ring-claude-500 focus-visible:ring-offset-2 focus-visible:ring-offset-bone-950",
+              )}
+            >
+              + New chat
+            </button>
+          </div>
         </div>
       </div>
 

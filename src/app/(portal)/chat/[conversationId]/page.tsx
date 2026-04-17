@@ -21,25 +21,39 @@ export default async function ConversationPage({ params }: PageProps) {
     redirect("/sign-in");
   }
 
-  const conversation = await prisma.conversation.findFirst({
-    where: {
-      id: params.conversationId,
-      ownerId: user.id,
-      archivedAt: null,
-    },
-    select: {
-      id: true,
-      title: true,
-      character: {
-        select: {
-          id: true,
-          name: true,
-          displayName: true,
-          avatarUrl: true,
+  // Fetch conversation metadata and pin state in parallel. The pin query
+  // hits a unique-index lookup (@@unique([userId, conversationId])) —
+  // constant-time, negligible overhead.
+  const [conversation, pin] = await Promise.all([
+    prisma.conversation.findFirst({
+      where: {
+        id: params.conversationId,
+        ownerId: user.id,
+        archivedAt: null,
+      },
+      select: {
+        id: true,
+        title: true,
+        character: {
+          select: {
+            id: true,
+            name: true,
+            displayName: true,
+            avatarUrl: true,
+          },
         },
       },
-    },
-  });
+    }),
+    prisma.pin.findUnique({
+      where: {
+        userId_conversationId: {
+          userId: user.id,
+          conversationId: params.conversationId,
+        },
+      },
+      select: { id: true },
+    }),
+  ]);
 
   if (!conversation) {
     notFound();
@@ -51,6 +65,7 @@ export default async function ConversationPage({ params }: PageProps) {
       character={conversation.character}
       title={conversation.title}
       currentUserId={user.id}
+      initialPinned={pin !== null}
     />
   );
 }

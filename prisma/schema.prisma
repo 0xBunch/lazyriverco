@@ -33,6 +33,7 @@ model User {
   agentRelationships  AgentRelationship[]
   conversations       Conversation[]
   rateLimitHits       RateLimitHit[]
+  pins                Pin[]
 }
 
 enum Role {
@@ -66,6 +67,7 @@ model Character {
   agentChannels       AgentChannel[]
   agentRelationships  AgentRelationship[]
   conversations       Conversation[]
+  pins                Pin[]
 }
 
 /// A conversational lane inside the Mens League clubhouse. v1 ships exactly
@@ -148,6 +150,7 @@ model Conversation {
   owner     User      @relation(fields: [ownerId], references: [id], onDelete: Cascade)
   character Character @relation(fields: [characterId], references: [id], onDelete: Restrict)
   messages  Message[]
+  pins      Pin[]
 
   // Sidebar read path: "recent conversations for this user".
   @@index([ownerId, lastMessageAt(sort: Desc)])
@@ -447,4 +450,31 @@ model CalendarEntry {
   updatedAt   DateTime @updatedAt
 
   @@index([date])
+}
+
+/// User-scoped pin. Polymorphic: exactly one of conversationId or
+/// characterId is non-null — enforced at the DB level by a raw-SQL CHECK
+/// constraint added in the migration (Prisma can't model CHECK here, so
+/// it lives in the migration file, matching the precedent set by Message
+/// for channelId/conversationId). Currently only conversation pins are
+/// wired through the app; the character column is provisioned for a
+/// later "starred agents" surface without needing a second migration.
+model Pin {
+  id             String   @id @default(uuid())
+  userId         String
+  conversationId String?
+  characterId    String?
+  createdAt      DateTime @default(now())
+
+  user         User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+  conversation Conversation? @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+  character    Character?    @relation(fields: [characterId], references: [id], onDelete: Cascade)
+
+  // Idempotency — star the same thing twice is a no-op at the DB level.
+  // Separate indexes per discriminator because nullable columns short-
+  // circuit a single composite unique (null != null in postgres).
+  @@unique([userId, conversationId])
+  @@unique([userId, characterId])
+  // Sidebar read path: "give me every pin for this user."
+  @@index([userId, createdAt(sort: Desc)])
 }

@@ -3,6 +3,7 @@ import { getCurrentUser } from "@/lib/auth";
 import { LazyRiverLogo } from "@/components/LazyRiverLogo";
 import { SidebarNav } from "@/components/SidebarNav";
 import { ConversationSidebarList } from "@/components/ConversationSidebarList";
+import { StarredSidebarList } from "@/components/StarredSidebarList";
 import {
   ADMIN_NAV_ITEM,
   MAIN_NAV_ITEMS,
@@ -68,16 +69,18 @@ export async function Sidebar() {
       {/* Main nav */}
       <SidebarNav items={mainNav} />
 
-      {/* Recents — the sole "section" in the sidebar today (Starred is
-          Phase 3). The label sits outside the scroll region so it stays
-          pinned while the list below scrolls. Collapsed-sidebar hides
-          the whole pair. */}
+      {/* Starred + Recents — both sections scroll together inside a single
+          lane so the total footprint adapts to how many pins the user has.
+          Starred renders nothing when empty (no orphaned header). The
+          Recents label is always present as long as the user has any
+          conversations. Collapsed-sidebar hides the whole stack. */}
       {user ? (
         <div className="flex min-h-0 flex-1 flex-col group-data-[collapsed]:hidden">
-          <p className="shrink-0 px-5 pb-1 pt-4 text-[0.65rem] font-semibold uppercase tracking-wide text-bone-400">
-            Recents
-          </p>
           <div className="min-h-0 flex-1 overflow-y-auto sidebar-scroll">
+            <StarredSidebarList />
+            <p className="px-5 pb-1 pt-4 text-[0.65rem] font-semibold uppercase tracking-wide text-bone-400">
+              Recents
+            </p>
             <ConversationSidebarList />
           </div>
         </div>
