@@ -9,11 +9,12 @@ import {
   shiftMonth,
 } from "@/lib/calendar-grid";
 
-// Aesthetic references (committed so future edits don't drift):
-//   - Soho House monthly member bulletin (oversized month title, restrained chrome)
-//   - Apartamento contributor index (scale + whitespace as the typography move)
-//   - NOT Google Calendar / Outlook — reject bordered widgets, chip legends,
-//     equal-weight grid cells that all shout at the same volume.
+// Page chrome matches the rest of the portal (max-w-5xl container, site-
+// standard h1 scale/weight, eyebrow label). The editorial typographic
+// treatment that used to live here (oversized month + trailing year) was
+// pulled intentionally — it was the visual outlier across the portal and
+// broke the "every page feels like the same product" rule. The grid itself
+// still carries the editorial weight via scale + whitespace inside cells.
 //
 // Server-driven month navigation — the URL is the source of truth
 // (`/calendar?m=2026-04`), so there's no client state to hydrate and
@@ -63,32 +64,21 @@ export default async function CalendarPage({
   const viewMonthParam = formatMonthParam(year, month);
   const isCurrentMonth = viewMonthParam === currentMonthParam;
 
-  // Split the long month title on the space so "April" and "2026" can be
-  // treated as distinct typographic moves: month name is the hero, year
-  // trails it at a lighter weight. Keeps us in one family (DM Sans) while
-  // still letting scale + weight do editorial work.
-  const [monthWord, yearWord] = title.split(" ");
-
   return (
-    <div className="mx-auto max-w-6xl px-4 py-8 pt-20 md:pt-8">
-      {/* Header — scale and whitespace carry the editorial weight. No
-          bordered widget around the nav; three inline links, generously
-          spaced, under the title. No italic subtitle — the eyebrow + the
-          title do the work. */}
-      <header className="mb-10 border-b border-bone-800 pb-8">
-        <p className="text-[0.65rem] uppercase tracking-[0.25em] text-claude-300">
-          The Lazy River Co. — Calendar
+    <div className="mx-auto max-w-5xl px-4 py-8 pt-20 md:pt-8">
+      {/* Header mirrors the admin layout pattern (eyebrow + h1, no bottom
+          border) so moving between modules feels like one product. */}
+      <header className="mb-6">
+        <p className="text-xs uppercase tracking-[0.2em] text-claude-300">
+          Calendar
         </p>
-        <h1 className="mt-3 text-balance font-display text-6xl font-light tracking-tight text-bone-50 md:text-7xl">
-          <span className="font-semibold">{monthWord}</span>
-          {yearWord ? (
-            <span className="ml-3 text-bone-400">{yearWord}</span>
-          ) : null}
+        <h1 className="font-display text-3xl font-semibold tracking-tight text-bone-50">
+          {title}
         </h1>
 
         <nav
           aria-label="Month navigation"
-          className="mt-5 flex items-center gap-6 text-xs font-semibold uppercase tracking-[0.2em]"
+          className="mt-4 flex items-center gap-6 text-xs font-semibold uppercase tracking-[0.2em]"
         >
           <Link
             href={`/calendar?m=${formatMonthParam(prev.year, prev.month)}`}

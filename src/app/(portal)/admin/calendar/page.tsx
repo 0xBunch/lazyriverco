@@ -163,15 +163,17 @@ export default async function AdminCalendarPage() {
                     )}
                   </div>
                   <div className="flex gap-2">
-                    <form action={deleteCalendarEntry}>
-                      <input type="hidden" name="id" value={entry.id} />
-                      <button
-                        type="submit"
-                        className="rounded-lg border border-bone-700 bg-bone-800 px-3 py-1.5 text-xs font-medium text-red-300 transition-colors hover:border-red-500/60 hover:text-red-200"
-                      >
-                        Delete
-                      </button>
-                    </form>
+                    {/* Delete uses formAction to override the parent form's
+                        action. Avoids nested <form>s (invalid HTML — browsers
+                        silently drop the inner form, which was why Delete
+                        appeared to do nothing and instead re-saved the row). */}
+                    <button
+                      type="submit"
+                      formAction={deleteCalendarEntry}
+                      className="rounded-lg border border-bone-700 bg-bone-800 px-3 py-1.5 text-xs font-medium text-red-300 transition-colors hover:border-red-500/60 hover:text-red-200"
+                    >
+                      Delete
+                    </button>
                     <SaveButton label="Save" />
                   </div>
                 </div>
