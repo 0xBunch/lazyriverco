@@ -151,7 +151,7 @@ export function GalleryAddModal({ open }: Props) {
             type="button"
             onClick={close}
             aria-label="Close"
-            className="rounded-md p-1 text-bone-400 transition-colors hover:bg-bone-900 hover:text-bone-100 focus:outline-none focus-visible:ring-2 focus-visible:ring-claude-500"
+            className="-m-2 flex h-11 w-11 items-center justify-center rounded-md text-bone-400 transition-colors hover:bg-bone-900 hover:text-bone-100 focus:outline-none focus-visible:ring-2 focus-visible:ring-claude-500"
           >
             <svg width="20" height="20" viewBox="0 0 20 20" fill="none" aria-hidden>
               <path d="M5 5l10 10M15 5L5 15" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
@@ -260,10 +260,10 @@ function TabButton({
       aria-selected={active}
       onClick={onClick}
       className={cn(
-        "flex-1 rounded-full px-4 py-2 transition-colors",
+        "flex-1 rounded-full px-4 py-2 transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-claude-400",
         active
           ? "bg-claude-500/20 text-claude-100"
-          : "text-bone-400 hover:text-bone-100",
+          : "text-bone-300 hover:text-bone-100",
       )}
     >
       {children}
@@ -310,7 +310,7 @@ function CaptionAndTags({
           className={INPUT}
           disabled={disabled}
         />
-        <p className="mt-1 text-[11px] text-bone-500">
+        <p className="mt-1 text-[11px] text-bone-300">
           a–z, 0–9, dash or underscore. Up to 8.
         </p>
       </div>
@@ -344,7 +344,7 @@ function ErrorLine({ children }: { children: React.ReactNode }) {
 }
 
 const INPUT =
-  "w-full rounded-md border border-bone-800 bg-bone-900/60 px-3 py-2 text-sm text-bone-100 placeholder:text-bone-500 focus:border-claude-500/60 focus:outline-none disabled:opacity-60";
+  "w-full rounded-md border border-bone-800 bg-bone-900/60 px-3 py-2 text-sm text-bone-100 placeholder:text-bone-400 focus:border-claude-500/60 focus:outline-none focus-visible:ring-2 focus-visible:ring-claude-400 disabled:opacity-60";
 const BTN_PRIMARY =
   "rounded-full border border-claude-500/40 bg-claude-500/10 px-4 py-2 text-xs font-semibold uppercase tracking-[0.2em] text-claude-100 transition-colors hover:bg-claude-500/20 focus:outline-none focus-visible:ring-2 focus-visible:ring-claude-400 disabled:opacity-50 disabled:hover:bg-claude-500/10";
 const BTN_SECONDARY =

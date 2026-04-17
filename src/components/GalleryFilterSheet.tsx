@@ -137,7 +137,7 @@ export function GalleryFilterSheet({
             type="button"
             onClick={close}
             aria-label="Close"
-            className="rounded-md p-1 text-bone-400 transition-colors hover:bg-bone-900 hover:text-bone-100 focus:outline-none focus-visible:ring-2 focus-visible:ring-claude-500"
+            className="-m-2 flex h-11 w-11 items-center justify-center rounded-md text-bone-400 transition-colors hover:bg-bone-900 hover:text-bone-100 focus:outline-none focus-visible:ring-2 focus-visible:ring-claude-500"
           >
             <svg width="20" height="20" viewBox="0 0 20 20" fill="none" aria-hidden>
               <path d="M5 5l10 10M15 5L5 15" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
@@ -194,7 +194,7 @@ export function GalleryFilterSheet({
                   v2 adds per-member filtering; for now show it so the
                   picker shape is familiar when we enable it. */}
               {allMembers.length > 0 ? (
-                <div className="mt-1 w-full text-[11px] text-bone-500">
+                <div className="mt-1 w-full text-[11px] text-bone-300">
                   Per-member picker coming in v2
                 </div>
               ) : null}
@@ -228,7 +228,7 @@ export function GalleryFilterSheet({
           ) : (
             <section>
               <SectionLabel>Tags</SectionLabel>
-              <p className="text-xs italic text-bone-500">
+              <p className="text-xs italic text-bone-300">
                 Nothing tagged yet.
               </p>
             </section>

@@ -123,7 +123,7 @@ export default async function GalleryItemPage({
                 href={item.sourceUrl}
                 target="_blank"
                 rel="noopener noreferrer"
-                className="underline decoration-claude-500/40 underline-offset-2 hover:text-bone-50 hover:decoration-claude-300"
+                className="rounded-sm underline decoration-claude-500/40 underline-offset-2 hover:text-bone-50 hover:decoration-claude-300 focus:outline-none focus-visible:ring-2 focus-visible:ring-claude-400 focus-visible:ring-offset-2 focus-visible:ring-offset-bone-950"
               >
                 View on {originLabel(origin)}
               </a>
@@ -173,7 +173,7 @@ export default async function GalleryItemPage({
             <Link
               key={tag}
               href={`/gallery?tag=${encodeURIComponent(tag)}`}
-              className="rounded-full bg-bone-900 px-2.5 py-0.5 text-[0.65rem] font-medium uppercase tracking-wider text-bone-200 transition-colors hover:bg-bone-800 hover:text-bone-50"
+              className="rounded-full bg-bone-900 px-3 py-1.5 text-[0.65rem] font-medium uppercase tracking-wider text-bone-200 transition-colors hover:bg-bone-800 hover:text-bone-50 focus:outline-none focus-visible:ring-2 focus-visible:ring-claude-400 focus-visible:ring-offset-2 focus-visible:ring-offset-bone-950"
             >
               #{tag}
             </Link>
@@ -184,7 +184,7 @@ export default async function GalleryItemPage({
       <ThreadSection rows={threadRows} />
 
       {canHide ? (
-        <p className="mt-12 text-xs italic text-bone-400">
+        <p className="mt-12 text-xs italic text-bone-300">
           {viewer.role === "ADMIN"
             ? "Commissioner can bulk-hide or delete in /admin/gallery."
             : "You uploaded this. Admin tools coming soon for self-hide."}
@@ -226,7 +226,7 @@ function UploaderLine({
       )}
       <Link
         href={`/gallery?by=me`}
-        className="text-bone-200 underline decoration-transparent underline-offset-2 hover:decoration-claude-500/40 hover:text-bone-50"
+        className="rounded-sm text-bone-200 underline decoration-transparent underline-offset-2 hover:decoration-claude-500/40 hover:text-bone-50 focus:outline-none focus-visible:ring-2 focus-visible:ring-claude-400 focus-visible:ring-offset-2 focus-visible:ring-offset-bone-950"
       >
         {uploader.displayName} shared this
       </Link>
@@ -255,7 +255,7 @@ function ThreadSection({
         <h2 className="mb-2 text-xs font-semibold uppercase tracking-[0.2em] text-claude-300">
           Thread
         </h2>
-        <p className="text-sm italic text-bone-400">
+        <p className="text-sm italic text-bone-300">
           Nobody’s chimed in about this one yet.
         </p>
       </section>
@@ -301,22 +301,25 @@ function ThreadSection({
                 )}
               </div>
               <div className="min-w-0 flex-1">
-                <p className="text-xs text-bone-400">
+                <p className="text-xs text-bone-300">
                   <span className="text-bone-200">
                     {actor?.displayName ?? "Unknown"}
                   </span>
                   {m.authorType === "CHARACTER" ? (
-                    <span className="ml-1 rounded bg-claude-500/15 px-1.5 py-0.5 text-[10px] uppercase tracking-wider text-claude-200">
+                    <span
+                      aria-label="agent author"
+                      className="ml-1 rounded bg-claude-500/15 px-1.5 py-0.5 text-[10px] uppercase tracking-wider text-claude-200"
+                    >
                       Agent
                     </span>
                   ) : null}
-                  <span className="mx-1.5 text-bone-600" aria-hidden>
+                  <span className="mx-1.5 text-bone-500" aria-hidden>
                     ·
                   </span>
                   {conversationHref ? (
                     <Link
                       href={conversationHref}
-                      className="hover:text-bone-200"
+                      className="rounded-sm hover:text-bone-200 focus:outline-none focus-visible:ring-2 focus-visible:ring-claude-400 focus-visible:ring-offset-2 focus-visible:ring-offset-bone-950"
                     >
                       {when}
                     </Link>

@@ -50,7 +50,7 @@ export function GalleryTile({ item, featured }: Props) {
       className={cn(
         "group relative block aspect-square overflow-hidden rounded-md bg-bone-900",
         "focus:outline-none focus-visible:ring-2 focus-visible:ring-claude-400 focus-visible:ring-offset-2 focus-visible:ring-offset-bone-950",
-        "transition-transform duration-150 hover:-translate-y-0.5",
+        "transition-transform duration-150 hover:-translate-y-0.5 motion-reduce:transition-none motion-reduce:hover:transform-none",
         featured && "ring-1 ring-claude-500/50",
       )}
       aria-label={ariaLabel(item)}
@@ -96,7 +96,7 @@ export function GalleryTile({ item, featured }: Props) {
       {/* Hover/focus caption strip — quiet, optional. Only render when we
           have a caption, otherwise leave the photo untouched. */}
       {item.caption ? (
-        <div className="pointer-events-none absolute inset-x-0 bottom-0 translate-y-full bg-gradient-to-t from-black/80 to-transparent p-3 pt-10 text-xs text-bone-100 opacity-0 transition-all duration-150 group-hover:translate-y-0 group-hover:opacity-100 group-focus-visible:translate-y-0 group-focus-visible:opacity-100">
+        <div className="pointer-events-none absolute inset-x-0 bottom-0 translate-y-full bg-gradient-to-t from-black/80 to-transparent p-3 pt-10 text-xs text-bone-100 opacity-0 transition-all duration-150 group-hover:translate-y-0 group-hover:opacity-100 group-focus-visible:translate-y-0 group-focus-visible:opacity-100 motion-reduce:transition-none">
           <p className="line-clamp-2 text-pretty">{item.caption}</p>
         </div>
       ) : null}
@@ -106,9 +106,10 @@ export function GalleryTile({ item, featured }: Props) {
 
 function ariaLabel(item: GalleryTileItem): string {
   const parts: string[] = [];
-  if (item.caption) parts.push(item.caption);
-  else if (item.originTitle) parts.push(item.originTitle);
-  else parts.push("Shared media");
+  const mediaKind = item.origin === "YOUTUBE" ? "video" : "photo";
+  if (item.caption) parts.push(`${mediaKind}: ${item.caption}`);
+  else if (item.originTitle) parts.push(`${mediaKind}: ${item.originTitle}`);
+  else parts.push(`Shared ${mediaKind}`);
   parts.push(`by ${item.uploadedBy.displayName}`);
   if (item.origin !== "UPLOAD") parts.push(`on ${originWord(item.origin)}`);
   if (item.hallOfFame) parts.push("(Hall of Fame)");

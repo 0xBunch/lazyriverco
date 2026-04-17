@@ -102,11 +102,10 @@ export default async function GalleryPage({
             The wall
           </h1>
         </div>
-        {/* "+ Add" — parallel-route modal ships with todo #8. For now it
-            stubs to a URL marker the future modal will read. */}
+        {/* "+ Add" → opens GalleryAddModal via ?add=1. */}
         <Link
           href="/gallery?add=1"
-          className="inline-flex items-center justify-center rounded-full border border-claude-500/40 bg-claude-500/10 px-4 py-2 text-xs font-semibold uppercase tracking-[0.2em] text-claude-200 transition-colors hover:bg-claude-500/20 focus:outline-none focus-visible:ring-2 focus-visible:ring-claude-400"
+          className="inline-flex items-center justify-center rounded-full border border-claude-500/40 bg-claude-500/10 px-4 py-2 text-xs font-semibold uppercase tracking-[0.2em] text-claude-200 transition-colors hover:bg-claude-500/20 focus:outline-none focus-visible:ring-2 focus-visible:ring-claude-400 focus-visible:ring-offset-2 focus-visible:ring-offset-bone-950"
         >
           + Add
         </Link>
@@ -128,7 +127,7 @@ export default async function GalleryPage({
             name="q"
             defaultValue={q ?? ""}
             placeholder="Search captions, tags, titles…"
-            className="flex-1 rounded-md border border-bone-800/60 bg-bone-900/40 px-3 py-2 text-sm text-bone-100 placeholder:text-bone-400 focus:border-claude-500/60 focus:outline-none"
+            className="flex-1 rounded-md border border-bone-800/60 bg-bone-900/40 px-3 py-2 text-sm text-bone-100 placeholder:text-bone-400 focus:border-claude-500/60 focus:outline-none focus-visible:ring-2 focus-visible:ring-claude-400"
           />
           {/* Preserve the other filters across search submits. */}
           {tag ? <input type="hidden" name="tag" value={tag} /> : null}
@@ -138,7 +137,7 @@ export default async function GalleryPage({
           ) : null}
           <button
             type="submit"
-            className="rounded-md border border-bone-800/60 bg-bone-900/40 px-4 text-xs font-semibold uppercase tracking-[0.2em] text-bone-200 transition-colors hover:text-bone-50"
+            className="rounded-md border border-bone-800/60 bg-bone-900/40 px-4 text-xs font-semibold uppercase tracking-[0.2em] text-bone-200 transition-colors hover:text-bone-50 focus:outline-none focus-visible:ring-2 focus-visible:ring-claude-400 focus-visible:ring-offset-2 focus-visible:ring-offset-bone-950"
           >
             Search
           </button>
@@ -150,7 +149,7 @@ export default async function GalleryPage({
               ? `Filters (${activeFilterCount} active)`
               : "Open filters"
           }
-          className="inline-flex items-center gap-1.5 rounded-md border border-bone-800/60 bg-bone-900/40 px-4 text-xs font-semibold uppercase tracking-[0.2em] text-bone-200 transition-colors hover:text-bone-50"
+          className="inline-flex items-center gap-1.5 rounded-md border border-bone-800/60 bg-bone-900/40 px-4 py-2 text-xs font-semibold uppercase tracking-[0.2em] text-bone-200 transition-colors hover:text-bone-50 focus:outline-none focus-visible:ring-2 focus-visible:ring-claude-400 focus-visible:ring-offset-2 focus-visible:ring-offset-bone-950"
         >
           Filters
           {activeFilterCount > 0 ? (
@@ -376,21 +375,21 @@ function ActiveFilters({
 
   return (
     <div className="mb-6 flex flex-wrap items-center gap-2 text-xs">
-      <span className="uppercase tracking-[0.2em] text-bone-400">Filters</span>
+      <span className="uppercase tracking-[0.2em] text-bone-300">Filters</span>
       {chips.map((c) => (
         <Link
           key={c.label}
           href={c.clearHref}
-          className="inline-flex items-center gap-1.5 rounded-full border border-bone-800/60 bg-bone-900/40 px-3 py-1 text-bone-200 transition-colors hover:text-bone-50"
+          className="inline-flex items-center gap-1.5 rounded-full border border-bone-800/60 bg-bone-900/40 px-3 py-2 text-bone-200 transition-colors hover:text-bone-50 focus:outline-none focus-visible:ring-2 focus-visible:ring-claude-400 focus-visible:ring-offset-2 focus-visible:ring-offset-bone-950"
         >
           <span>{c.label}</span>
-          <span aria-hidden className="text-bone-500">×</span>
+          <span aria-hidden className="text-bone-400">×</span>
           <span className="sr-only">Remove filter</span>
         </Link>
       ))}
       <Link
         href="/gallery"
-        className="text-bone-300 underline decoration-claude-500/40 underline-offset-2 hover:text-bone-50"
+        className="rounded-sm text-bone-300 underline decoration-claude-500/40 underline-offset-2 hover:text-bone-50 focus:outline-none focus-visible:ring-2 focus-visible:ring-claude-400 focus-visible:ring-offset-2 focus-visible:ring-offset-bone-950"
       >
         Clear all
       </Link>
@@ -440,7 +439,7 @@ function EmptyState({ filtered }: { filtered: boolean }) {
         No matches.{" "}
         <Link
           href="/gallery"
-          className="underline decoration-claude-500/40 underline-offset-2 hover:text-bone-100"
+          className="rounded-sm underline decoration-claude-500/40 underline-offset-2 hover:text-bone-100 focus:outline-none focus-visible:ring-2 focus-visible:ring-claude-400 focus-visible:ring-offset-2 focus-visible:ring-offset-bone-950"
         >
           Clear filters
         </Link>{" "}
@@ -455,7 +454,7 @@ function EmptyState({ filtered }: { filtered: boolean }) {
       </p>
       <Link
         href="/gallery?add=1"
-        className="mt-4 inline-flex items-center justify-center rounded-full border border-claude-500/40 bg-claude-500/10 px-4 py-2 text-xs font-semibold uppercase tracking-[0.2em] text-claude-200 hover:bg-claude-500/20"
+        className="mt-4 inline-flex items-center justify-center rounded-full border border-claude-500/40 bg-claude-500/10 px-4 py-2 text-xs font-semibold uppercase tracking-[0.2em] text-claude-200 hover:bg-claude-500/20 focus:outline-none focus-visible:ring-2 focus-visible:ring-claude-400 focus-visible:ring-offset-2 focus-visible:ring-offset-bone-950"
       >
         Drop the first one
       </Link>
