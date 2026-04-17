@@ -1,31 +1,36 @@
 import "server-only";
 import { prisma } from "@/lib/prisma";
+import {
+  sanitizeLLMText,
+  sanitizeTags,
+  MAX_CAPTION_CHARS,
+  MAX_ORIGIN_TEXT_CHARS,
+  MAX_MEDIA_IN_CONTEXT,
+} from "@/lib/sanitize";
 
-// Retrieval + sanitation seam for the shared media bank section
-// buildRichContext injects into agent system prompts.
+// Retrieval seam for the shared media bank section buildRichContext
+// injects into agent system prompts.
 //
 // Phase 1 strategy: hall-of-fame first, then most-recent READY uploads,
 // capped at MAX_MEDIA_IN_CONTEXT rows. The `tags` parameter is accepted
 // but ignored so future retrieval strategies (tag matching, embeddings)
 // can land without changing the call-site signature.
 //
-// Sanitation (security-sentinel M3, prompt injection): any caption,
-// tag, originTitle, or originAuthor that reaches an LLM prompt gets
-// stripped of markdown headers, <suggest-agent> sentinels, and control
-// characters first. captions are user-written (trusted-ish); originTitle
-// and originAuthor are SCRAPED from attacker-controlled pages during
-// URL ingest and must never bypass sanitization. The Media table has
-// a Prisma-enum `status` column so only READY rows ever reach the LLM
-// — PENDING (presign in flight) and DELETED (soft-removed) are filtered.
-//
-// The sanitizer is exported as `sanitizeLLMText` so the forthcoming
-// gallery_search agent tool can run tool_result strings through the
-// same primitive before returning them to Sonnet.
+// Sanitation (security-sentinel M3, prompt injection): see src/lib/sanitize.ts
+// — the primitives are extracted so the prompt-injection eval can verify
+// them without pulling a server-only import chain. All caption / tag /
+// originTitle / originAuthor fields pass through sanitizeLLMText before
+// reaching the LLM. Only READY rows ever surface (PENDING in-flight +
+// DELETED soft-hidden are filtered at the DB layer).
 
-const MAX_MEDIA_IN_CONTEXT = 10;
-const MAX_CAPTION_CHARS = 200;
-const MAX_ORIGIN_TEXT_CHARS = 120;
-const MAX_TAGS_PER_ITEM = 20;
+// Re-export so existing call sites keep working.
+export {
+  sanitizeLLMText,
+  sanitizeTags,
+  MAX_MEDIA_IN_CONTEXT,
+  MAX_CAPTION_CHARS,
+  MAX_ORIGIN_TEXT_CHARS,
+};
 
 export type MediaContextRow = {
   publicUrl: string;
@@ -124,49 +129,5 @@ function toContextRow(row: {
   };
 }
 
-/**
- * Sanitize a string before it reaches an LLM prompt. Strips:
- *   - markdown headers (so the text can't inject its own sections)
- *   - <suggest-agent ...> sentinels (our handoff-CTA marker)
- *   - control characters
- *   - repeated whitespace
- * Caps the result at `maxChars` and returns null for empty / null input.
- *
- * Exported so any path that funnels scraped / attacker-influenced text
- * into a prompt or tool_result can reuse the same primitive. Callers:
- *   - media-context.ts (caption, originTitle, originAuthor)
- *   - gallery_search agent tool (todo #10)
- */
-export function sanitizeLLMText(
-  raw: string | null | undefined,
-  maxChars: number,
-): string | null {
-  if (!raw) return null;
-  const cleaned = raw
-    .split("\n")
-    .filter((line) => !line.trimStart().startsWith("#"))
-    .join(" ")
-    .replaceAll(/<\s*suggest-agent\b[^>]*>/gi, "")
-    // eslint-disable-next-line no-control-regex
-    .replace(/[\x00-\x1F\x7F]/g, "")
-    .replace(/\s+/g, " ")
-    .trim();
-  if (cleaned.length === 0) return null;
-  return cleaned.slice(0, maxChars);
-}
-
-export function sanitizeTags(tags: readonly string[]): readonly string[] {
-  return tags
-    .map((t) => t.trim())
-    .filter(
-      (t) =>
-        t.length > 0 &&
-        !t.startsWith("#") &&
-        !t.startsWith("<") &&
-        // eslint-disable-next-line no-control-regex
-        !/[\x00-\x1F\x7F]/.test(t),
-    )
-    .slice(0, MAX_TAGS_PER_ITEM);
-}
-
-export { MAX_MEDIA_IN_CONTEXT, MAX_CAPTION_CHARS, MAX_ORIGIN_TEXT_CHARS };
+// sanitize primitives + constants live in src/lib/sanitize.ts and are
+// re-exported at the top of this file for backward compat.
