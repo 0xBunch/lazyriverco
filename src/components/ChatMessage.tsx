@@ -80,7 +80,7 @@ function AgentMarkdown({ children }: { children: string }) {
         a: ({ children: c, ...props }: { children?: ReactNode; href?: string }) => (
           <a
             {...props}
-            className="text-claude-300 underline decoration-claude-500/40 underline-offset-2 hover:text-claude-200"
+            className="text-claude-300 underline decoration-claude-500/40 underline-offset-2 hover:text-claude-200 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-claude-500"
             target="_blank"
             rel="noopener noreferrer"
           >
