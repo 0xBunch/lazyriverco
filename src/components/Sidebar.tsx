@@ -68,12 +68,20 @@ export async function Sidebar() {
       {/* Main nav */}
       <SidebarNav items={mainNav} />
 
-      {/* Conversation list — scrolls in its lane, doesn't push
-          Apps/footer off-screen. min-h-0 lets flex shrink it;
-          overflow-y-auto gives it its own scrollbar. */}
-      <div className="min-h-0 flex-1 overflow-y-auto sidebar-scroll group-data-[collapsed]:hidden">
-        {user ? <ConversationSidebarList /> : null}
-      </div>
+      {/* Recents — the sole "section" in the sidebar today (Starred is
+          Phase 3). The label sits outside the scroll region so it stays
+          pinned while the list below scrolls. Collapsed-sidebar hides
+          the whole pair. */}
+      {user ? (
+        <div className="flex min-h-0 flex-1 flex-col group-data-[collapsed]:hidden">
+          <p className="shrink-0 px-5 pb-1 pt-4 text-[0.65rem] font-semibold uppercase tracking-wide text-bone-400">
+            Recents
+          </p>
+          <div className="min-h-0 flex-1 overflow-y-auto sidebar-scroll">
+            <ConversationSidebarList />
+          </div>
+        </div>
+      ) : null}
 
       {/* Apps section — pinned above footer, never pushed off-screen.
           shrink-0 prevents flex from compressing it. */}
