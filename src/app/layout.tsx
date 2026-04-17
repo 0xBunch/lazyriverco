@@ -1,11 +1,20 @@
 import type { Metadata, Viewport } from "next";
-import { DM_Sans } from "next/font/google";
+import localFont from "next/font/local";
 import "./globals.css";
 
-const sans = DM_Sans({
-  subsets: ["latin"],
+// General Sans from Fontshare. Warmer humanist sans than DM Sans — closer
+// in feel to Claude's proprietary Anthropic Sans without licensing it.
+// Files are self-hosted under src/app/fonts/ so there is no external CDN
+// hop on first paint.
+const sans = localFont({
   variable: "--font-sans",
   display: "swap",
+  src: [
+    { path: "./fonts/general-sans-400.woff2", weight: "400", style: "normal" },
+    { path: "./fonts/general-sans-500.woff2", weight: "500", style: "normal" },
+    { path: "./fonts/general-sans-600.woff2", weight: "600", style: "normal" },
+    { path: "./fonts/general-sans-700.woff2", weight: "700", style: "normal" },
+  ],
 });
 
 export const metadata: Metadata = {

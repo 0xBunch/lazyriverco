@@ -1,7 +1,6 @@
 "use client";
 
-import { formatDistanceToNowStrict } from "date-fns";
-import { useEffect, useState, type ReactNode } from "react";
+import { type ReactNode } from "react";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import { cn } from "@/lib/utils";
@@ -122,25 +121,6 @@ function AgentMarkdown({ children }: { children: string }) {
   );
 }
 
-// --- Relative timestamp ----------------------------------------------------
-
-function RelativeTime({ iso }: { iso: string }) {
-  const [label, setLabel] = useState<string>(() =>
-    formatDistanceToNowStrict(new Date(iso), { addSuffix: true }),
-  );
-  useEffect(() => {
-    const id = setInterval(() => {
-      setLabel(formatDistanceToNowStrict(new Date(iso), { addSuffix: true }));
-    }, 30_000);
-    return () => clearInterval(id);
-  }, [iso]);
-  return (
-    <time dateTime={iso} className="text-[0.7rem] text-bone-400">
-      {label}
-    </time>
-  );
-}
-
 // --- ChatMessage component ------------------------------------------------
 
 export function ChatMessage({ message, isMe, showHeader, isStreaming = false }: ChatMessageProps) {
@@ -154,7 +134,12 @@ export function ChatMessage({ message, isMe, showHeader, isStreaming = false }: 
     <div
       className={cn(
         "flex gap-3 px-4",
-        showHeader ? "pt-4" : "pt-0.5",
+        // showHeader = first message in a run from this author. Give it
+        // a full `pt-4` of air. Same-author continuations get `pt-2` so
+        // the vertical rhythm matches the 36px left gutter — any tighter
+        // and the reserved avatar column feels generous while the text
+        // feels cramped.
+        showHeader ? "pt-4" : "pt-2",
         isMe && "flex-row-reverse",
       )}
     >
@@ -184,33 +169,24 @@ export function ChatMessage({ message, isMe, showHeader, isStreaming = false }: 
         {showHeader ? (
           <div
             className={cn(
-              "mb-1 flex items-baseline gap-2",
+              "mb-1 flex items-baseline",
               isMe && "flex-row-reverse",
             )}
           >
             <span className="text-sm font-semibold text-bone-50">
               {message.author.displayName}
             </span>
-            {isCharacter ? (
-              <span
-                className="rounded-full bg-claude-500/20 px-1.5 py-[1px] text-[0.65rem] font-medium uppercase tracking-wide text-claude-200"
-                aria-label="bot"
-              >
-                bot
-              </span>
-            ) : null}
-            <RelativeTime iso={message.createdAt} />
           </div>
         ) : null}
 
         <div
           className={cn(
-            "max-w-[min(42rem,100%)] rounded-2xl px-4 py-2 text-sm leading-relaxed",
+            "max-w-[min(42rem,100%)] text-sm leading-relaxed",
             isMe
-              ? "bg-claude-500/90 text-bone-50 rounded-br-md"
+              ? "rounded-2xl rounded-br-md bg-claude-500/90 px-4 py-2 text-bone-50"
               : isCharacter
-                ? "border-l-2 border-claude-500/60 bg-bone-800/70 text-bone-100 rounded-bl-md"
-                : "bg-bone-800 text-bone-100 rounded-bl-md",
+                ? "text-bone-100"
+                : "rounded-2xl rounded-bl-md bg-bone-800 px-4 py-2 text-bone-100",
             // Markdown prose styles for character replies; plain
             // whitespace-pre-wrap for user messages.
             isCharacter

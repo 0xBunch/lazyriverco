@@ -42,3 +42,13 @@
 .sidebar-scroll::-webkit-scrollbar-thumb:hover {
   background: theme("colors.bone.600") !important;
 }
+
+/* Hide scrollbar entirely — for horizontal chip rows and other places
+   where a visible scrollbar is distracting chrome. Still scrollable via
+   touch/trackpad. */
+.no-scrollbar {
+  scrollbar-width: none;
+}
+.no-scrollbar::-webkit-scrollbar {
+  display: none;
+}

@@ -52,8 +52,11 @@ const config: Config = {
         },
       },
       fontFamily: {
-        // DM Sans: closest free humanist sans to Claude's proprietary
-        // Anthropic Sans. One family, weight variance carries the hierarchy.
+        // General Sans (Fontshare, free). Humanist-geometric hybrid with
+        // more warmth and character than DM Sans. One family, weight
+        // variance carries the hierarchy. `font-display` is aliased to
+        // the same face today — if we ever add a true display cut we can
+        // point it elsewhere without touching component callsites.
         sans: ["var(--font-sans)", "system-ui", "sans-serif"],
         display: ["var(--font-sans)", "system-ui", "sans-serif"],
       },
