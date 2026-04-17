@@ -2,6 +2,7 @@ import Link from "next/link";
 import { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import { requireUser } from "@/lib/auth";
+import { searchGalleryIds } from "@/lib/gallery-search";
 import { GalleryTile, type GalleryTileItem } from "@/components/GalleryTile";
 import { GalleryAddModal } from "@/components/GalleryAddModal";
 import {
@@ -289,20 +290,11 @@ async function loadGalleryItems(p: LoadParams): Promise<GalleryTileItem[]> {
   }
 
   // FTS path: two-step because Prisma can't express the tsvector match
-  // directly. Step 1 gets ranked ids from the GIN index; step 2 hydrates
-  // the relational data and re-sorts by rank.
-  const idRows = await prisma.$queryRaw<Array<{ id: string }>>`
-    SELECT id
-    FROM "Media"
-    WHERE status = 'READY'::"MediaStatus"
-      AND "hiddenFromGrid" = false
-      AND media_search_tsv("caption", "originTitle", "originAuthor", "tags")
-          @@ plainto_tsquery('english', ${p.q})
-    ORDER BY "hallOfFame" DESC, "createdAt" DESC
-    LIMIT ${p.limit}
-  `;
-  if (idRows.length === 0) return [];
-  const ids = idRows.map((r) => r.id);
+  // directly. searchGalleryIds owns the raw SQL (shared with the agent
+  // tool); this path just applies additional WHERE predicates on top
+  // and re-sorts by rank.
+  const ids = await searchGalleryIds(p.q, p.limit);
+  if (ids.length === 0) return [];
   const rows = await prisma.media.findMany({
     where: { ...baseWhere, id: { in: ids } },
     include,

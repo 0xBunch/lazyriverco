@@ -18,6 +18,7 @@ import {
   selectMediaForContext,
   selectMediaByIds,
 } from "@/lib/media-context";
+import { isAgentMediaViaToolEnabled } from "@/lib/anthropic";
 import type { CalendarContextRow } from "@/lib/calendar-context";
 
 const MAX_LORE_CHARS = 4000; // ~1000 tokens budget for selected lore
@@ -198,7 +199,12 @@ export async function buildRichContext(
 
   // 6. Media — Haiku-selected if IDs provided, else fallback to
   // hall-of-fame + recent (backward compatible).
-  if (includeMedia) {
+  //
+  // When AGENT_MEDIA_VIA_TOOL=true, skip this section entirely — Sonnet
+  // will reach for the gallery_search tool when the conversation calls
+  // for it, and we want one source of truth per turn (no double-
+  // surfacing through pre-compute AND tool).
+  if (includeMedia && !isAgentMediaViaToolEnabled()) {
     const media =
       selectedMediaIds && selectedMediaIds.length > 0
         ? await selectMediaByIds(selectedMediaIds)

@@ -1,4 +1,5 @@
 import Anthropic from "@anthropic-ai/sdk";
+import { searchGalleryForAgent } from "@/lib/gallery-search";
 
 // Sonnet 4.6 — the latest and most capable Sonnet. Now that streaming
 // is wired, the 10-20s generation time is invisible to the user because
@@ -7,6 +8,11 @@ import Anthropic from "@anthropic-ai/sdk";
 export const CHAT_MODEL = "claude-sonnet-4-6" as const;
 
 const MAX_TOKENS = 1500;
+
+// Cap on client-managed tool-use iterations in a single reply. 3 is
+// deliberately tight: enough for one gallery_search + one follow-up,
+// but will abort if the model goes into a pathological search loop.
+const MAX_TOOL_ITERATIONS = 3;
 
 let _client: Anthropic | null = null;
 function getClient(): Anthropic {
@@ -36,6 +42,100 @@ const WEB_SEARCH_TOOL = {
   name: "web_search",
   max_uses: 3,
 } as const;
+
+// Client-managed tool: we run the FTS ourselves and return a tool_result.
+// Stop_reason becomes "tool_use" when Sonnet invokes this; the loops in
+// generateCharacterResponse / streamCharacterResponse handle the back-and-
+// forth. Different shape from web_search: no type/max_uses (those are for
+// Anthropic-managed server-side tools only).
+//
+// Description is the model's only signal for WHEN to call this. Keep it
+// concrete about the content domain (the crew's shared archive) rather
+// than abstract capability ("search tool"). Tested triggers like "what
+// do we have on X" / "any pictures of X" / references to specific
+// in-group topics.
+const GALLERY_SEARCH_TOOL: Anthropic.Messages.Tool = {
+  name: "gallery_search",
+  description:
+    "Search the Lazy River gallery — photos, videos, and links the Mens League crew has shared over time. Returns up to 6 ranked results with short descriptions and URLs. Use when the user asks about something the crew might have previously shared (e.g. 'what do we have on the Dodgers', 'any pictures of Blackie's trip', 'pull up that Sydney Sweeney thing KB posted'). Prefer this over web_search for anything that sounds like it lives in the group's own archive.",
+  input_schema: {
+    type: "object",
+    properties: {
+      query: {
+        type: "string",
+        description:
+          "Natural-language search terms — people, teams, places, events, tags, or any distinctive keywords.",
+      },
+    },
+    required: ["query"],
+  },
+};
+
+const TOOLS: Anthropic.Messages.ToolUnion[] = [
+  WEB_SEARCH_TOOL,
+  GALLERY_SEARCH_TOOL,
+];
+
+/**
+ * Gate: when AGENT_MEDIA_VIA_TOOL=true, character-context.ts skips the
+ * pre-computed "# Relevant media" block in the system prompt, because
+ * Sonnet will pull fresh hits via gallery_search when the conversation
+ * calls for them. One source of truth per turn avoids double-surfacing
+ * the same items through both channels. Exposed as a function (not a
+ * const) so tests can flip the env mid-suite.
+ */
+export function isAgentMediaViaToolEnabled(): boolean {
+  return process.env.AGENT_MEDIA_VIA_TOOL === "true";
+}
+
+/**
+ * Dispatch a client-managed tool_use block to its handler. Returns a
+ * tool_result block ready to include in the next turn's user message.
+ * Errors become is_error=true results so Sonnet can apologize + skip
+ * rather than abort the whole reply.
+ */
+async function dispatchClientTool(
+  block: Anthropic.Messages.ToolUseBlock,
+): Promise<Anthropic.Messages.ToolResultBlockParam> {
+  if (block.name === "gallery_search") {
+    const input = block.input as { query?: unknown };
+    const query = typeof input.query === "string" ? input.query : "";
+    try {
+      const result = await searchGalleryForAgent(query);
+      return {
+        type: "tool_result",
+        tool_use_id: block.id,
+        content: result,
+      };
+    } catch (e) {
+      console.error("[gallery_search] dispatch failed", e);
+      return {
+        type: "tool_result",
+        tool_use_id: block.id,
+        content: "gallery_search hit an error. Skip the gallery for this turn.",
+        is_error: true,
+      };
+    }
+  }
+  return {
+    type: "tool_result",
+    tool_use_id: block.id,
+    content: `Unknown tool: ${block.name}`,
+    is_error: true,
+  };
+}
+
+function extractTextBlocks(
+  content: readonly Anthropic.Messages.ContentBlock[],
+): string {
+  return content
+    .filter(
+      (b): b is Anthropic.Messages.TextBlock => b.type === "text",
+    )
+    .map((b) => b.text)
+    .join("")
+    .trim();
+}
 
 // Built fresh per call so the date is accurate. The worldliness paragraph
 // unlocks the model's existing knowledge of public figures / current events
@@ -142,6 +242,13 @@ function buildUserPrompt(
  *   - runOrchestrator (legacy channel path)
  *   - runConversationOrchestrator (fire-and-forget on initial conversation create)
  *   - generateDraftCommentary
+ *
+ * Implements a client-managed tool-use loop so the model can call
+ * gallery_search during a reply. web_search_20250305 is handled by
+ * Anthropic server-side and doesn't trigger the loop; only our own
+ * tools do. Loop caps at MAX_TOOL_ITERATIONS; text from each iteration
+ * is concatenated so nothing gets dropped if the model speaks before
+ * and after a tool call.
  */
 export async function generateCharacterResponse(
   systemPrompt: string,
@@ -149,16 +256,55 @@ export async function generateCharacterResponse(
   newMessage: ChatContextLine,
   richContext: string | null = null,
 ): Promise<string> {
-  const response = await getClient().messages.create({
-    model: CHAT_MODEL,
-    max_tokens: MAX_TOKENS,
-    temperature: 0.9,
-    system: composeSystemPrompt(systemPrompt, richContext),
-    tools: [WEB_SEARCH_TOOL],
-    messages: [{ role: "user", content: buildUserPrompt(recentContext, newMessage) }],
-  });
+  const messages: Anthropic.Messages.MessageParam[] = [
+    {
+      role: "user",
+      content: buildUserPrompt(recentContext, newMessage),
+    },
+  ];
+  let accumulated = "";
 
-  return extractText(response.content);
+  for (let iter = 0; iter < MAX_TOOL_ITERATIONS; iter++) {
+    const response = await getClient().messages.create({
+      model: CHAT_MODEL,
+      max_tokens: MAX_TOKENS,
+      temperature: 0.9,
+      system: composeSystemPrompt(systemPrompt, richContext),
+      tools: TOOLS,
+      messages,
+    });
+
+    const thisText = extractTextBlocks(response.content);
+    if (thisText) {
+      accumulated += (accumulated ? "\n\n" : "") + thisText;
+    }
+
+    if (response.stop_reason !== "tool_use") {
+      if (!accumulated) {
+        throw new Error("Anthropic response contained no text block");
+      }
+      return accumulated;
+    }
+
+    const toolUseBlocks = response.content.filter(
+      (b): b is Anthropic.Messages.ToolUseBlock => b.type === "tool_use",
+    );
+    const toolResults = await Promise.all(
+      toolUseBlocks.map(dispatchClientTool),
+    );
+    messages.push(
+      {
+        role: "assistant",
+        content: response.content as Anthropic.Messages.ContentBlockParam[],
+      },
+      { role: "user", content: toolResults },
+    );
+  }
+
+  if (!accumulated) {
+    throw new Error("Tool loop exceeded max iterations with no text");
+  }
+  return accumulated;
 }
 
 /**
@@ -178,22 +324,53 @@ export async function streamCharacterResponse(
   richContext: string | null = null,
   onDelta: (delta: string) => void = () => {},
 ): Promise<string> {
-  const stream = getClient().messages.stream({
-    model: CHAT_MODEL,
-    max_tokens: MAX_TOKENS,
-    temperature: 0.9,
-    system: composeSystemPrompt(systemPrompt, richContext),
-    tools: [WEB_SEARCH_TOOL],
-    messages: [{ role: "user", content: buildUserPrompt(recentContext, newMessage) }],
-  });
-
+  const messages: Anthropic.Messages.MessageParam[] = [
+    {
+      role: "user",
+      content: buildUserPrompt(recentContext, newMessage),
+    },
+  ];
   let fullText = "";
-  stream.on("text", (delta) => {
-    fullText += delta;
-    onDelta(delta);
-  });
 
-  await stream.finalMessage();
+  for (let iter = 0; iter < MAX_TOOL_ITERATIONS; iter++) {
+    const stream = getClient().messages.stream({
+      model: CHAT_MODEL,
+      max_tokens: MAX_TOKENS,
+      temperature: 0.9,
+      system: composeSystemPrompt(systemPrompt, richContext),
+      tools: TOOLS,
+      messages,
+    });
+
+    stream.on("text", (delta) => {
+      fullText += delta;
+      onDelta(delta);
+    });
+
+    const finalMsg = await stream.finalMessage();
+    if (finalMsg.stop_reason !== "tool_use") {
+      return fullText;
+    }
+
+    // Tool use — client-managed tools resolve server-side here. During
+    // the dispatch the user sees no stream output (usually sub-second
+    // for the FTS path); then the next iteration's stream resumes
+    // appending text to `fullText` and firing onDelta.
+    const toolUseBlocks = finalMsg.content.filter(
+      (b): b is Anthropic.Messages.ToolUseBlock => b.type === "tool_use",
+    );
+    const toolResults = await Promise.all(
+      toolUseBlocks.map(dispatchClientTool),
+    );
+    messages.push(
+      {
+        role: "assistant",
+        content: finalMsg.content as Anthropic.Messages.ContentBlockParam[],
+      },
+      { role: "user", content: toolResults },
+    );
+  }
+
   return fullText;
 }
 
