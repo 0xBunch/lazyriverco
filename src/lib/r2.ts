@@ -1,15 +1,14 @@
 import "server-only";
 import { randomUUID } from "crypto";
+import { S3Client } from "@aws-sdk/client-s3";
+import { createPresignedPost } from "@aws-sdk/s3-presigned-post";
 
-// R2 presigned-upload helpers. Task 2 ships the public API + content-type
-// allowlist + size cap + key generation so the calling code (admin media
-// upload flow in Task 8) can be wired up against a stable signature. The
-// actual @aws-sdk/client-s3 + @aws-sdk/s3-presigned-post integration
-// lands in Task 8 along with the npm install — presignUpload currently
-// throws R2UploadError("not implemented") so any accidental call fails
-// loudly instead of silently returning a bogus URL.
+// R2 presigned-upload helpers. Browser uploads go DIRECT to R2 — server
+// never handles file bytes. The server's only role is (1) auth-gate the
+// presign request, (2) pick an unguessable object key, (3) sign a short-
+// lived POST with content-type + content-length constraints baked in.
 //
-// Security hardening (security-sentinel review, 2026-04-15):
+// Security hardening:
 //   - Content-type allowlist enforced server-side before signing. Clients
 //     cannot upload executables, HTML, or anything else.
 //   - Content-length capped at 25 MB via POST policy Conditions (enforced
@@ -18,13 +17,15 @@ import { randomUUID } from "crypto";
 //   - Object keys are generated server-side via crypto.randomUUID().
 //     Client-supplied filenames are ignored so enumeration risk is ~122
 //     bits and the client can't forge a key to overwrite another object.
+//
+// Scope note: video uploads are intentionally out of scope. Video support
+// on the site is URL embeds only (YouTube/Vimeo) — no mp4 in the allowlist.
 
 const ALLOWED_CONTENT_TYPES = new Set<string>([
   "image/jpeg",
   "image/png",
   "image/webp",
   "image/gif",
-  "video/mp4",
 ]);
 
 export const MAX_UPLOAD_BYTES = 25 * 1024 * 1024; // 25 MB
@@ -48,17 +49,14 @@ function extensionFor(contentType: string): string {
       return "webp";
     case "image/gif":
       return "gif";
-    case "video/mp4":
-      return "mp4";
     default:
       return "bin";
   }
 }
 
 /**
- * Generate the server-side object key for a fresh upload. Called by
- * presignUpload below and by Task 8's /api/media/presign route. Exported
- * so tests can assert key shape.
+ * Generate the server-side object key for a fresh upload. Exported so
+ * tests can assert key shape.
  */
 export function newMediaKey(contentType: string): { mediaId: string; key: string } {
   const mediaId = randomUUID();
@@ -91,10 +89,40 @@ export class R2UploadError extends Error {
   }
 }
 
+// Lazy singleton — we don't want to crash at module import time on local
+// dev machines that haven't set the R2 env yet. Callers of presignUpload
+// will get a clear R2UploadError instead.
+let s3Singleton: S3Client | null = null;
+
+function getS3Client(): S3Client {
+  if (s3Singleton) return s3Singleton;
+
+  const accountId = process.env.R2_ACCOUNT_ID;
+  const accessKeyId = process.env.R2_ACCESS_KEY_ID;
+  const secretAccessKey = process.env.R2_SECRET_ACCESS_KEY;
+
+  if (!accountId || !accessKeyId || !secretAccessKey) {
+    throw new R2UploadError(
+      "R2 credentials missing: set R2_ACCOUNT_ID, R2_ACCESS_KEY_ID, R2_SECRET_ACCESS_KEY before calling presignUpload.",
+    );
+  }
+
+  s3Singleton = new S3Client({
+    region: "auto",
+    endpoint: `https://${accountId}.r2.cloudflarestorage.com`,
+    credentials: { accessKeyId, secretAccessKey },
+    // Force path-style because R2's presigned POSTs work against the
+    // bucket endpoint, and signature v4 for POST policies is what
+    // createPresignedPost emits — leave SDK defaults otherwise.
+  });
+  return s3Singleton;
+}
+
 /**
  * Presign a direct-to-R2 upload. Validates content-type, generates a
  * server-side key, and returns the POST URL + fields the client should
- * use. Task 8 fills in the actual createPresignedPost call.
+ * use. The returned URL is short-lived; re-request if the user takes
+ * longer than PRESIGN_EXPIRY_SECONDS to start the upload.
  */
 export async function presignUpload(
   input: PresignUploadInput,
@@ -113,26 +141,33 @@ export async function presignUpload(
     );
   }
 
-  // Suppress the unused-variable warnings until Task 8 fills this in.
-  // The signature is final; only the implementation body is TBD.
-  void bucketName;
+  const { mediaId, key } = newMediaKey(input.mimeType);
+  const s3 = getS3Client();
 
-  // TASK 8 —
-  //   1. npm install @aws-sdk/client-s3 @aws-sdk/s3-presigned-post
-  //   2. Instantiate S3Client at lazy singleton scope against the R2
-  //      endpoint: `https://${R2_ACCOUNT_ID}.r2.cloudflarestorage.com`.
-  //   3. Call createPresignedPost with:
-  //        Bucket: bucketName,
-  //        Key: key,
-  //        Expires: PRESIGN_EXPIRY_SECONDS,
-  //        Conditions: [
-  //          ["content-length-range", 0, MAX_UPLOAD_BYTES],
-  //          ["eq", "$Content-Type", input.mimeType],
-  //        ],
-  //        Fields: { "Content-Type": input.mimeType },
-  //   4. Return { uploadUrl: url, fields } from the createPresignedPost
-  //      result alongside the other fields below.
-  throw new R2UploadError(
-    "presignUpload not yet implemented. Task 8 installs @aws-sdk/client-s3 + @aws-sdk/s3-presigned-post and wires createPresignedPost.",
-  );
+  const { url, fields } = await createPresignedPost(s3, {
+    Bucket: bucketName,
+    Key: key,
+    Expires: PRESIGN_EXPIRY_SECONDS,
+    Conditions: [
+      ["content-length-range", 0, MAX_UPLOAD_BYTES],
+      ["eq", "$Content-Type", input.mimeType],
+    ],
+    Fields: {
+      "Content-Type": input.mimeType,
+    },
+  });
+
+  // Public base has no trailing slash by convention; normalize defensively.
+  const base = publicBase.replace(/\/+$/, "");
+
+  return {
+    mediaId,
+    key,
+    uploadUrl: url,
+    fields,
+    publicUrl: `${base}/${key}`,
+    contentType: input.mimeType,
+    expiresIn: PRESIGN_EXPIRY_SECONDS,
+    maxBytes: MAX_UPLOAD_BYTES,
+  };
 }
