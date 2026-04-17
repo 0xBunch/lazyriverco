@@ -1,8 +1,9 @@
 "use client";
 
-import { useCallback, useEffect, useId, useRef, useState } from "react";
+import { useCallback, useEffect, useId, useState } from "react";
 import { useRouter } from "next/navigation";
 import { cn } from "@/lib/utils";
+import { FocusTrap } from "@/components/FocusTrap";
 
 // Gallery filter sheet. Opens via URL param ?filter=1 (server parses,
 // client renders). Same open/close discipline as GalleryAddModal: the
@@ -59,8 +60,6 @@ export function GalleryFilterSheet({
     byUserId: current.byUserId,
   });
 
-  const dialogRef = useRef<HTMLDivElement>(null);
-
   const close = useCallback(() => {
     router.push(buildHref(current, { filter: false }));
   }, [router, current]);
@@ -114,13 +113,13 @@ export function GalleryFilterSheet({
         if (e.target === e.currentTarget) close();
       }}
     >
-      <div
-        ref={dialogRef}
+      <FocusTrap
         role="dialog"
         aria-modal="true"
         aria-labelledby={titleId}
-        className="w-full max-w-lg rounded-2xl border border-bone-800 bg-bone-950 p-6 shadow-2xl"
+        className="w-full max-w-lg rounded-2xl border border-bone-800 bg-bone-950 p-6 shadow-2xl focus:outline-none"
         onClick={(e) => e.stopPropagation()}
+        onEscape={close}
       >
         <header className="mb-4 flex items-start justify-between gap-4">
           <div>
@@ -261,7 +260,7 @@ export function GalleryFilterSheet({
             </button>
           </div>
         </div>
-      </div>
+      </FocusTrap>
     </div>
   );
 }

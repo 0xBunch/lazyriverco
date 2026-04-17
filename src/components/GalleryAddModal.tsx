@@ -1,8 +1,9 @@
 "use client";
 
-import { useCallback, useEffect, useId, useRef, useState, useTransition } from "react";
+import { useCallback, useEffect, useId, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { cn } from "@/lib/utils";
+import { FocusTrap } from "@/components/FocusTrap";
 import { MediaUploader, type UploadedMedia } from "@/components/MediaUploader";
 import {
   ingestAndSaveUrlAction,
@@ -20,13 +21,11 @@ import {
 // add param — that's the "state lives in the URL" discipline the grid
 // page already uses.
 //
-// Accessibility floor:
-//   - role="dialog" aria-modal="true" aria-labelledby
-//   - Escape closes
-//   - Backdrop click closes
-//   - Focus moves to the first field on open
-// Full focus-trap behavior (tab-cycling inside the modal) is deferred —
-// single use modal with simple content is a tolerable gap for v1.
+// Accessibility: FocusTrap component (src/components/FocusTrap.tsx) owns
+// the keyboard containment + initial focus + restore-on-close. The
+// dialog container IS the FocusTrap so aria-labelledby wires to the
+// element that receives focus. Escape close is belt-and-suspendered via
+// both the modal's own useEffect and FocusTrap's onEscape prop.
 
 type Tab = "paste" | "upload";
 
@@ -45,8 +44,6 @@ export function GalleryAddModal({ open }: Props) {
   const [uploaded, setUploaded] = useState<UploadedMedia | null>(null);
   const [isPending, startTransition] = useTransition();
 
-  const dialogRef = useRef<HTMLDivElement>(null);
-  const firstFieldRef = useRef<HTMLInputElement | null>(null);
   const titleId = useId();
 
   const close = useCallback(() => {
@@ -60,6 +57,10 @@ export function GalleryAddModal({ open }: Props) {
     setUploaded(media);
   }, []);
 
+  // FocusTrap handles initial focus (container itself), keyboard containment,
+  // and restore-on-close. We keep a redundant Escape-close useEffect below
+  // so the modal closes even if FocusTrap is ever ripped out.
+
   // Close on Escape. Register/unregister based on `open` so we don't
   // eat Escape when the modal isn't mounted.
   useEffect(() => {
@@ -70,14 +71,6 @@ export function GalleryAddModal({ open }: Props) {
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
   }, [open, close]);
-
-  // Autofocus the first field on open. A timeout of 0 lets the paint
-  // happen before the focus call so the element is actually ready.
-  useEffect(() => {
-    if (!open) return;
-    const t = setTimeout(() => firstFieldRef.current?.focus(), 0);
-    return () => clearTimeout(t);
-  }, [open, tab]);
 
   // Reset per-open state when the modal closes so a reopen starts clean.
   useEffect(() => {
@@ -134,13 +127,13 @@ export function GalleryAddModal({ open }: Props) {
         if (e.target === e.currentTarget) close();
       }}
     >
-      <div
-        ref={dialogRef}
+      <FocusTrap
         role="dialog"
         aria-modal="true"
         aria-labelledby={titleId}
-        className="w-full max-w-lg rounded-2xl border border-bone-800 bg-bone-950 p-6 shadow-2xl"
+        className="w-full max-w-lg rounded-2xl border border-bone-800 bg-bone-950 p-6 shadow-2xl focus:outline-none"
         onClick={(e) => e.stopPropagation()}
+        onEscape={close}
       >
         <header className="mb-4 flex items-start justify-between gap-4">
           <div>
@@ -186,7 +179,6 @@ export function GalleryAddModal({ open }: Props) {
             </FieldLabel>
             <input
               id="add-url"
-              ref={firstFieldRef}
               type="url"
               required
               value={url}
@@ -244,7 +236,7 @@ export function GalleryAddModal({ open }: Props) {
             </div>
           </div>
         )}
-      </div>
+      </FocusTrap>
     </div>
   );
 }
