@@ -15,3 +15,6 @@ out
 coverage
 *.tsbuildinfo
 next-env.d.ts
+
+# claude code (project-local session state: permissions, worktrees)
+.claude/

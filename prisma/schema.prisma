@@ -336,6 +336,34 @@ model Media {
   mimeType     String?
   createdAt    DateTime    @default(now())
 
+  /// Origin of the gallery item. UPLOAD = direct file upload to R2;
+  /// YOUTUBE / X / INSTAGRAM / WEB = pasted URL processed by an ingest
+  /// adapter. Drives tile treatment in /gallery and adapter dispatch
+  /// in src/lib/ingest.
+  origin         MediaOrigin @default(UPLOAD)
+  /// OG title scraped at ingest. UNTRUSTED attacker-controlled text —
+  /// MUST be sanitized (same primitives as Media.caption) before any
+  /// LLM-facing injection. See src/lib/media-context.ts.
+  originTitle    String?
+  /// OG author / handle / channel name scraped at ingest. Same
+  /// sanitization discipline as originTitle.
+  originAuthor   String?
+  /// True if the asset (photo, thumbnail) lives in our R2 bucket. False
+  /// means we're still referencing the remote `ogImageUrl` — either by
+  /// design (video embeds) or because the R2 copy failed at ingest.
+  storedLocally  Boolean     @default(false)
+  /// Cached oEmbed iframe HTML (X tweets, future providers). Sanitize at
+  /// render time before inserting into the DOM. Null for origins that
+  /// don't use embed iframes (UPLOAD, WEB, the IG OG-card path).
+  embedHtml      String?     @db.Text
+  /// Remote OG image URL. Pre-localize fallback source and the permanent
+  /// URL for items where storedLocally=false.
+  ogImageUrl     String?
+  /// Per-user soft-hide ("drunk Sunday" escape hatch). Uploader or admin
+  /// toggles. Hidden items don't appear in the /gallery grid, in search,
+  /// or in the agent gallery_search tool — but remain linkable by id.
+  hiddenFromGrid Boolean     @default(false)
+
   uploadedBy      User                 @relation(fields: [uploadedById], references: [id])
   calendarEntries CalendarEntryMedia[]
 
@@ -343,12 +371,32 @@ model Media {
   // fame first, then most recent. Composite matches the ORDER BY so
   // Postgres can serve it as an index scan once the table grows.
   @@index([status, hallOfFame, createdAt(sort: Desc)])
+  // Grid read path: filter by origin + status, order by recency. Covers
+  // /gallery?origin=youtube and the admin "items by source" view.
+  @@index([origin, status, createdAt(sort: Desc)])
+  // Full-text search: functional GIN index on to_tsvector(caption+origin*+tags),
+  // created in the migration SQL (Prisma can't model expression indexes).
+  // Queries in src/lib/gallery-search.ts must use the same expression in
+  // WHERE to hit this index. Stored columns via GENERATED STORED tripped
+  // Postgres's IMMUTABLE check (to_tsvector is STABLE, not IMMUTABLE) — the
+  // functional index is the idiomatic Postgres FTS pattern and dodges it.
 }
 
 enum MediaStatus {
   PENDING
   READY
   DELETED
+}
+
+/// Ingest origin discriminator. TikTok intentionally omitted in v1 — paste
+/// is rejected at the adapter. Add the value here if/when we implement an
+/// adapter for it.
+enum MediaOrigin {
+  UPLOAD
+  INSTAGRAM
+  YOUTUBE
+  X
+  WEB
 }
 
 model LeaderboardEntry {
