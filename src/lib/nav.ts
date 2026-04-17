@@ -8,7 +8,7 @@ export type NavItem = {
 // "+ New chat" button and the logo link — no dedicated nav item needed.
 export const MAIN_NAV_ITEMS = [
   { href: "/calendar", icon: "📅", label: "Calendar" },
-  { href: "/media", icon: "📸", label: "Media" },
+  { href: "/gallery", icon: "📸", label: "Gallery" },
 ] as const satisfies readonly NavItem[];
 
 // Collapsible "Apps" section — mini-apps built over time. Visible to
