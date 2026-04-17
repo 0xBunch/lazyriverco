@@ -107,7 +107,7 @@ model AgentRelationship {
   characterId  String
   targetUserId String
   content      String   @db.Text
-  updatedAt    DateTime @updatedAt
+  updatedAt    DateTime @default(now()) @updatedAt
 
   character  Character @relation(fields: [characterId], references: [id], onDelete: Cascade)
   targetUser User      @relation(fields: [targetUserId], references: [id], onDelete: Cascade)
@@ -126,7 +126,7 @@ model ClubhouseCanon {
   id        String   @id @default(uuid())
   name      String   @unique @default("default")
   content   String   @db.Text
-  updatedAt DateTime @updatedAt
+  updatedAt DateTime @default(now()) @updatedAt
 }
 
 /// Per-user conversation thread with a single AI character. Distinct from
