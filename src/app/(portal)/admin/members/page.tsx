@@ -1,6 +1,7 @@
 import { prisma } from "@/lib/prisma";
 import { updateMember } from "./actions";
 import { SaveButton } from "@/components/SaveButton";
+import { PromptSuggester } from "@/components/PromptSuggester";
 
 export const dynamic = "force-dynamic";
 
@@ -131,6 +132,18 @@ export default async function AdminMembersPage() {
                   placeholder={`e.g. "Texas guy. Runs the league like a military operation. Married to Jen. Big Longhorns fan. Has fined Joey twice for lineup mistakes."`}
                   className="w-full rounded-lg border border-bone-700 bg-bone-950 px-3 py-2 text-sm text-bone-50 placeholder-bone-500 focus:border-claude-500 focus:outline-none focus:ring-1 focus:ring-claude-500"
                 />
+                <div className="flex justify-end">
+                  <PromptSuggester
+                    textareaId={`blurb-${member.id}`}
+                    endpoint="/api/admin/suggest-member-blurb"
+                    extraPayload={{
+                      memberName: member.name,
+                      displayName: member.displayName,
+                      city: member.city ?? "",
+                      favoriteTeam: member.favoriteTeam ?? "",
+                    }}
+                  />
+                </div>
               </div>
 
               <div className="flex justify-end">

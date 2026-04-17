@@ -83,7 +83,7 @@ export default async function AdminAgentsPage() {
             <div className="flex justify-end">
               <PromptSuggester
                 textareaId="new-systemPrompt"
-                characterName="New agent"
+                extraPayload={{ characterName: "New agent" }}
               />
             </div>
           </div>
@@ -170,7 +170,7 @@ export default async function AdminAgentsPage() {
                   </p>
                   <PromptSuggester
                     textareaId={`systemPrompt-${agent.id}`}
-                    characterName={agent.displayName}
+                    extraPayload={{ characterName: agent.displayName }}
                   />
                 </div>
               </div>

@@ -5,12 +5,14 @@ import { cn } from "@/lib/utils";
 
 type PromptSuggesterProps = {
   textareaId: string;
-  characterName: string;
+  endpoint?: string;
+  extraPayload?: Record<string, string>;
 };
 
 export function PromptSuggester({
   textareaId,
-  characterName,
+  endpoint = "/api/admin/suggest-prompt",
+  extraPayload,
 }: PromptSuggesterProps) {
   const [loading, setLoading] = useState(false);
   const [suggestion, setSuggestion] = useState<string | null>(null);
@@ -23,9 +25,9 @@ export function PromptSuggester({
       | null;
     if (!textarea) return;
 
-    const currentPrompt = textarea.value.trim();
-    if (!currentPrompt) {
-      setError("Write a prompt first, then ask for suggestions.");
+    const current = textarea.value.trim();
+    if (!current) {
+      setError("Write something first, then ask for suggestions.");
       return;
     }
 
@@ -34,10 +36,10 @@ export function PromptSuggester({
     setSuggestion(null);
 
     try {
-      const res = await fetch("/api/admin/suggest-prompt", {
+      const res = await fetch(endpoint, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ prompt: currentPrompt, characterName }),
+        body: JSON.stringify({ prompt: current, ...extraPayload }),
       });
 
       if (!res.ok) {
@@ -101,7 +103,7 @@ export function PromptSuggester({
         <div className="rounded-xl border border-claude-500/30 bg-bone-950 p-4">
           <div className="mb-3 flex items-center justify-between">
             <p className="text-xs font-semibold uppercase tracking-wide text-claude-300">
-              Suggested prompt
+              Suggested rewrite
             </p>
             <div className="flex gap-2">
               <button
@@ -116,7 +118,7 @@ export function PromptSuggester({
                 onClick={handleAccept}
                 className="rounded-md bg-claude-500 px-3 py-1 text-xs font-medium text-bone-50 transition-colors hover:bg-claude-600"
               >
-                Use this prompt
+                Use this
               </button>
             </div>
           </div>
