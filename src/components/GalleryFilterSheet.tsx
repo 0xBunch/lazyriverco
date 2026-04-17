@@ -149,14 +149,14 @@ export function GalleryFilterSheet({
           <section>
             <SectionLabel>Source</SectionLabel>
             <div className="flex flex-wrap gap-1.5">
-              <OriginChip
+              <FilterChip
                 label="All"
                 active={draft.origin === null}
                 onClick={() => setDraft((d) => ({ ...d, origin: null }))}
               />
               {(["UPLOAD", "YOUTUBE", "INSTAGRAM", "X", "WEB"] as const).map(
                 (o) => (
-                  <OriginChip
+                  <FilterChip
                     key={o}
                     label={originLabel(o)}
                     active={draft.origin === o}
@@ -175,12 +175,12 @@ export function GalleryFilterSheet({
           <section>
             <SectionLabel>Uploader</SectionLabel>
             <div className="flex flex-wrap gap-1.5">
-              <OriginChip
+              <FilterChip
                 label="Everyone"
                 active={draft.byUserId === null}
                 onClick={() => setDraft((d) => ({ ...d, byUserId: null }))}
               />
-              <OriginChip
+              <FilterChip
                 label="My uploads"
                 active={draft.byUserId === viewerId}
                 onClick={() =>
@@ -205,13 +205,13 @@ export function GalleryFilterSheet({
             <section>
               <SectionLabel>Tags</SectionLabel>
               <div className="flex flex-wrap gap-1.5">
-                <OriginChip
+                <FilterChip
                   label="Any"
                   active={draft.tag === null}
                   onClick={() => setDraft((d) => ({ ...d, tag: null }))}
                 />
                 {allTags.map((t) => (
-                  <OriginChip
+                  <FilterChip
                     key={t}
                     label={`#${t}`}
                     active={draft.tag === t}
@@ -276,7 +276,7 @@ function SectionLabel({ children }: { children: React.ReactNode }) {
   );
 }
 
-function OriginChip({
+function FilterChip({
   label,
   active,
   onClick,

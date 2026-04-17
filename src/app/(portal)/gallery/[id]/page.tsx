@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
+import { Prisma, type $Enums } from "@prisma/client";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import { prisma } from "@/lib/prisma";
@@ -26,7 +27,8 @@ export const dynamic = "force-dynamic";
 
 type Params = { id: string };
 
-type OriginKey = "UPLOAD" | "INSTAGRAM" | "YOUTUBE" | "X" | "WEB";
+// Single source of truth for the MediaOrigin enum — Prisma-generated.
+type OriginKey = $Enums.MediaOrigin;
 
 export default async function GalleryItemPage({
   params,
@@ -50,7 +52,7 @@ export default async function GalleryItemPage({
   if (!item) notFound();
   if (item.status === "DELETED" && viewer.role !== "ADMIN") notFound();
 
-  const origin = item.origin as OriginKey;
+  const origin = item.origin;
   const video = origin === "YOUTUBE" ? parseVideoEmbed(item.sourceUrl) : null;
   const dateLabel = item.createdAt.toLocaleDateString("en-US", {
     year: "numeric",
@@ -62,7 +64,7 @@ export default async function GalleryItemPage({
   // or id. Limit to READY-era messages; no special index needed at this
   // scale. Also exclude the current media row's caption from the search
   // (it's not a "thread" moment).
-  const threadFilters: Array<Record<string, unknown>> = [
+  const threadFilters: Prisma.MessageWhereInput[] = [
     { content: { contains: item.id } },
   ];
   if (item.sourceUrl) {

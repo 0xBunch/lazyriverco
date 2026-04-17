@@ -1,4 +1,5 @@
 import Link from "next/link";
+import type { $Enums } from "@prisma/client";
 import { cn } from "@/lib/utils";
 
 // Gallery tile — uniform aspect-square regardless of source, per the
@@ -15,7 +16,10 @@ export type GalleryTileItem = {
   id: string;
   url: string;
   ogImageUrl: string | null;
-  origin: "UPLOAD" | "INSTAGRAM" | "YOUTUBE" | "X" | "WEB";
+  // Single source of truth — aligned with the Prisma enum so a new
+  // MediaOrigin value (e.g. TIKTOK, if we ever add it) flags every
+  // downstream switch that forgot a case.
+  origin: $Enums.MediaOrigin;
   /** Legacy free-string type column: "image"|"youtube"|"tweet"|"instagram"|"link"|"other". */
   type: string;
   caption: string | null;
@@ -116,7 +120,7 @@ function ariaLabel(item: GalleryTileItem): string {
   return parts.join(", ");
 }
 
-function originWord(o: GalleryTileItem["origin"]): string {
+function originWord(o: $Enums.MediaOrigin): string {
   switch (o) {
     case "YOUTUBE":
       return "YouTube";
@@ -126,7 +130,7 @@ function originWord(o: GalleryTileItem["origin"]): string {
       return "X";
     case "WEB":
       return "the web";
-    default:
+    case "UPLOAD":
       return "Lazy River";
   }
 }

@@ -311,11 +311,13 @@ function rowToTile(
     uploadedBy: GalleryTileItem["uploadedBy"];
   },
 ): GalleryTileItem {
+  // No cast on `origin` any more — GalleryTileItem["origin"] is the
+  // Prisma enum itself, so row.origin flows through structurally.
   return {
     id: row.id,
     url: row.url,
     ogImageUrl: row.ogImageUrl,
-    origin: row.origin as GalleryTileItem["origin"],
+    origin: row.origin,
     type: row.type,
     caption: row.caption,
     sourceUrl: row.sourceUrl,

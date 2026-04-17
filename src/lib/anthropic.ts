@@ -134,7 +134,9 @@ async function dispatchClientTool(
   };
 }
 
-function extractTextBlocks(
+/** Join every text block in a response, trimmed. Returns "" when there
+ *  is no text content (distinct from `requireText` which throws). */
+function joinTextBlocks(
   content: readonly Anthropic.Messages.ContentBlock[],
 ): string {
   return content
@@ -144,6 +146,26 @@ function extractTextBlocks(
     .map((b) => b.text)
     .join("")
     .trim();
+}
+
+/** Rebuild a ContentBlockParam[] suitable for echoing back as the
+ *  assistant's turn in a tool-use loop. Text + tool_use blocks are
+ *  constructed explicitly (clear intent, catches future SDK shape
+ *  drift); server-managed blocks (server_tool_use, web_search_tool_result)
+ *  pass through with a narrow cast — they're Anthropic-internal and the
+ *  shapes line up 1:1 in practice. */
+function toContentBlockParams(
+  blocks: readonly Anthropic.Messages.ContentBlock[],
+): Anthropic.Messages.ContentBlockParam[] {
+  return blocks.map((b): Anthropic.Messages.ContentBlockParam => {
+    if (b.type === "text") {
+      return { type: "text", text: b.text };
+    }
+    if (b.type === "tool_use") {
+      return { type: "tool_use", id: b.id, name: b.name, input: b.input };
+    }
+    return b as unknown as Anthropic.Messages.ContentBlockParam;
+  });
 }
 
 // Built fresh per call so the date is accurate. The worldliness paragraph
@@ -212,20 +234,12 @@ function composeSystemPrompt(
   return parts.join("\n") + buildSystemPromptTail();
 }
 
-/**
- * Concatenate every text block in a Messages response, trimmed. Throws
- * when the response has no text content. Web_search responses interleave
- * `text` with `server_tool_use` / `web_search_tool_result` blocks, so
- * picking "the first text block" drops content — we join in order instead.
- */
-function extractText(
+/** Like joinTextBlocks but throws when the response has no text. Used
+ *  by one-shot call sites that can't continue without a reply. */
+function requireText(
   content: readonly Anthropic.Messages.ContentBlock[],
 ): string {
-  const text = content
-    .filter((block): block is Anthropic.Messages.TextBlock => block.type === "text")
-    .map((block) => block.text)
-    .join("")
-    .trim();
+  const text = joinTextBlocks(content);
   if (!text) {
     throw new Error("Anthropic response contained no text block");
   }
@@ -284,7 +298,7 @@ export async function generateCharacterResponse(
       messages,
     });
 
-    const thisText = extractTextBlocks(response.content);
+    const thisText = joinTextBlocks(response.content);
     if (thisText) {
       accumulated += (accumulated ? "\n\n" : "") + thisText;
     }
@@ -304,7 +318,7 @@ export async function generateCharacterResponse(
     messages.push(
       {
         role: "assistant",
-        content: response.content as Anthropic.Messages.ContentBlockParam[],
+        content: toContentBlockParams(response.content),
       },
       { role: "user", content: toolResults },
     );
@@ -398,7 +412,7 @@ export async function streamCharacterResponse(
     messages.push(
       {
         role: "assistant",
-        content: finalMsg.content as Anthropic.Messages.ContentBlockParam[],
+        content: toContentBlockParams(finalMsg.content),
       },
       { role: "user", content: toolResults },
     );
@@ -438,5 +452,5 @@ export async function generateDraftCommentary(
     messages: [{ role: "user", content: userPrompt }],
   });
 
-  return extractText(response.content);
+  return requireText(response.content);
 }
