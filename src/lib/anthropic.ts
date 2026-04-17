@@ -15,6 +15,14 @@ const MAX_TOKENS = 1500;
 // but will abort if the model goes into a pathological search loop.
 const MAX_TOOL_ITERATIONS = 3;
 
+// Cap on TOTAL client-managed tool calls per turn across ALL iterations.
+// The iteration bound above caps round trips, but each iteration can emit
+// multiple tool_use blocks in parallel — a single compromised cookie could
+// get Sonnet to fire 10 `gallery_search` calls on one message, bypassing
+// the per-user rate limit. Tools past this cap get an is_error=true
+// tool_result so the model can keep composing without further searches.
+const MAX_TOOL_CALLS_PER_TURN = 4;
+
 let _client: Anthropic | null = null;
 function getClient(): Anthropic {
   if (_client) return _client;
@@ -264,6 +272,7 @@ export async function generateCharacterResponse(
     },
   ];
   let accumulated = "";
+  let toolCallsUsed = 0;
 
   for (let iter = 0; iter < MAX_TOOL_ITERATIONS; iter++) {
     const response = await getClient().messages.create({
@@ -290,9 +299,8 @@ export async function generateCharacterResponse(
     const toolUseBlocks = response.content.filter(
       (b): b is Anthropic.Messages.ToolUseBlock => b.type === "tool_use",
     );
-    const toolResults = await Promise.all(
-      toolUseBlocks.map(dispatchClientTool),
-    );
+    const toolResults = await dispatchWithBudget(toolUseBlocks, toolCallsUsed);
+    toolCallsUsed += toolUseBlocks.length;
     messages.push(
       {
         role: "assistant",
@@ -306,6 +314,30 @@ export async function generateCharacterResponse(
     throw new Error("Tool loop exceeded max iterations with no text");
   }
   return accumulated;
+}
+
+/**
+ * Dispatch at most (MAX_TOOL_CALLS_PER_TURN - alreadyUsed) client-managed
+ * tool calls in parallel; any overflow gets a budget-exhausted tool_result
+ * so the model sees the refusal and stops trying.
+ */
+async function dispatchWithBudget(
+  blocks: Anthropic.Messages.ToolUseBlock[],
+  alreadyUsed: number,
+): Promise<Anthropic.Messages.ToolResultBlockParam[]> {
+  const budget = Math.max(0, MAX_TOOL_CALLS_PER_TURN - alreadyUsed);
+  const allowed = blocks.slice(0, budget);
+  const denied = blocks.slice(budget);
+  const results = await Promise.all(allowed.map(dispatchClientTool));
+  for (const block of denied) {
+    results.push({
+      type: "tool_result",
+      tool_use_id: block.id,
+      content: `Tool-call budget exhausted for this turn (max ${MAX_TOOL_CALLS_PER_TURN}). Compose your reply without further tool calls.`,
+      is_error: true,
+    });
+  }
+  return results;
 }
 
 /**
@@ -332,6 +364,7 @@ export async function streamCharacterResponse(
     },
   ];
   let fullText = "";
+  let toolCallsUsed = 0;
 
   for (let iter = 0; iter < MAX_TOOL_ITERATIONS; iter++) {
     const stream = getClient().messages.stream({
@@ -360,9 +393,8 @@ export async function streamCharacterResponse(
     const toolUseBlocks = finalMsg.content.filter(
       (b): b is Anthropic.Messages.ToolUseBlock => b.type === "tool_use",
     );
-    const toolResults = await Promise.all(
-      toolUseBlocks.map(dispatchClientTool),
-    );
+    const toolResults = await dispatchWithBudget(toolUseBlocks, toolCallsUsed);
+    toolCallsUsed += toolUseBlocks.length;
     messages.push(
       {
         role: "assistant",

@@ -129,11 +129,25 @@ export async function searchGalleryForAgent(
     return `gallery_search("${truncateForLog(trimmed, 80)}"): no matches.`;
   }
 
+  // Every string that lands in the tool_result runs through the sanitizer —
+  // not just the ones that came from scraped sources. security-sentinel
+  // flagged sourceUrl + uploaderDisplayName as unsanitized echo paths
+  // (a pasted URL whose query string contains "#+SYSTEM+override" would
+  // flow verbatim into the next turn). displayName is admin-curated today
+  // but we enforce the invariant server-side rather than trust it.
   const lines = hits.map((h, i) => {
-    const headline = h.caption ?? h.originTitle ?? "(no caption)";
-    const byline = h.originAuthor ? ` — ${h.originAuthor}` : "";
-    const link = h.sourceUrl ?? h.url;
-    return `${i + 1}. ${headline}${byline} (shared by ${h.uploaderDisplayName}, ${h.origin}). ${link}`;
+    const headline =
+      sanitizeLLMText(h.caption, MAX_CAPTION_CHARS) ??
+      sanitizeLLMText(h.originTitle, MAX_ORIGIN_TEXT_CHARS) ??
+      "(no caption)";
+    const author = sanitizeLLMText(h.originAuthor, MAX_ORIGIN_TEXT_CHARS);
+    const byline = author ? ` — ${author}` : "";
+    const uploader =
+      sanitizeLLMText(h.uploaderDisplayName, MAX_ORIGIN_TEXT_CHARS) ??
+      "unknown";
+    const linkRaw = h.sourceUrl ?? h.url;
+    const link = sanitizeLLMText(linkRaw, 300) ?? "(link unavailable)";
+    return `${i + 1}. ${headline}${byline} (shared by ${uploader}, ${h.origin}). ${link}`;
   });
 
   return [
