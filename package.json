@@ -29,6 +29,7 @@
     "@prisma/client": "^6.19.3",
     "@tailwindcss/typography": "^0.5.19",
     "bcryptjs": "^2.4.3",
+    "cheerio": "^1.2.0",
     "clsx": "^2.1.1",
     "date-fns": "^4.1.0",
     "motion": "^12.38.0",

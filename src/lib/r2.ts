@@ -1,6 +1,6 @@
 import "server-only";
 import { randomUUID } from "crypto";
-import { S3Client } from "@aws-sdk/client-s3";
+import { PutObjectCommand, S3Client } from "@aws-sdk/client-s3";
 import { createPresignedPost } from "@aws-sdk/s3-presigned-post";
 
 // R2 presigned-upload helpers. Browser uploads go DIRECT to R2 — server
@@ -169,5 +169,110 @@ export async function presignUpload(
     contentType: input.mimeType,
     expiresIn: PRESIGN_EXPIRY_SECONDS,
     maxBytes: MAX_UPLOAD_BYTES,
+  };
+}
+
+// ---------------------------------------------------------------------------
+// Server-side copy: fetch a remote URL (OG image, YouTube thumbnail) and
+// PUT the bytes to R2. Used by the ingest layer (src/lib/ingest/index.ts)
+// to localize thumbnails so a grid tile keeps working even if the source
+// rotates or deletes the image. Separate from presignUpload because this
+// path holds bytes in the server process transiently — tighter cap and
+// timeout than the direct-upload flow.
+
+export type CopyRemoteResult = {
+  mediaId: string;
+  key: string;
+  publicUrl: string;
+  contentType: string;
+  bytes: number;
+};
+
+const COPY_REMOTE_MAX_BYTES = 10 * 1024 * 1024; // 10 MB — smaller than MAX_UPLOAD_BYTES because server buffers
+const COPY_REMOTE_TIMEOUT_MS = 8000;
+const COPY_REMOTE_UA = "LazyRiverBot/1.0 (+https://lazyriver.co)";
+
+/**
+ * Fetch a remote image URL and put it into R2. Returns the new R2 key +
+ * public URL, or throws R2UploadError / IngestError-shaped errors. Content
+ * type is validated against the same allowlist as user uploads.
+ *
+ * Failure modes the caller should expect to handle:
+ *   - network timeout / non-2xx   → falls back to referencing remote URL
+ *   - disallowed content type     → same fallback (don't copy weird stuff)
+ *   - body too large              → same fallback
+ *   - R2 put failure              → same fallback
+ * In every failure case the caller should store `storedLocally=false` and
+ * keep the remote URL as `ogImageUrl`. We return a *successful* copy when
+ * it's cleanly possible, nothing fancier.
+ */
+export async function copyRemoteToR2(
+  remoteUrl: string,
+  preferredContentType?: string,
+): Promise<CopyRemoteResult> {
+  const bucketName = process.env.R2_BUCKET_NAME;
+  const publicBase = process.env.NEXT_PUBLIC_R2_PUBLIC_BASE_URL;
+  if (!bucketName || !publicBase) {
+    throw new R2UploadError(
+      "R2 not configured: set R2_BUCKET_NAME and NEXT_PUBLIC_R2_PUBLIC_BASE_URL before calling copyRemoteToR2.",
+    );
+  }
+
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), COPY_REMOTE_TIMEOUT_MS);
+  let buffer: ArrayBuffer;
+  let contentType: string;
+  try {
+    const res = await fetch(remoteUrl, {
+      headers: { "User-Agent": COPY_REMOTE_UA, Accept: "image/*" },
+      redirect: "follow",
+      signal: controller.signal,
+      cache: "no-store",
+    });
+    if (!res.ok) {
+      throw new R2UploadError(`Remote fetch returned ${res.status}`);
+    }
+
+    contentType = (res.headers.get("content-type") ?? preferredContentType ?? "").split(";")[0].trim().toLowerCase();
+    if (!isAllowedContentType(contentType)) {
+      throw new R2UploadError(`Remote content-type "${contentType}" not in allowlist.`);
+    }
+
+    const lengthHeader = res.headers.get("content-length");
+    if (lengthHeader && Number(lengthHeader) > COPY_REMOTE_MAX_BYTES) {
+      throw new R2UploadError("Remote body too large to copy.");
+    }
+
+    buffer = await res.arrayBuffer();
+    if (buffer.byteLength > COPY_REMOTE_MAX_BYTES) {
+      throw new R2UploadError("Remote body exceeded size cap after streaming.");
+    }
+  } finally {
+    clearTimeout(timer);
+  }
+
+  const { mediaId, key } = newMediaKey(contentType);
+  const s3 = getS3Client();
+
+  await s3.send(
+    new PutObjectCommand({
+      Bucket: bucketName,
+      Key: key,
+      Body: new Uint8Array(buffer),
+      ContentType: contentType,
+      // Cache-Control: remote images rarely change at a given URL; a week
+      // is a reasonable default since we're essentially snapshotting.
+      CacheControl: "public, max-age=604800, immutable",
+    }),
+  );
+
+  const base = publicBase.replace(/\/+$/, "");
+
+  return {
+    mediaId,
+    key,
+    publicUrl: `${base}/${key}`,
+    contentType,
+    bytes: buffer.byteLength,
   };
 }

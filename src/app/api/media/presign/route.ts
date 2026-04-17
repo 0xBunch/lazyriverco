@@ -1,7 +1,8 @@
 import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
 import { prisma } from "@/lib/prisma";
-import { requireAdmin } from "@/lib/auth";
+import { requireUser } from "@/lib/auth";
+import { assertWithinLimit, RateLimitError } from "@/lib/rate-limit";
 import {
   R2UploadError,
   isAllowedContentType,
@@ -9,21 +10,42 @@ import {
   presignUpload,
 } from "@/lib/r2";
 
-// POST /api/media/presign — admin-only. Returns a short-lived presigned
-// POST that the browser uses to upload directly to Cloudflare R2 (server
-// never touches file bytes). Creates a Media row with status=PENDING so:
+// POST /api/media/presign — any signed-in member. Returns a short-lived
+// presigned POST that the browser uses to upload directly to Cloudflare R2
+// (server never touches file bytes). Creates a Media row with status=PENDING
+// so:
 //   1. The /commit endpoint can flip it READY by id after the browser
 //      confirms the upload finished.
 //   2. A future sweeper can reap PENDING rows older than N hours —
 //      either the user gave up mid-upload or the R2 POST failed silently.
 //
-// Auth: requireAdmin throws before we sign anything. Non-admins get 401/403.
+// Auth: requireUser — any signed-in member can upload (Gallery v1 opens
+// this surface up from the original admin-only gate). Abuse defense is
+// the per-user rate limit below, not the auth check.
 // Content-type allowlist is enforced in presignUpload; we surface 400 here.
 
 export const runtime = "nodejs";
 
+// 10/min allows a drag-drop of 10 photos; 100/day is well above any
+// legitimate usage for a 7-member clubhouse. If a member ever trips it,
+// that's a signal worth investigating (script kiddy in a cookie, client
+// retry loop), not a number to quietly raise.
+const PRESIGN_LIMIT = { maxPerMinute: 10, maxPerDay: 100 };
+
 export async function POST(req: NextRequest) {
-  const admin = await requireAdmin();
+  const user = await requireUser();
+
+  try {
+    await assertWithinLimit(user.id, "media.presign", PRESIGN_LIMIT);
+  } catch (e) {
+    if (e instanceof RateLimitError) {
+      return NextResponse.json(
+        { error: "Too many uploads. Slow down.", retryAfterSeconds: e.retryAfterSeconds },
+        { status: 429, headers: { "Retry-After": String(e.retryAfterSeconds) } },
+      );
+    }
+    throw e;
+  }
 
   if (!req.headers.get("content-type")?.includes("application/json")) {
     return NextResponse.json(
@@ -79,16 +101,20 @@ export async function POST(req: NextRequest) {
 
   // Persist the Media row BEFORE returning the presigned URL. If the
   // Media insert fails we bail entirely rather than hand the client a
-  // URL pointing at an orphan key.
+  // URL pointing at an orphan key. `origin` defaults to UPLOAD in the
+  // schema and storedLocally is set true because this path writes
+  // directly to our R2 bucket (vs. URL-ingested items that reference
+  // remote hosts until a copy lands).
   await prisma.media.create({
     data: {
       id: presigned.mediaId,
-      uploadedById: admin.id,
+      uploadedById: user.id,
       url: presigned.publicUrl,
       type: mimeType.startsWith("image/") ? "image" : "other",
       mimeType,
       caption,
       status: "PENDING",
+      storedLocally: true,
     },
   });
 

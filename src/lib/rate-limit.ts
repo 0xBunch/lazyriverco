@@ -16,7 +16,12 @@ import { prisma } from "@/lib/prisma";
 
 export type RateLimitBucket =
   | "conversation.create"
-  | "conversation.message";
+  | "conversation.message"
+  // Gallery v1 buckets. Presign guards R2 storage spend (runaway upload
+  // loops); ingest guards outbound fetch against arbitrary URLs. Both
+  // apply to every signed-in member, not just admin.
+  | "media.presign"
+  | "gallery.ingest";
 
 export type RateLimitOptions = {
   maxPerMinute: number;

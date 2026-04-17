@@ -1,17 +1,23 @@
 import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
 import { prisma } from "@/lib/prisma";
-import { requireAdmin } from "@/lib/auth";
+import { requireUser } from "@/lib/auth";
 
-// POST /api/media/commit — admin-only. Client calls this after the direct
-// R2 POST succeeds, flipping the Media row PENDING→READY so it becomes
-// visible to consumers (calendar galleries, agent context, etc.).
+// POST /api/media/commit — any signed-in member. Client calls this after
+// the direct R2 POST succeeds, flipping the Media row PENDING→READY so it
+// becomes visible to consumers (calendar galleries, agent context, etc.).
 //
 // We don't verify the R2 object exists via a HEAD request here — that'd
 // double the request count for every upload and R2's presigned POST
 // policy already enforced content-type + size. If the client lies about
 // completion, the stale PENDING row will just never appear anywhere
 // (buildRichContext filters to READY only) and the sweeper reaps it.
+//
+// Ownership check: the updateMany where-clause includes uploadedById so
+// member A can't flip member B's PENDING row to READY by guessing a
+// UUID. Defense in depth — UUIDs are unguessable in practice, but the
+// check is free and closes a theoretical hole that v1's wider auth
+// surface (requireUser vs. the old requireAdmin) opens slightly.
 //
 // Caption-rendering note (flagged by security-sentinel): Media.caption is
 // persisted verbatim and is currently rendered via react-markdown. That
@@ -23,7 +29,7 @@ import { requireAdmin } from "@/lib/auth";
 export const runtime = "nodejs";
 
 export async function POST(req: NextRequest) {
-  await requireAdmin();
+  const user = await requireUser();
 
   if (!req.headers.get("content-type")?.includes("application/json")) {
     return NextResponse.json(
@@ -52,11 +58,13 @@ export async function POST(req: NextRequest) {
     );
   }
 
-  // updateMany with a status filter keeps this idempotent AND atomic:
+  // updateMany with status + ownership filters keeps this idempotent,
+  // atomic, AND scoped to the caller's own upload:
   //   - Second commit call is a no-op (count=0) rather than an error.
   //   - A row already marked DELETED is never resurrected to READY.
+  //   - Member B cannot commit Member A's PENDING row.
   const result = await prisma.media.updateMany({
-    where: { id: mediaId, status: "PENDING" },
+    where: { id: mediaId, status: "PENDING", uploadedById: user.id },
     data: { status: "READY" },
   });
 
