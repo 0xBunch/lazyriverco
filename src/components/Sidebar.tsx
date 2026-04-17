@@ -37,7 +37,6 @@ export async function Sidebar() {
         aria-label="The Lazy River Co. — home"
       >
         <LazyRiverLogo className="w-36 text-bone-50" />
-        <p className="mt-1.5 text-xs italic text-bone-300">Members only.</p>
       </Link>
 
       {/* New chat CTA — full button expanded, icon-only collapsed */}
