@@ -4,7 +4,14 @@ import { revalidatePath } from "next/cache";
 import { prisma } from "@/lib/prisma";
 import { requireAdmin } from "@/lib/auth";
 
-const MAX_PROMPT_LENGTH = 8000;
+// 16k chars ≈ 4k tokens — plenty of headroom for even the richest
+// persona bible (Barfdog was the tightest at ~7k when this cap was
+// 8k and started to trip). Character.systemPrompt is @db.Text so the
+// cap is purely editorial; raise further if a future prompt needs it.
+// Follow-up for DX: convert these actions to return { ok, error } via
+// React 19 useActionState so validation failures show the real
+// message instead of Next's anonymized digest in production.
+const MAX_PROMPT_LENGTH = 16000;
 
 /**
  * Update an agent's display name, system prompt, and active state.
