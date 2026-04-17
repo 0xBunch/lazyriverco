@@ -1,3 +1,5 @@
+import "server-only";
+
 // Build the per-call "rich context" block injected into a character's
 // system prompt. Six layers, assembled in a stable order so Anthropic's
 // prompt cache keeps the prefix hot:

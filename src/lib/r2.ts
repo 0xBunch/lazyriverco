@@ -2,6 +2,7 @@ import "server-only";
 import { randomUUID } from "crypto";
 import { PutObjectCommand, S3Client } from "@aws-sdk/client-s3";
 import { createPresignedPost } from "@aws-sdk/s3-presigned-post";
+import { safeFetch, UnsafeUrlError } from "@/lib/safe-fetch";
 
 // R2 presigned-upload helpers. Browser uploads go DIRECT to R2 — server
 // never handles file bytes. The server's only role is (1) auth-gate the
@@ -218,37 +219,42 @@ export async function copyRemoteToR2(
     );
   }
 
-  const controller = new AbortController();
-  const timer = setTimeout(() => controller.abort(), COPY_REMOTE_TIMEOUT_MS);
-  let buffer: ArrayBuffer;
-  let contentType: string;
+  // safeFetch handles SSRF guard + manual redirect re-validation + timeout.
+  // Any UnsafeUrlError becomes an R2UploadError so the caller falls back
+  // to referencing the remote URL without copying (storedLocally=false).
+  let res: Response;
   try {
-    const res = await fetch(remoteUrl, {
-      headers: { "User-Agent": COPY_REMOTE_UA, Accept: "image/*" },
-      redirect: "follow",
-      signal: controller.signal,
-      cache: "no-store",
+    res = await safeFetch(remoteUrl, {
+      timeoutMs: COPY_REMOTE_TIMEOUT_MS,
+      accept: "image/*",
+      userAgent: COPY_REMOTE_UA,
     });
-    if (!res.ok) {
-      throw new R2UploadError(`Remote fetch returned ${res.status}`);
+  } catch (e) {
+    if (e instanceof R2UploadError) throw e;
+    if (e instanceof UnsafeUrlError) {
+      throw new R2UploadError(e.message);
     }
+    throw new R2UploadError(
+      e instanceof Error ? e.message : "Remote fetch failed.",
+    );
+  }
 
-    contentType = (res.headers.get("content-type") ?? preferredContentType ?? "").split(";")[0].trim().toLowerCase();
-    if (!isAllowedContentType(contentType)) {
-      throw new R2UploadError(`Remote content-type "${contentType}" not in allowlist.`);
-    }
+  const contentType = (res.headers.get("content-type") ?? preferredContentType ?? "")
+    .split(";")[0]
+    .trim()
+    .toLowerCase();
+  if (!isAllowedContentType(contentType)) {
+    throw new R2UploadError(`Remote content-type "${contentType}" not in allowlist.`);
+  }
 
-    const lengthHeader = res.headers.get("content-length");
-    if (lengthHeader && Number(lengthHeader) > COPY_REMOTE_MAX_BYTES) {
-      throw new R2UploadError("Remote body too large to copy.");
-    }
+  const lengthHeader = res.headers.get("content-length");
+  if (lengthHeader && Number(lengthHeader) > COPY_REMOTE_MAX_BYTES) {
+    throw new R2UploadError("Remote body too large to copy.");
+  }
 
-    buffer = await res.arrayBuffer();
-    if (buffer.byteLength > COPY_REMOTE_MAX_BYTES) {
-      throw new R2UploadError("Remote body exceeded size cap after streaming.");
-    }
-  } finally {
-    clearTimeout(timer);
+  const buffer = await res.arrayBuffer();
+  if (buffer.byteLength > COPY_REMOTE_MAX_BYTES) {
+    throw new R2UploadError("Remote body exceeded size cap after streaming.");
   }
 
   const { mediaId, key } = newMediaKey(contentType);

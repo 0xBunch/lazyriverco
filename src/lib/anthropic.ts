@@ -1,3 +1,4 @@
+import "server-only";
 import Anthropic from "@anthropic-ai/sdk";
 import { searchGalleryForAgent } from "@/lib/gallery-search";
 

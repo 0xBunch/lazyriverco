@@ -1,6 +1,7 @@
 import "server-only";
 import * as cheerio from "cheerio";
 import { copyRemoteToR2 } from "@/lib/r2";
+import { safeFetch, UnsafeUrlError } from "@/lib/safe-fetch";
 
 // Gallery URL ingestion. Paste a YouTube / X / Instagram / generic web URL;
 // an adapter resolves it into a Media row-shaped payload we persist. One
@@ -301,27 +302,25 @@ async function fetchJsonSafely(target: string): Promise<unknown> {
 }
 
 async function fetchWithLimits(target: string, accept: string): Promise<Response> {
-  const controller = new AbortController();
-  const timer = setTimeout(() => controller.abort(), FETCH_TIMEOUT_MS);
+  // safeFetch handles: private-IP rejection (SSRF guard), manual redirect
+  // follow with re-validation at every hop, timeout, and non-2xx detection.
+  // We re-wrap its UnsafeUrlError as IngestError so the adapter layer only
+  // has to think about one error shape.
   try {
-    const res = await fetch(target, {
-      headers: { "User-Agent": UA, Accept: accept },
-      redirect: "follow",
-      signal: controller.signal,
-      cache: "no-store",
+    return await safeFetch(target, {
+      timeoutMs: FETCH_TIMEOUT_MS,
+      accept,
+      userAgent: UA,
     });
-    if (!res.ok) {
-      throw new IngestError("FETCH_FAILED", `Upstream returned ${res.status}`);
-    }
-    return res;
   } catch (e) {
     if (e instanceof IngestError) throw e;
+    if (e instanceof UnsafeUrlError) {
+      throw new IngestError("FETCH_FAILED", e.message);
+    }
     throw new IngestError(
       "FETCH_FAILED",
       e instanceof Error ? e.message : "Upstream fetch failed.",
     );
-  } finally {
-    clearTimeout(timer);
   }
 }
 
