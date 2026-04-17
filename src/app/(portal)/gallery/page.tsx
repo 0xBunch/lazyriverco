@@ -3,6 +3,8 @@ import { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import { requireUser } from "@/lib/auth";
 import { searchGalleryIds } from "@/lib/gallery-search";
+import { originLabel } from "@/lib/gallery-origin";
+import { buildGalleryHref } from "@/lib/gallery-url";
 import { GalleryTile, type GalleryTileItem } from "@/components/GalleryTile";
 import { GalleryAddModal } from "@/components/GalleryAddModal";
 import {
@@ -84,12 +86,10 @@ export default async function GalleryPage({
   const filterOpen = params.filter === "1";
   const activeFilterCount =
     (tag ? 1 : 0) + (originFilter ? 1 : 0) + (byUserId ? 1 : 0);
-  const filterSheetHref = buildFilterSheetHref({
-    q,
-    tag,
-    origin: originFilter,
-    byUserId,
-  });
+  const filterSheetHref = buildGalleryHref(
+    { q, tag, origin: originFilter, byUserId },
+    { openFilter: true },
+  );
 
   return (
     <div className="mx-auto max-w-6xl px-4 py-8 pt-20 md:pt-8">
@@ -237,21 +237,6 @@ async function loadMembers(): Promise<GalleryMember[]> {
   });
 }
 
-function buildFilterSheetHref(active: {
-  q: string | null;
-  tag: string | null;
-  origin: GalleryTileItem["origin"] | null;
-  byUserId: string | null;
-}): string {
-  const sp = new URLSearchParams();
-  if (active.q) sp.set("q", active.q);
-  if (active.tag) sp.set("tag", active.tag);
-  if (active.origin) sp.set("origin", active.origin);
-  if (active.byUserId) sp.set("by", "me");
-  sp.set("filter", "1");
-  return `/gallery?${sp.toString()}`;
-}
-
 // ---------------------------------------------------------------------------
 // Data loading
 
@@ -361,18 +346,31 @@ function ActiveFilters({
   origin: GalleryTileItem["origin"] | null;
   byMe: boolean;
 }) {
+  const hrefFor = (partial: {
+    q: string | null;
+    tag: string | null;
+    origin: GalleryTileItem["origin"] | null;
+    byMe: boolean;
+  }) =>
+    buildGalleryHref({
+      q: partial.q,
+      tag: partial.tag,
+      origin: partial.origin,
+      byUserId: partial.byMe ? "me" : null,
+    });
+
   const chips: Array<{ label: string; clearHref: string }> = [];
-  if (q) chips.push({ label: `"${q}"`, clearHref: hrefWithout({ q: null, tag, origin, byMe }) });
-  if (tag) chips.push({ label: `#${tag}`, clearHref: hrefWithout({ q, tag: null, origin, byMe }) });
+  if (q) chips.push({ label: `"${q}"`, clearHref: hrefFor({ q: null, tag, origin, byMe }) });
+  if (tag) chips.push({ label: `#${tag}`, clearHref: hrefFor({ q, tag: null, origin, byMe }) });
   if (origin)
     chips.push({
       label: originLabel(origin),
-      clearHref: hrefWithout({ q, tag, origin: null, byMe }),
+      clearHref: hrefFor({ q, tag, origin: null, byMe }),
     });
   if (byMe)
     chips.push({
       label: "My uploads",
-      clearHref: hrefWithout({ q, tag, origin, byMe: false }),
+      clearHref: hrefFor({ q, tag, origin, byMe: false }),
     });
 
   return (
@@ -397,38 +395,6 @@ function ActiveFilters({
       </Link>
     </div>
   );
-}
-
-function hrefWithout(active: {
-  q: string | null;
-  tag: string | null;
-  origin: GalleryTileItem["origin"] | null;
-  byMe: boolean;
-}): string {
-  const sp = new URLSearchParams();
-  if (active.q) sp.set("q", active.q);
-  if (active.tag) sp.set("tag", active.tag);
-  if (active.origin) sp.set("origin", active.origin);
-  if (active.byMe) sp.set("by", "me");
-  const qs = sp.toString();
-  return qs ? `/gallery?${qs}` : "/gallery";
-}
-
-function originLabel(o: GalleryTileItem["origin"]): string {
-  switch (o) {
-    case "UPLOAD":
-      return "Uploads";
-    case "YOUTUBE":
-      return "YouTube";
-    case "INSTAGRAM":
-      return "Instagram";
-    case "X":
-      return "X";
-    case "WEB":
-      return "Web";
-    default:
-      return o;
-  }
 }
 
 // ---------------------------------------------------------------------------

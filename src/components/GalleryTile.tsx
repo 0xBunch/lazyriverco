@@ -1,6 +1,7 @@
 import Link from "next/link";
 import type { $Enums } from "@prisma/client";
 import { cn } from "@/lib/utils";
+import { initialsOf } from "@/lib/initials";
 
 // Gallery tile — uniform aspect-square regardless of source, per the
 // design-oracle call: coherence with the calendar grid > media-appropriate
@@ -136,11 +137,6 @@ function originWord(o: $Enums.MediaOrigin): string {
 }
 
 function Avatar({ user }: { user: GalleryTileItem["uploadedBy"] }) {
-  const initials = user.displayName
-    .split(/\s+/)
-    .slice(0, 2)
-    .map((s) => s[0]?.toUpperCase() ?? "")
-    .join("");
   if (user.avatarUrl) {
     // eslint-disable-next-line @next/next/no-img-element
     return (
@@ -153,7 +149,7 @@ function Avatar({ user }: { user: GalleryTileItem["uploadedBy"] }) {
   }
   return (
     <span className="flex h-5 w-5 items-center justify-center rounded-full bg-bone-800 text-[9px] font-semibold text-bone-200 ring-1 ring-black/40">
-      {initials}
+      {initialsOf(user.displayName)}
     </span>
   );
 }

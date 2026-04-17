@@ -4,7 +4,7 @@ import {
   sanitizeLLMText,
   MAX_CAPTION_CHARS,
   MAX_ORIGIN_TEXT_CHARS,
-} from "@/lib/media-context";
+} from "@/lib/sanitize";
 
 // Shared gallery full-text search. Two callers:
 //   1. /gallery page (server component, ranks ids then hydrates with

@@ -2,8 +2,11 @@
 
 import { useCallback, useEffect, useId, useState } from "react";
 import { useRouter } from "next/navigation";
+import type { $Enums } from "@prisma/client";
 import { cn } from "@/lib/utils";
 import { FocusTrap } from "@/components/FocusTrap";
+import { originLabel } from "@/lib/gallery-origin";
+import { buildGalleryHref } from "@/lib/gallery-url";
 
 // Gallery filter sheet. Opens via URL param ?filter=1 (server parses,
 // client renders). Same open/close discipline as GalleryAddModal: the
@@ -14,7 +17,7 @@ import { FocusTrap } from "@/components/FocusTrap";
 // filtered URL (stripping ?filter=1) which closes the sheet AND applies.
 // "Clear all" navigates to /gallery.
 
-type OriginKey = "UPLOAD" | "INSTAGRAM" | "YOUTUBE" | "X" | "WEB";
+type OriginKey = $Enums.MediaOrigin;
 
 export type GalleryMember = {
   id: string;
@@ -61,7 +64,7 @@ export function GalleryFilterSheet({
   });
 
   const close = useCallback(() => {
-    router.push(buildHref(current, { filter: false }));
+    router.push(buildGalleryHref(current));
   }, [router, current]);
 
   // Reset draft when reopening so stale local edits don't persist.
@@ -75,28 +78,16 @@ export function GalleryFilterSheet({
     }
   }, [open, current.tag, current.origin, current.byUserId]);
 
-  useEffect(() => {
-    if (!open) return;
-    const onKey = (e: KeyboardEvent) => {
-      if (e.key === "Escape") close();
-    };
-    window.addEventListener("keydown", onKey);
-    return () => window.removeEventListener("keydown", onKey);
-  }, [open, close]);
-
   if (!open) return null;
 
   const apply = () => {
     router.push(
-      buildHref(
-        {
-          q: current.q,
-          tag: draft.tag,
-          origin: draft.origin,
-          byUserId: draft.byUserId,
-        },
-        { filter: false },
-      ),
+      buildGalleryHref({
+        q: current.q,
+        tag: draft.tag,
+        origin: draft.origin,
+        byUserId: draft.byUserId,
+      }),
     );
   };
 
@@ -302,38 +293,3 @@ function FilterChip({
   );
 }
 
-function buildHref(
-  state: {
-    q: string | null;
-    tag: string | null;
-    origin: OriginKey | null;
-    byUserId: string | null;
-  },
-  extras: { filter: boolean },
-): string {
-  const sp = new URLSearchParams();
-  if (state.q) sp.set("q", state.q);
-  if (state.tag) sp.set("tag", state.tag);
-  if (state.origin) sp.set("origin", state.origin);
-  if (state.byUserId) sp.set("by", "me");
-  if (extras.filter) sp.set("filter", "1");
-  const qs = sp.toString();
-  return qs ? `/gallery?${qs}` : "/gallery";
-}
-
-function originLabel(o: OriginKey): string {
-  switch (o) {
-    case "UPLOAD":
-      return "Uploads";
-    case "YOUTUBE":
-      return "YouTube";
-    case "INSTAGRAM":
-      return "Instagram";
-    case "X":
-      return "X";
-    case "WEB":
-      return "Web";
-    default:
-      return o;
-  }
-}

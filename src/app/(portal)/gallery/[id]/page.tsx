@@ -6,6 +6,8 @@ import remarkGfm from "remark-gfm";
 import { prisma } from "@/lib/prisma";
 import { requireUser } from "@/lib/auth";
 import { parseVideoEmbed } from "@/lib/video-embed";
+import { originLabel } from "@/lib/gallery-origin";
+import { initialsOf } from "@/lib/initials";
 
 // /gallery/[id] — gallery item detail.
 //
@@ -219,11 +221,7 @@ function UploaderLine({
         />
       ) : (
         <span className="flex h-5 w-5 items-center justify-center rounded-full bg-bone-800 text-[9px] font-semibold text-bone-200">
-          {uploader.displayName
-            .split(/\s+/)
-            .slice(0, 2)
-            .map((s) => s[0]?.toUpperCase() ?? "")
-            .join("")}
+          {initialsOf(uploader.displayName)}
         </span>
       )}
       <Link
@@ -294,11 +292,7 @@ function ThreadSection({
                   />
                 ) : (
                   <span className="flex h-6 w-6 items-center justify-center rounded-full bg-bone-800 text-[10px] font-semibold text-bone-200">
-                    {(actor?.displayName ?? "?")
-                      .split(/\s+/)
-                      .slice(0, 2)
-                      .map((s) => s[0]?.toUpperCase() ?? "")
-                      .join("")}
+                    {initialsOf(actor?.displayName ?? "?")}
                   </span>
                 )}
               </div>
@@ -337,23 +331,6 @@ function ThreadSection({
       </ul>
     </section>
   );
-}
-
-function originLabel(o: OriginKey): string {
-  switch (o) {
-    case "UPLOAD":
-      return "Uploaded";
-    case "YOUTUBE":
-      return "YouTube";
-    case "INSTAGRAM":
-      return "Instagram";
-    case "X":
-      return "X";
-    case "WEB":
-      return "Web";
-    default:
-      return o;
-  }
 }
 
 function truncate(s: string, n: number): string {

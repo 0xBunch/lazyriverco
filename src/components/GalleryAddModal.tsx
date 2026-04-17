@@ -57,20 +57,9 @@ export function GalleryAddModal({ open }: Props) {
     setUploaded(media);
   }, []);
 
-  // FocusTrap handles initial focus (container itself), keyboard containment,
-  // and restore-on-close. We keep a redundant Escape-close useEffect below
-  // so the modal closes even if FocusTrap is ever ripped out.
-
-  // Close on Escape. Register/unregister based on `open` so we don't
-  // eat Escape when the modal isn't mounted.
-  useEffect(() => {
-    if (!open) return;
-    const onKey = (e: KeyboardEvent) => {
-      if (e.key === "Escape") close();
-    };
-    window.addEventListener("keydown", onKey);
-    return () => window.removeEventListener("keydown", onKey);
-  }, [open, close]);
+  // FocusTrap handles Escape-close via onEscape={close} below, plus
+  // keyboard containment and focus restore. No redundant window-level
+  // keydown listener needed here.
 
   // Reset per-open state when the modal closes so a reopen starts clean.
   useEffect(() => {

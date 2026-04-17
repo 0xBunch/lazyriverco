@@ -23,15 +23,6 @@ import {
 // reaching the LLM. Only READY rows ever surface (PENDING in-flight +
 // DELETED soft-hidden are filtered at the DB layer).
 
-// Re-export so existing call sites keep working.
-export {
-  sanitizeLLMText,
-  sanitizeTags,
-  MAX_MEDIA_IN_CONTEXT,
-  MAX_CAPTION_CHARS,
-  MAX_ORIGIN_TEXT_CHARS,
-};
-
 export type MediaContextRow = {
   publicUrl: string;
   tags: readonly string[];
