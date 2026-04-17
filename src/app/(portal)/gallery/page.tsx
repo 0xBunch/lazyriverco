@@ -4,6 +4,10 @@ import { prisma } from "@/lib/prisma";
 import { requireUser } from "@/lib/auth";
 import { GalleryTile, type GalleryTileItem } from "@/components/GalleryTile";
 import { GalleryAddModal } from "@/components/GalleryAddModal";
+import {
+  GalleryFilterSheet,
+  type GalleryMember,
+} from "@/components/GalleryFilterSheet";
 
 // /gallery — the shared visual bank. Every signed-in member sees the same
 // feed (no per-item privacy; the point is sharing). URL params drive all
@@ -25,6 +29,8 @@ type SearchParams = {
   origin?: string;
   /** ?add=1 opens the add modal (client component renders it). */
   add?: string;
+  /** ?filter=1 opens the filter sheet. */
+  filter?: string;
 };
 
 const KNOWN_ORIGINS = new Set<string>([
@@ -56,13 +62,17 @@ export default async function GalleryPage({
   const byUserId = by === "me" ? user.id : null;
   const hasAnyFilter = Boolean(q || tag || byUserId || originFilter);
 
-  const items = await loadGalleryItems({
-    q,
-    tag,
-    originFilter,
-    byUserId,
-    limit: GRID_LIMIT,
-  });
+  const [items, allTags, allMembers] = await Promise.all([
+    loadGalleryItems({
+      q,
+      tag,
+      originFilter,
+      byUserId,
+      limit: GRID_LIMIT,
+    }),
+    loadDistinctTags(),
+    loadMembers(),
+  ]);
 
   const hof = items.filter((m) => m.hallOfFame);
   const rest = items.filter((m) => !m.hallOfFame);
@@ -70,6 +80,15 @@ export default async function GalleryPage({
   const gridItems = hasAnyFilter ? items : rest.concat(hof.slice(4));
 
   const addOpen = params.add === "1";
+  const filterOpen = params.filter === "1";
+  const activeFilterCount =
+    (tag ? 1 : 0) + (originFilter ? 1 : 0) + (byUserId ? 1 : 0);
+  const filterSheetHref = buildFilterSheetHref({
+    q,
+    tag,
+    origin: originFilter,
+    byUserId,
+  });
 
   return (
     <div className="mx-auto max-w-6xl px-4 py-8 pt-20 md:pt-8">
@@ -92,35 +111,57 @@ export default async function GalleryPage({
         </Link>
       </header>
 
-      <form
-        action="/gallery"
-        method="get"
-        role="search"
-        className="mb-4 flex gap-2"
-      >
-        <label htmlFor="gallery-q" className="sr-only">
-          Search the gallery
-        </label>
-        <input
-          id="gallery-q"
-          type="search"
-          name="q"
-          defaultValue={q ?? ""}
-          placeholder="Search captions, tags, titles…"
-          className="flex-1 rounded-md border border-bone-800/60 bg-bone-900/40 px-3 py-2 text-sm text-bone-100 placeholder:text-bone-400 focus:border-claude-500/60 focus:outline-none"
-        />
-        {tag ? <input type="hidden" name="tag" value={tag} /> : null}
-        {by ? <input type="hidden" name="by" value={by} /> : null}
-        {originFilter ? (
-          <input type="hidden" name="origin" value={originFilter} />
-        ) : null}
-        <button
-          type="submit"
-          className="rounded-md border border-bone-800/60 bg-bone-900/40 px-4 text-xs font-semibold uppercase tracking-[0.2em] text-bone-200 transition-colors hover:text-bone-50"
+      <div className="mb-4 flex gap-2">
+        <form
+          action="/gallery"
+          method="get"
+          role="search"
+          className="flex flex-1 gap-2"
         >
-          Search
-        </button>
-      </form>
+          <label htmlFor="gallery-q" className="sr-only">
+            Search the gallery
+          </label>
+          <input
+            id="gallery-q"
+            type="search"
+            name="q"
+            defaultValue={q ?? ""}
+            placeholder="Search captions, tags, titles…"
+            className="flex-1 rounded-md border border-bone-800/60 bg-bone-900/40 px-3 py-2 text-sm text-bone-100 placeholder:text-bone-400 focus:border-claude-500/60 focus:outline-none"
+          />
+          {/* Preserve the other filters across search submits. */}
+          {tag ? <input type="hidden" name="tag" value={tag} /> : null}
+          {by ? <input type="hidden" name="by" value={by} /> : null}
+          {originFilter ? (
+            <input type="hidden" name="origin" value={originFilter} />
+          ) : null}
+          <button
+            type="submit"
+            className="rounded-md border border-bone-800/60 bg-bone-900/40 px-4 text-xs font-semibold uppercase tracking-[0.2em] text-bone-200 transition-colors hover:text-bone-50"
+          >
+            Search
+          </button>
+        </form>
+        <Link
+          href={filterSheetHref}
+          aria-label={
+            activeFilterCount > 0
+              ? `Filters (${activeFilterCount} active)`
+              : "Open filters"
+          }
+          className="inline-flex items-center gap-1.5 rounded-md border border-bone-800/60 bg-bone-900/40 px-4 text-xs font-semibold uppercase tracking-[0.2em] text-bone-200 transition-colors hover:text-bone-50"
+        >
+          Filters
+          {activeFilterCount > 0 ? (
+            <span
+              aria-hidden
+              className="flex h-5 min-w-5 items-center justify-center rounded-full bg-claude-500/30 px-1.5 text-[10px] text-claude-100"
+            >
+              {activeFilterCount}
+            </span>
+          ) : null}
+        </Link>
+      </div>
 
       {hasAnyFilter ? (
         <ActiveFilters
@@ -160,8 +201,55 @@ export default async function GalleryPage({
       )}
 
       <GalleryAddModal open={addOpen} />
+      <GalleryFilterSheet
+        open={filterOpen}
+        allTags={allTags}
+        allMembers={allMembers}
+        viewerId={user.id}
+        current={{
+          q,
+          tag,
+          origin: originFilter,
+          byUserId,
+        }}
+      />
     </div>
   );
+}
+
+// ---------------------------------------------------------------------------
+// Distinct tags + members for the filter sheet
+
+async function loadDistinctTags(): Promise<string[]> {
+  const rows = await prisma.$queryRaw<Array<{ tag: string }>>`
+    SELECT DISTINCT unnest(tags) AS tag
+    FROM "Media"
+    WHERE status = 'READY'::"MediaStatus" AND "hiddenFromGrid" = false
+    ORDER BY tag ASC
+  `;
+  return rows.map((r) => r.tag);
+}
+
+async function loadMembers(): Promise<GalleryMember[]> {
+  return prisma.user.findMany({
+    select: { id: true, displayName: true },
+    orderBy: { displayName: "asc" },
+  });
+}
+
+function buildFilterSheetHref(active: {
+  q: string | null;
+  tag: string | null;
+  origin: GalleryTileItem["origin"] | null;
+  byUserId: string | null;
+}): string {
+  const sp = new URLSearchParams();
+  if (active.q) sp.set("q", active.q);
+  if (active.tag) sp.set("tag", active.tag);
+  if (active.origin) sp.set("origin", active.origin);
+  if (active.byUserId) sp.set("by", "me");
+  sp.set("filter", "1");
+  return `/gallery?${sp.toString()}`;
 }
 
 // ---------------------------------------------------------------------------
