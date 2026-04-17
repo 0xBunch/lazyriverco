@@ -3,6 +3,7 @@ import { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import { requireUser } from "@/lib/auth";
 import { GalleryTile, type GalleryTileItem } from "@/components/GalleryTile";
+import { GalleryAddModal } from "@/components/GalleryAddModal";
 
 // /gallery — the shared visual bank. Every signed-in member sees the same
 // feed (no per-item privacy; the point is sharing). URL params drive all
@@ -22,6 +23,8 @@ type SearchParams = {
   tag?: string;
   by?: string;
   origin?: string;
+  /** ?add=1 opens the add modal (client component renders it). */
+  add?: string;
 };
 
 const KNOWN_ORIGINS = new Set<string>([
@@ -65,6 +68,8 @@ export default async function GalleryPage({
   const rest = items.filter((m) => !m.hallOfFame);
   const featuredHof = !hasAnyFilter ? hof.slice(0, 4) : [];
   const gridItems = hasAnyFilter ? items : rest.concat(hof.slice(4));
+
+  const addOpen = params.add === "1";
 
   return (
     <div className="mx-auto max-w-6xl px-4 py-8 pt-20 md:pt-8">
@@ -153,6 +158,8 @@ export default async function GalleryPage({
           </div>
         </>
       )}
+
+      <GalleryAddModal open={addOpen} />
     </div>
   );
 }
