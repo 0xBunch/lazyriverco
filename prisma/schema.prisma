@@ -336,7 +336,8 @@ model Media {
   mimeType     String?
   createdAt    DateTime    @default(now())
 
-  uploadedBy   User        @relation(fields: [uploadedById], references: [id])
+  uploadedBy      User                 @relation(fields: [uploadedById], references: [id])
+  calendarEntries CalendarEntryMedia[]
 
   // Media retrieval path for buildRichContext: filter to READY, hall-of-
   // fame first, then most recent. Composite matches the ORDER BY so
@@ -422,7 +423,7 @@ model RateLimitHit {
 model Lore {
   id        String   @id @default(uuid())
   topic     String
-  tags      String[]
+  tags      String[] @default([])
   content   String   @db.Text
   isCore    Boolean  @default(false)
   sortOrder Int      @default(0)
@@ -440,16 +441,54 @@ model Lore {
 /// planning logistics, not agent knowledge). Admin-managed via
 /// /admin/calendar.
 model CalendarEntry {
-  id          String   @id @default(uuid())
-  title       String
-  date        DateTime @db.Date
-  recurrence  String   @default("none")
-  tags        String[]
-  description String?  @db.Text
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
+  id            String   @id @default(uuid())
+  title         String
+  date          DateTime @db.Date
+  recurrence    String   @default("none")
+  tags          String[] @default([])
+  /// Short summary shown in admin list + agent context. Keep <200 chars.
+  description   String?  @db.Text
+  /// Long-form markdown body rendered on /calendar/[id]. Not injected into
+  /// agent context (description is — keeping that channel tight).
+  body          String?  @db.Text
+  /// YouTube or Vimeo URL. Rendered as an iframe embed on the detail page.
+  /// URL-only; video *upload* is intentionally not supported (cost + moderation).
+  videoEmbedUrl String?
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  media         CalendarEntryMedia[]
 
   @@index([date])
+}
+
+/// Join between CalendarEntry and the shared Media bank. A Media row can
+/// be attached to multiple entries (same trip photo could appear on the
+/// trip entry and on a year-end recap entry), and an entry has an ordered
+/// gallery of many media rows. Cover photo is a boolean on the join —
+/// enforcing "at most one cover per entry" is app-level (Postgres partial
+/// unique indexes aren't modeled in Prisma; if drift becomes a problem,
+/// add a raw-SQL partial index in a follow-up migration).
+model CalendarEntryMedia {
+  id              String        @id @default(uuid())
+  calendarEntryId String
+  mediaId         String
+  /// 0-indexed position within the entry's gallery. Ties broken by createdAt.
+  position        Int           @default(0)
+  /// At most one row per entry should carry isCover=true. App enforces.
+  isCover         Boolean       @default(false)
+  /// Per-attachment caption, distinct from Media.caption (which is the
+  /// "global" caption injected into agent context). Leave null to fall
+  /// back to Media.caption on the detail page.
+  caption         String?       @db.Text
+  createdAt       DateTime      @default(now())
+
+  calendarEntry   CalendarEntry @relation(fields: [calendarEntryId], references: [id], onDelete: Cascade)
+  media           Media         @relation(fields: [mediaId], references: [id], onDelete: Cascade)
+
+  @@unique([calendarEntryId, mediaId])
+  @@index([calendarEntryId, position])
+  @@index([mediaId])
 }
 
 /// User-scoped pin. Polymorphic: exactly one of conversationId or
