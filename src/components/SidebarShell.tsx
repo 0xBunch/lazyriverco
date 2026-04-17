@@ -137,7 +137,10 @@ export function SidebarShell({ sidebar, children }: SidebarShellProps) {
             type="button"
             onClick={() => setOpen(false)}
             aria-label="Close navigation"
-            className="absolute right-3 top-4 z-10 rounded-md p-1.5 text-bone-400 transition-colors hover:bg-bone-800 hover:text-bone-200 focus:outline-none focus-visible:ring-2 focus-visible:ring-claude-500 md:hidden"
+            // top-2.5 (10px) aligns the button's vertical center with the
+            // wordmark's center (logo row: pt-4 + ~20px SVG height → center
+            // at 26px; button is 32px tall → top = 26 - 16 = 10).
+            className="absolute right-3 top-2.5 z-10 rounded-md p-1.5 text-bone-400 transition-colors hover:bg-bone-800 hover:text-bone-200 focus:outline-none focus-visible:ring-2 focus-visible:ring-claude-500 md:hidden"
           >
             <svg
               aria-hidden="true"
@@ -155,12 +158,14 @@ export function SidebarShell({ sidebar, children }: SidebarShellProps) {
           </button>
         ) : null}
 
-        {/* Desktop collapse toggle — top-right corner, overlaps logo row */}
+        {/* Desktop collapse toggle — top-right corner, overlaps logo row.
+            top-2.5 (10px) matches the mobile close button above so both
+            toggles sit at the same visual height as the wordmark. */}
         <button
           type="button"
           onClick={toggleCollapsed}
           aria-label={collapsed ? "Expand sidebar" : "Collapse sidebar"}
-          className="absolute right-2 top-5 z-10 hidden rounded-md p-1.5 text-bone-400 transition-colors hover:bg-bone-800 hover:text-bone-200 group-data-[collapsed]:static group-data-[collapsed]:mx-auto group-data-[collapsed]:mt-3 md:block"
+          className="absolute right-2 top-2.5 z-10 hidden rounded-md p-1.5 text-bone-400 transition-colors hover:bg-bone-800 hover:text-bone-200 group-data-[collapsed]:static group-data-[collapsed]:mx-auto group-data-[collapsed]:mt-3 md:block"
         >
           <svg
             aria-hidden="true"
