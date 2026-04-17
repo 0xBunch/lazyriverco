@@ -11,7 +11,7 @@ const ADMIN_TABS = [
   { href: "/admin/relationships", label: "Relationships" },
   { href: "/admin/canon", label: "Canon" },
   { href: "/admin/lore", label: "Lore" },
-  { href: "/admin/media", label: "Media" },
+  { href: "/admin/gallery", label: "Gallery" },
   { href: "/admin/calendar", label: "Calendar" },
 ] as const;
 

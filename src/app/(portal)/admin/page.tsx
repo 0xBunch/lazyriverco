@@ -32,10 +32,10 @@ const CARDS = [
       "Topic-tagged knowledge chunks. Fantasy draft history, trip stories, roast archives — selectively injected when relevant to the conversation via a two-pass Haiku call.",
   },
   {
-    href: "/admin/media",
-    title: "Media",
+    href: "/admin/gallery",
+    title: "Gallery",
     body:
-      "Photos, videos, YouTube links, Instagram posts, tweets, articles. Tagged and captioned so agents can reference them. Add external links or upload files.",
+      "Bulk tools for the shared visual bank. Select rows to delete, hide, star for Hall of Fame, or add/remove tags in one shot. Drop photos directly to upload. Agents reach the same data via the gallery_search tool.",
   },
   {
     href: "/admin/calendar",
