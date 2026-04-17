@@ -206,7 +206,11 @@ export async function buildRichContext(
     if (media.length > 0) {
       const lines = media.map((m) => {
         const parts: string[] = [];
-        if (m.caption) parts.push(m.caption);
+        // Prefer uploader-written caption; fall back to scraped
+        // originTitle when there's nothing else to describe the item.
+        const headline = m.caption ?? m.originTitle;
+        if (headline) parts.push(headline);
+        if (m.originAuthor) parts.push(`(by ${m.originAuthor})`);
         if (m.tags.length > 0) parts.push(`(tags: ${m.tags.join(", ")})`);
         parts.push(m.publicUrl);
         return `- ${parts.join(" ")}`;
