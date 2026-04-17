@@ -53,6 +53,13 @@ export function GalleryAddModal({ open }: Props) {
     router.push("/gallery");
   }, [router]);
 
+  // onUploaded needs to live ABOVE the `if (!open) return null` early
+  // return below — otherwise rules-of-hooks fires because this hook
+  // only runs when open=true, changing the hook order between renders.
+  const onUploaded = useCallback((media: UploadedMedia) => {
+    setUploaded(media);
+  }, []);
+
   // Close on Escape. Register/unregister based on `open` so we don't
   // eat Escape when the modal isn't mounted.
   useEffect(() => {
@@ -98,11 +105,6 @@ export function GalleryAddModal({ open }: Props) {
       router.push(`/gallery/${res.mediaId}`);
     });
   };
-
-  const onUploaded = useCallback((media: UploadedMedia) => {
-    // Keep the most recent upload; overwritten if the user drops another.
-    setUploaded(media);
-  }, []);
 
   const handleUploadSave = () => {
     if (!uploaded) {

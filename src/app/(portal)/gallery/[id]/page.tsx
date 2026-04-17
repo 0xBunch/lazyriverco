@@ -256,7 +256,7 @@ function ThreadSection({
           Thread
         </h2>
         <p className="text-sm italic text-bone-400">
-          Nobody's chimed in about this one yet.
+          Nobody’s chimed in about this one yet.
         </p>
       </section>
     );
