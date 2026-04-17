@@ -4,12 +4,7 @@ import { LazyRiverLogo } from "@/components/LazyRiverLogo";
 import { SidebarNav } from "@/components/SidebarNav";
 import { ConversationSidebarList } from "@/components/ConversationSidebarList";
 import { StarredSidebarList } from "@/components/StarredSidebarList";
-import {
-  ADMIN_NAV_ITEM,
-  MAIN_NAV_ITEMS,
-  APP_NAV_ITEMS,
-  type NavItem,
-} from "@/lib/nav";
+import { ADMIN_NAV_ITEM, MAIN_NAV_ITEMS, type NavItem } from "@/lib/nav";
 
 function initials(displayName: string): string {
   const [first, second] = displayName.trim().split(/\s+/).filter(Boolean);
@@ -84,22 +79,6 @@ export async function Sidebar() {
             <ConversationSidebarList />
           </div>
         </div>
-      ) : null}
-
-      {/* Apps section — pinned above footer, never pushed off-screen.
-          shrink-0 prevents flex from compressing it. */}
-      {user ? (
-        <details
-          open
-          className="shrink-0 border-t border-bone-800 px-2 py-2 group-data-[collapsed]:hidden"
-        >
-          <summary className="cursor-pointer select-none list-none rounded-lg px-3 py-1.5 text-xs font-semibold uppercase tracking-wide text-bone-400 transition-colors hover:text-bone-200 [&::-webkit-details-marker]:hidden">
-            Apps
-          </summary>
-          <div className="mt-1">
-            <SidebarNav items={APP_NAV_ITEMS} />
-          </div>
-        </details>
       ) : null}
 
       {/* User footer */}
