@@ -1,3 +1,4 @@
+import Link from "next/link";
 import { cn } from "@/lib/utils";
 import type { ExpandedEntry, GridCell } from "@/lib/calendar-grid";
 
@@ -85,36 +86,39 @@ export function CalendarMonthGrid({ cells, eventsByDate }: Props) {
               )}
 
               {/* Event chips. Only render on in-month cells — spillover
-                  stays silent to let the current month dominate. */}
+                  stays silent to let the current month dominate. Each
+                  chip links to /calendar/[id] for the detail page. */}
               {cell.inMonth && visibleEvents.length > 0 ? (
                 <ul className="space-y-1">
                   {visibleEvents.map((event) => (
-                    <li
-                      key={`${event.id}-${event.isoDate}`}
-                      className={cn(
-                        "truncate rounded-sm px-1.5 py-0.5 text-[0.7rem] font-medium leading-tight",
-                        event.recurrence === "annual"
-                          ? // Annual = standing reminder → ghost outline
-                            "border border-dashed border-claude-500/40 text-claude-100"
-                          : // One-time = the thing actually happening →
-                            // solid fill with claude left-rule for weight
-                            "border-l-2 border-claude-500 bg-bone-800 text-bone-50",
-                      )}
-                      title={
-                        event.description
-                          ? `${event.title} — ${event.description}`
-                          : event.title
-                      }
-                    >
-                      {event.recurrence === "annual" ? (
-                        <span
-                          className="mr-1 text-claude-300"
-                          aria-hidden="true"
-                        >
-                          ↻
-                        </span>
-                      ) : null}
-                      {event.title}
+                    <li key={`${event.id}-${event.isoDate}`}>
+                      <Link
+                        href={`/calendar/${event.id}`}
+                        className={cn(
+                          "block truncate rounded-sm px-1.5 py-0.5 text-[0.7rem] font-medium leading-tight transition-colors focus:outline-none focus-visible:ring-1 focus-visible:ring-claude-500",
+                          event.recurrence === "annual"
+                            ? // Annual = standing reminder → ghost outline
+                              "border border-dashed border-claude-500/40 text-claude-100 hover:border-claude-500/70 hover:text-bone-50"
+                            : // One-time = the thing actually happening →
+                              // solid fill with claude left-rule for weight
+                              "border-l-2 border-claude-500 bg-bone-800 text-bone-50 hover:bg-bone-700",
+                        )}
+                        title={
+                          event.description
+                            ? `${event.title} — ${event.description}`
+                            : event.title
+                        }
+                      >
+                        {event.recurrence === "annual" ? (
+                          <span
+                            className="mr-1 text-claude-300"
+                            aria-hidden="true"
+                          >
+                            ↻
+                          </span>
+                        ) : null}
+                        {event.title}
+                      </Link>
                     </li>
                   ))}
                   {overflow > 0 ? (

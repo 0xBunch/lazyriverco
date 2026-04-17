@@ -1,3 +1,4 @@
+import Link from "next/link";
 import { prisma } from "@/lib/prisma";
 import {
   createCalendarEntry,
@@ -161,6 +162,12 @@ export default async function AdminCalendarPage() {
                         Repeats annually
                       </span>
                     )}
+                    <Link
+                      href={`/admin/calendar/${entry.id}`}
+                      className="text-[0.65rem] font-semibold uppercase tracking-wide text-claude-300 hover:text-claude-200"
+                    >
+                      Details & photos →
+                    </Link>
                   </div>
                   <div className="flex gap-2">
                     {/* Delete uses formAction to override the parent form's
