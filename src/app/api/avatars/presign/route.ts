@@ -10,13 +10,16 @@ import {
 } from "@/lib/r2";
 
 // POST /api/avatars/presign — admin only. Returns a short-lived presigned
-// POST that the browser uses to upload an agent headshot directly to R2
-// (server never touches bytes). Unlike /api/media/presign we do NOT create
-// a DB row — the caller persists the returned publicUrl directly to
-// Character.avatarUrl via the admin server action. Uploads that never get
-// saved leave orphan R2 objects with UUID keys under avatars/; acceptable
-// trade-off since keys are unreachable by enumeration, capped at 2 MB, and
-// the route is admin-only.
+// PUT URL that the browser streams the raw file body to (server never
+// touches bytes). Unlike /api/media/presign we do NOT create a DB row —
+// the caller persists the returned publicUrl directly to Character.avatarUrl
+// via the admin server action. Uploads that never get saved leave orphan
+// R2 objects with UUID keys under avatars/; acceptable trade-off since
+// keys are unreachable by enumeration and the route is admin-only.
+//
+// Size cap (2 MB) is enforced client-side; since PUT presigns can't embed
+// a content-length policy, server-side enforcement relies on trusting the
+// admin surface + bucket-level object-size limit in Cloudflare dashboard.
 //
 // Rate limit: 5/min, 30/day per admin. There are ~a dozen agent entities
 // total; firing this limit signals a stolen cookie, not legitimate use.
@@ -86,8 +89,8 @@ export async function POST(req: NextRequest) {
   return NextResponse.json({
     avatarId: presigned.avatarId,
     uploadUrl: presigned.uploadUrl,
-    fields: presigned.fields,
     publicUrl: presigned.publicUrl,
+    contentType: presigned.contentType,
     expiresIn: presigned.expiresIn,
     maxBytes: presigned.maxBytes,
   });

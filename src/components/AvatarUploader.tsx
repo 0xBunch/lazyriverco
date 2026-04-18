@@ -71,8 +71,8 @@ export function AvatarUploader({ value, onChange, className }: Props) {
 
     let presigned: {
       uploadUrl: string;
-      fields: Record<string, string>;
       publicUrl: string;
+      contentType: string;
     };
     try {
       const res = await fetch("/api/avatars/presign", {
@@ -93,17 +93,10 @@ export function AvatarUploader({ value, onChange, className }: Props) {
       return;
     }
 
-    // Direct POST to R2 with progress via XHR.
+    // Direct PUT to R2. Raw file body; Content-Type MUST match what was
+    // signed or R2 returns 403 SignatureDoesNotMatch.
     const xhr = new XMLHttpRequest();
     inFlightRef.current = { abort: () => xhr.abort() };
-
-    const form = new FormData();
-    // presigned.fields already includes Content-Type from r2.ts — don't
-    // duplicate it. R2 runs the POST policy's `["eq", "$Content-Type", …]`
-    // against the form body; two values fails the check and R2 returns 403
-    // without CORS headers, surfacing to the browser as a CORS error.
-    for (const [k, v] of Object.entries(presigned.fields)) form.append(k, v);
-    form.append("file", file);
 
     await new Promise<void>((resolve) => {
       xhr.upload.addEventListener("progress", (e) => {
@@ -132,8 +125,9 @@ export function AvatarUploader({ value, onChange, className }: Props) {
         setStatus({ kind: "idle" });
         resolve();
       });
-      xhr.open("POST", presigned.uploadUrl);
-      xhr.send(form);
+      xhr.open("PUT", presigned.uploadUrl);
+      xhr.setRequestHeader("Content-Type", presigned.contentType);
+      xhr.send(file);
     });
 
     inFlightRef.current = null;

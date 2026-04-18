@@ -11,17 +11,14 @@ import {
 } from "@/lib/r2";
 
 // POST /api/media/presign — any signed-in member. Returns a short-lived
-// presigned POST that the browser uses to upload directly to Cloudflare R2
-// (server never touches file bytes). Creates a Media row with status=PENDING
-// so:
-//   1. The /commit endpoint can flip it READY by id after the browser
-//      confirms the upload finished.
-//   2. A future sweeper can reap PENDING rows older than N hours —
-//      either the user gave up mid-upload or the R2 POST failed silently.
+// presigned PUT URL that the browser streams the raw file body to
+// (server never touches file bytes). Creates a Media row status=PENDING so:
+//   1. /commit flips it to READY — and HEADs the R2 object to enforce the
+//      size cap, since PUT presigns can't embed a content-length policy.
+//   2. A future sweeper can reap stale PENDING rows.
 //
-// Auth: requireUser — any signed-in member can upload (Gallery v1 opens
-// this surface up from the original admin-only gate). Abuse defense is
-// the per-user rate limit below, not the auth check.
+// Auth: requireUser — any signed-in member can upload. Abuse defense is
+// the per-user rate limit below.
 // Content-type allowlist is enforced in presignUpload; we surface 400 here.
 
 export const runtime = "nodejs";
@@ -121,8 +118,8 @@ export async function POST(req: NextRequest) {
   return NextResponse.json({
     mediaId: presigned.mediaId,
     uploadUrl: presigned.uploadUrl,
-    fields: presigned.fields,
     publicUrl: presigned.publicUrl,
+    contentType: presigned.contentType,
     expiresIn: presigned.expiresIn,
     maxBytes: presigned.maxBytes,
   });
