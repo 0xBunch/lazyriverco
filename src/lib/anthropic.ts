@@ -1,12 +1,24 @@
 import "server-only";
 import Anthropic from "@anthropic-ai/sdk";
 import { searchGalleryForAgent } from "@/lib/gallery-search";
+import {
+  type AgentModelId,
+  DEFAULT_AGENT_MODEL,
+  isValidAgentModel,
+} from "@/lib/agent-models";
 
 // Sonnet 4.6 — the latest and most capable Sonnet. Now that streaming
 // is wired, the 10-20s generation time is invisible to the user because
 // tokens flow in at ~1s TTFB. Verified model ID against Anthropic docs:
 // "claude-sonnet-4-6" is the alias for the current Sonnet family.
-export const CHAT_MODEL = "claude-sonnet-4-6" as const;
+export const CHAT_MODEL: AgentModelId = DEFAULT_AGENT_MODEL;
+
+/** Narrow an arbitrary string (e.g. a DB column that may hold a stale
+ *  value after an allowlist prune) back to a valid model id, falling
+ *  back to CHAT_MODEL. Used by the stream route when loading a Character. */
+export function resolveAgentModel(id: string | null | undefined): AgentModelId {
+  return id && isValidAgentModel(id) ? id : CHAT_MODEL;
+}
 
 const MAX_TOKENS = 1500;
 
@@ -174,14 +186,20 @@ function toContentBlockParams(
 // idea who that is") when asked about real people they actually know about
 // from training. The web_search nudge tells them to reach for the tool when
 // genuinely stale.
-function buildSystemPromptTail(): string {
+//
+// When `dialogueMode=true`, an additional block is appended that overrides
+// the "1-3 sentences, group-chat" guidance in each persona's bible and
+// grants permission (not obligation) to emit <followups> tag suggestions.
+// The tail is the last thing the model reads, so later instructions win
+// over the bible when they conflict.
+function buildSystemPromptTail(dialogueMode: boolean = false): string {
   const today = new Date().toLocaleDateString("en-US", {
     weekday: "long",
     year: "numeric",
     month: "long",
     day: "numeric",
   });
-  return [
+  const base = [
     "",
     `Today is ${today}.`,
     "",
@@ -194,7 +212,36 @@ function buildSystemPromptTail(): string {
     "opinions to whatever you find.",
     "",
     "Respond in character. Never break character. Never mention that you are an AI.",
-  ].join("\n");
+  ];
+  if (!dialogueMode) {
+    return base.join("\n");
+  }
+  // Dialogue-mode addendum — supersedes any length guidance in the bible.
+  const dialogue = [
+    "",
+    "RESPONSE DEPTH: Previous guidance in your persona notes may suggest",
+    "keeping replies to 1-3 sentences. For this conversation, that cap does",
+    "NOT apply — reply at the depth the question actually warrants. Short",
+    "when short is right, longer when nuance or explanation would genuinely",
+    "help. Ending with an open question is fine when it naturally extends",
+    "the thread.",
+    "",
+    "OPTIONAL FOLLOW-UPS: When the topic has clear branches or the user",
+    "seems to be exploring, you MAY close your reply with 2-3 short",
+    "suggested follow-up prompts inside <followups>…</followups> tags,",
+    "one per line. Each suggestion should read as a natural thing the",
+    "USER might say next, written in their voice as a first-person",
+    "question or request (5-12 words). Do NOT include the tag when your",
+    "answer is self-contained or you just asked the user a question.",
+    "Never put anything except the bullet list of suggestions inside the",
+    "tag. Example format:",
+    "<followups>",
+    "how does this compare to last year?",
+    "who else has done this well?",
+    "can you show me an example?",
+    "</followups>",
+  ];
+  return [...base, ...dialogue].join("\n");
 }
 
 export type ChatContextLine = {
@@ -222,16 +269,79 @@ function formatChatContext(lines: readonly ChatContextLine[]): string {
     .join("\n");
 }
 
-function composeSystemPrompt(
+/**
+ * Build the system prompt as a structured array of TextBlockParam so we
+ * can stick a `cache_control: { type: "ephemeral" }` breakpoint right
+ * after the persona bible. Anthropic's prompt cache hashes the request
+ * up through the last `cache_control` mark; subsequent turns in the
+ * same conversation (same bible) get a ~90% input-token discount on
+ * that prefix.
+ *
+ * Shape:
+ *   [
+ *     bible (cached),
+ *     richContext (uncached — turn-dependent lore/media selection),
+ *     tail (uncached — contains today's date + dialogue addendum)
+ *   ]
+ *
+ * The uncached tail is always last so the date refresh and the
+ * dialogue-mode toggle never invalidate the cached prefix.
+ *
+ * NOTE: the bible MUST exceed Anthropic's minimum cacheable prefix
+ * length (currently ~1024 tokens on Sonnet/Opus, lower on Haiku) for
+ * the `cache_control` mark to take effect. Below threshold the SDK
+ * silently ignores the mark — no error, just no discount.
+ */
+function composeSystemBlocks(
   bible: string,
   richContext: string | null,
-): string {
-  const parts: string[] = [bible];
+  dialogueMode: boolean = false,
+): Anthropic.Messages.TextBlockParam[] {
+  // Normalize whitespace edges so the cached block text is bit-stable
+  // across turns even if the admin edits the bible trailing whitespace
+  // or the richContext selection flips between "has content" and "no
+  // content". Cache hits are computed from the exact block text; drift
+  // here is drift in the cache key for no semantic reason.
+  const bibleText = bible.trimEnd() + "\n";
+
+  const blocks: Anthropic.Messages.TextBlockParam[] = [
+    {
+      type: "text",
+      text: bibleText,
+      cache_control: { type: "ephemeral" },
+    },
+  ];
   if (richContext && richContext.trim()) {
-    parts.push("");
-    parts.push(richContext);
+    blocks.push({
+      type: "text",
+      text: richContext.trim() + "\n",
+    });
   }
-  return parts.join("\n") + buildSystemPromptTail();
+  blocks.push({
+    type: "text",
+    text: buildSystemPromptTail(dialogueMode),
+  });
+  return blocks;
+}
+
+/** Log prompt-cache usage at INFO level so we can eyeball hit rate
+ *  without pulling full observability. On a warmed conversation the
+ *  `cache_read_input_tokens` field dominates `cache_creation_input_tokens`
+ *  — that's the signal that the per-agent bible is landing in cache.
+ *  Cheap string build; no-op in prod if CHAT_CACHE_LOG=off. */
+function logCacheUsage(
+  model: string,
+  usage: Anthropic.Messages.Usage | undefined,
+): void {
+  if (process.env.CHAT_CACHE_LOG === "off") return;
+  if (!usage) return;
+  const read = usage.cache_read_input_tokens ?? 0;
+  const write = usage.cache_creation_input_tokens ?? 0;
+  const input = usage.input_tokens ?? 0;
+  const output = usage.output_tokens ?? 0;
+  console.info(
+    `[chat/usage] model=${model} in=${input} out=${output} cache_read=${read} cache_write=${write}`,
+  );
 }
 
 /** Like joinTextBlocks but throws when the response has no text. Used
@@ -261,6 +371,17 @@ function buildUserPrompt(
 }
 
 /**
+ * Per-agent overrides that flow from the Character row into every SDK call.
+ * `model` is narrowed via `resolveAgentModel` so a stale DB value can't
+ * pin a request against a model the SDK no longer accepts. `dialogueMode`
+ * toggles the dialogue addendum on the system prompt tail.
+ */
+export type ChatGenerateOptions = {
+  model?: string | null;
+  dialogueMode?: boolean;
+};
+
+/**
  * One-shot (non-streaming) character response. Used by:
  *   - runOrchestrator (legacy channel path)
  *   - runConversationOrchestrator (fire-and-forget on initial conversation create)
@@ -278,7 +399,10 @@ export async function generateCharacterResponse(
   recentContext: readonly ChatContextLine[],
   newMessage: ChatContextLine,
   richContext: string | null = null,
+  opts: ChatGenerateOptions = {},
 ): Promise<string> {
+  const model = resolveAgentModel(opts.model);
+  const dialogueMode = opts.dialogueMode ?? false;
   const messages: Anthropic.Messages.MessageParam[] = [
     {
       role: "user",
@@ -290,13 +414,14 @@ export async function generateCharacterResponse(
 
   for (let iter = 0; iter < MAX_TOOL_ITERATIONS; iter++) {
     const response = await getClient().messages.create({
-      model: CHAT_MODEL,
+      model,
       max_tokens: MAX_TOKENS,
       temperature: 0.9,
-      system: composeSystemPrompt(systemPrompt, richContext),
+      system: composeSystemBlocks(systemPrompt, richContext, dialogueMode),
       tools: TOOLS,
       messages,
     });
+    logCacheUsage(model, response.usage);
 
     const thisText = joinTextBlocks(response.content);
     if (thisText) {
@@ -370,7 +495,10 @@ export async function streamCharacterResponse(
   newMessage: ChatContextLine,
   richContext: string | null = null,
   onDelta: (delta: string) => void = () => {},
+  opts: ChatGenerateOptions = {},
 ): Promise<string> {
+  const model = resolveAgentModel(opts.model);
+  const dialogueMode = opts.dialogueMode ?? false;
   const messages: Anthropic.Messages.MessageParam[] = [
     {
       role: "user",
@@ -382,10 +510,10 @@ export async function streamCharacterResponse(
 
   for (let iter = 0; iter < MAX_TOOL_ITERATIONS; iter++) {
     const stream = getClient().messages.stream({
-      model: CHAT_MODEL,
+      model,
       max_tokens: MAX_TOKENS,
       temperature: 0.9,
-      system: composeSystemPrompt(systemPrompt, richContext),
+      system: composeSystemBlocks(systemPrompt, richContext, dialogueMode),
       tools: TOOLS,
       messages,
     });
@@ -396,6 +524,7 @@ export async function streamCharacterResponse(
     });
 
     const finalMsg = await stream.finalMessage();
+    logCacheUsage(model, finalMsg.usage);
     if (finalMsg.stop_reason !== "tool_use") {
       return fullText;
     }
@@ -432,7 +561,11 @@ export async function generateDraftCommentary(
   systemPrompt: string,
   pick: DraftPick,
   richContext: string | null = null,
+  opts: ChatGenerateOptions = {},
 ): Promise<string> {
+  const model = resolveAgentModel(opts.model);
+  // Draft commentary is a one-shot announcement, so dialogue-mode addendum
+  // (length lift + followups) is intentionally ignored here — always false.
   const userPrompt = [
     `You just drafted ${pick.playerName}, ${pick.position} from the ${pick.team},`,
     `in round ${pick.round} of your fantasy draft. Announce your pick to the group chat.`,
@@ -444,13 +577,14 @@ export async function generateDraftCommentary(
   ].join("\n");
 
   const response = await getClient().messages.create({
-    model: CHAT_MODEL,
+    model,
     max_tokens: MAX_TOKENS,
     temperature: 0.9,
-    system: composeSystemPrompt(systemPrompt, richContext),
+    system: composeSystemBlocks(systemPrompt, richContext, false),
     tools: [WEB_SEARCH_TOOL],
     messages: [{ role: "user", content: userPrompt }],
   });
+  logCacheUsage(model, response.usage);
 
   return requireText(response.content);
 }

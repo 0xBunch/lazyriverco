@@ -258,12 +258,17 @@ async function generateWithRetry(
   newLine: ChatContextLine,
   richContext: string | null,
 ): Promise<string> {
+  // Legacy orchestrator path — dialogue mode is intentionally off here
+  // (group-channel chat is always terse). The per-agent model DOES apply,
+  // so a Haiku-tier character still gets the cheaper call.
+  const opts = { model: character.model, dialogueMode: false };
   try {
     return await generateCharacterResponse(
       character.systemPrompt,
       contextLines,
       newLine,
       richContext,
+      opts,
     );
   } catch (err) {
     if (isRateLimitError(err)) {
@@ -276,6 +281,7 @@ async function generateWithRetry(
         contextLines,
         newLine,
         richContext,
+        opts,
       );
     }
     throw err;
