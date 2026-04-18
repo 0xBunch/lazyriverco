@@ -18,7 +18,7 @@ type PageProps = {
 export default async function ConversationPage({ params }: PageProps) {
   const user = await getCurrentUser();
   if (!user) {
-    redirect("/sign-in");
+    redirect("/start");
   }
 
   // Fetch conversation metadata and pin state in parallel. The pin query

@@ -11,7 +11,7 @@ export default async function AdminLayout({
   // verifies the cookie cryptographically, and we additionally enforce
   // role=ADMIN here. Any non-admin who finds the URL gets bounced to /chat.
   const user = await getCurrentUser();
-  if (!user) redirect("/sign-in");
+  if (!user) redirect("/start");
   if (user.role !== "ADMIN") redirect("/chat");
 
   return (

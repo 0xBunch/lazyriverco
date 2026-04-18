@@ -18,7 +18,7 @@ export async function middleware(req: NextRequest) {
     if (req.nextUrl.pathname.startsWith("/api/")) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
-    const url = new URL("/sign-in", req.url);
+    const url = new URL("/start", req.url);
     return NextResponse.redirect(url);
   }
 
@@ -26,12 +26,12 @@ export async function middleware(req: NextRequest) {
 }
 
 export const config = {
-  // Allowlist: Next internals, sign-in page, ALL /api/auth/* routes
+  // Allowlist: Next internals, start page, ALL /api/auth/* routes
   // (login, logout, and any future session endpoints), and the PWA
   // chrome (favicon, app icons, manifest) which must be reachable
   // before the user authenticates. Everything else hits the auth check
   // above.
   matcher: [
-    "/((?!_next/static|_next/image|favicon.ico|icon|apple-icon|manifest.webmanifest|sign-in|api/auth/).*)",
+    "/((?!_next/static|_next/image|favicon.ico|icon|apple-icon|manifest.webmanifest|start|api/auth/).*)",
   ],
 };

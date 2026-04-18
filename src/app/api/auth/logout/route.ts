@@ -10,7 +10,7 @@ export async function POST(req: NextRequest) {
   // the public redirect URL.
   const proto = req.headers.get("x-forwarded-proto") ?? "https";
   const host = req.headers.get("host") ?? "localhost";
-  const url = new URL("/sign-in", `${proto}://${host}`);
+  const url = new URL("/start", `${proto}://${host}`);
   return NextResponse.redirect(url, {
     status: 303,
     headers: { "Set-Cookie": buildClearCookie() },

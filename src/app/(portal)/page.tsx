@@ -9,8 +9,8 @@ export default async function LandingPage() {
   const user = await getCurrentUser();
   if (!user) {
     // Middleware should have already redirected unauthenticated visitors
-    // to /sign-in, but belt-check just in case.
-    redirect("/sign-in");
+    // to /start, but belt-check just in case.
+    redirect("/start");
   }
 
   const [characterRows, promptGroupRows] = await Promise.all([
