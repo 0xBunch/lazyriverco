@@ -98,8 +98,11 @@ export function AvatarUploader({ value, onChange, className }: Props) {
     inFlightRef.current = { abort: () => xhr.abort() };
 
     const form = new FormData();
+    // presigned.fields already includes Content-Type from r2.ts — don't
+    // duplicate it. R2 runs the POST policy's `["eq", "$Content-Type", …]`
+    // against the form body; two values fails the check and R2 returns 403
+    // without CORS headers, surfacing to the browser as a CORS error.
     for (const [k, v] of Object.entries(presigned.fields)) form.append(k, v);
-    form.append("Content-Type", file.type);
     form.append("file", file);
 
     await new Promise<void>((resolve) => {
