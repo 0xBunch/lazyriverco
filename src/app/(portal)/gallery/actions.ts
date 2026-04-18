@@ -6,6 +6,7 @@ import { requireUser } from "@/lib/auth";
 import { assertWithinLimit, RateLimitError } from "@/lib/rate-limit";
 import { ingestUrl, IngestError } from "@/lib/ingest";
 import { runVisionTagging } from "@/lib/ai-tagging-run";
+import { getBannedSlugs } from "@/lib/ai-taxonomy";
 import { TAG_SHAPE, MAX_TAG_CHARS } from "@/lib/tag-shape";
 
 // Gallery server actions. Invoked from the add modal + anywhere a member
@@ -62,7 +63,7 @@ export async function ingestAndSaveUrlAction(input: {
   }
 
   const caption = sanitizeCaption(input.caption);
-  const tagResult = parseTags(input.tags);
+  const tagResult = await parseTags(input.tags);
   if (tagResult.kind === "error") return { ok: false, error: tagResult.message };
   const tags = tagResult.tags;
 
@@ -132,7 +133,7 @@ export async function updateMediaMetaAction(input: {
   if (!mediaId) return { ok: false, error: "Missing media id." };
 
   const caption = sanitizeCaption(input.caption);
-  const tagResult = parseTags(input.tags);
+  const tagResult = await parseTags(input.tags);
   if (tagResult.kind === "error") return { ok: false, error: tagResult.message };
   const tags = tagResult.tags;
 
@@ -196,7 +197,7 @@ type ParseTagsResult =
   | { kind: "ok"; tags: string[] }
   | { kind: "error"; message: string };
 
-function parseTags(raw: string): ParseTagsResult {
+async function parseTags(raw: string): Promise<ParseTagsResult> {
   if (!raw || typeof raw !== "string") return { kind: "ok", tags: [] };
   const parts = raw
     .split(/[,\n]/)
@@ -205,6 +206,12 @@ function parseTags(raw: string): ParseTagsResult {
   if (parts.length > MAX_TAGS) {
     return { kind: "error", message: `Max ${MAX_TAGS} tags per item.` };
   }
+  // Fetch banned set once per parse. Cached in ai-taxonomy.ts so this
+  // is usually a process-local lookup; at the TTL edge it's one SELECT
+  // on a tiny table. Rejecting a banned slug here (loud, with a specific
+  // error) is preferable to silently stripping it — the user asked for
+  // that tag; they deserve to know why it's not being saved.
+  const banned = await getBannedSlugs();
   const seen = new Set<string>();
   const out: string[] = [];
   for (const p of parts) {
@@ -218,6 +225,12 @@ function parseTags(raw: string): ParseTagsResult {
       return {
         kind: "error",
         message: `Tag "${p}" — use a-z, 0-9, dash or underscore only.`,
+      };
+    }
+    if (banned.has(p)) {
+      return {
+        kind: "error",
+        message: `Tag "${p}" is banned by the commissioner. Pick a different one.`,
       };
     }
     if (!seen.has(p)) {

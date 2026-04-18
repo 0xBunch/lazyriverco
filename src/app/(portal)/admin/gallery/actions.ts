@@ -4,6 +4,7 @@ import { revalidatePath } from "next/cache";
 import { prisma } from "@/lib/prisma";
 import { requireAdmin } from "@/lib/auth";
 import { runVisionTagging } from "@/lib/ai-tagging-run";
+import { getBannedSlugs } from "@/lib/ai-taxonomy";
 import { parseTag } from "@/lib/tag-shape";
 
 // Commissioner-side bulk operations for the gallery. Each action is
@@ -145,6 +146,22 @@ export async function bulkTagAction(
       };
     }
     const mode = fd.get("mode") === "remove" ? "remove" : "add";
+
+    // Refuse to re-add a currently-banned slug. The ban flow already
+    // stripped this slug from every Media row; letting bulk-add undo
+    // that silently would break the "banned ⇒ absent from Media" invariant
+    // and leave the admin wondering why their ban didn't stick. Remove
+    // mode is still allowed — ad-hoc cleanup of banned tags that were
+    // added to rows before the ban.
+    if (mode === "add") {
+      const banned = await getBannedSlugs();
+      if (banned.has(tag)) {
+        return {
+          ok: false,
+          error: `"${tag}" is banned. Unban it on /admin/taxonomy first if you want to use it.`,
+        };
+      }
+    }
 
     const rows = await prisma.media.findMany({
       where: { id: { in: ids } },

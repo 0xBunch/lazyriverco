@@ -46,9 +46,11 @@ export default async function AdminTaxonomyPage() {
       <TaxonomyEditor buckets={buckets} />
 
       <p className="text-xs italic text-bone-400">
-        After editing, trigger a re-analyze on existing items via the bulk
-        button on /admin/gallery or `pnpm backfill:ai-tags` — new hints
-        don&apos;t retroactively re-tag.
+        Preferred-bucket edits don&apos;t retroactively re-tag — trigger a
+        re-analyze via the bulk button on /admin/gallery or{" "}
+        <code>pnpm backfill:ai-tags</code> to pick them up. The banned
+        bucket is the exception: adding there sweeps existing items
+        immediately.
       </p>
     </div>
   );

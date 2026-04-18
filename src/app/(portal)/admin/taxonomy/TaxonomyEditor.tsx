@@ -3,6 +3,7 @@
 import { useFormState, useFormStatus } from "react-dom";
 import type { ReactNode } from "react";
 import { cn } from "@/lib/utils";
+import { BANNED_LABEL } from "@/lib/taxonomy-constants";
 import {
   addSlugAction,
   removeSlugAction,
@@ -39,12 +40,25 @@ function BucketCard({ bucket }: { bucket: BucketView }) {
   const latest: AdminTaxonomyState = removeState ?? addState ?? null;
 
   const descriptor = BUCKET_DESCRIPTORS[bucket.label] ?? null;
+  const isBanned = bucket.label === BANNED_LABEL;
 
   return (
-    <section className="rounded-2xl border border-bone-800 bg-bone-900/40 p-5">
+    <section
+      className={cn(
+        "rounded-2xl border p-5",
+        isBanned
+          ? "border-red-900/60 bg-red-950/20"
+          : "border-bone-800 bg-bone-900/40",
+      )}
+    >
       <header className="mb-3 flex flex-wrap items-baseline gap-x-3 gap-y-1">
-        <h2 className="font-display text-lg font-semibold uppercase tracking-[0.18em] text-claude-300">
-          {bucket.label}
+        <h2
+          className={cn(
+            "font-display text-lg font-semibold uppercase tracking-[0.18em]",
+            isBanned ? "text-red-300" : "text-claude-300",
+          )}
+        >
+          {isBanned ? "banned" : bucket.label}
         </h2>
         <span className="text-xs text-bone-400">
           {bucket.slugs.length} slug{bucket.slugs.length === 1 ? "" : "s"}
@@ -58,7 +72,9 @@ function BucketCard({ bucket }: { bucket: BucketView }) {
 
       {bucket.slugs.length === 0 ? (
         <p className="mb-4 text-sm italic text-bone-400">
-          No slugs yet — Gemini will produce open vocabulary here.
+          {isBanned
+            ? "No banned tags. Add a slug here and it'll be stripped from the whole gallery + blocked from future AI runs."
+            : "No slugs yet — Gemini will produce open vocabulary here."}
         </p>
       ) : (
         <ul className="mb-4 flex flex-wrap gap-1.5">
@@ -67,7 +83,7 @@ function BucketCard({ bucket }: { bucket: BucketView }) {
               <form action={removeAction} className="contents">
                 <input type="hidden" name="bucketId" value={bucket.id} />
                 <input type="hidden" name="slug" value={slug} />
-                <RemoveChip slug={slug} />
+                <RemoveChip slug={slug} banned={isBanned} />
               </form>
             </li>
           ))}
@@ -80,7 +96,7 @@ function BucketCard({ bucket }: { bucket: BucketView }) {
       >
         <input type="hidden" name="bucketId" value={bucket.id} />
         <label htmlFor={`add-slug-${bucket.id}`} className="sr-only">
-          Add a slug to {bucket.label}
+          {isBanned ? "Ban a slug" : `Add a slug to ${bucket.label}`}
         </label>
         <input
           id={`add-slug-${bucket.id}`}
@@ -89,9 +105,14 @@ function BucketCard({ bucket }: { bucket: BucketView }) {
           placeholder={EXAMPLE_SLUG[bucket.label] ?? "new-slug"}
           maxLength={40}
           autoComplete="off"
-          className="min-w-[220px] flex-1 rounded-md border border-bone-800 bg-bone-900/60 px-3 py-1.5 text-sm text-bone-100 placeholder:text-bone-400 focus:border-claude-500/60 focus:outline-none focus-visible:ring-2 focus-visible:ring-claude-400"
+          className={cn(
+            "min-w-[220px] flex-1 rounded-md border px-3 py-1.5 text-sm text-bone-100 placeholder:text-bone-400 focus:outline-none focus-visible:ring-2",
+            isBanned
+              ? "border-red-900/60 bg-red-950/30 focus:border-red-500/60 focus-visible:ring-red-400"
+              : "border-bone-800 bg-bone-900/60 focus:border-claude-500/60 focus-visible:ring-claude-400",
+          )}
         />
-        <AddButton />
+        <AddButton banned={isBanned} />
       </form>
 
       {latest ? (
@@ -110,32 +131,45 @@ function BucketCard({ bucket }: { bucket: BucketView }) {
   );
 }
 
-function AddButton() {
+function AddButton({ banned }: { banned: boolean }) {
   const { pending } = useFormStatus();
   return (
-    <SubmitBtn pending={pending} kind="secondary">
-      {pending ? "Adding…" : "+ Add slug"}
+    <SubmitBtn pending={pending} kind={banned ? "danger" : "secondary"}>
+      {pending
+        ? banned
+          ? "Banning…"
+          : "Adding…"
+        : banned
+          ? "🚫 Ban tag"
+          : "+ Add slug"}
     </SubmitBtn>
   );
 }
 
-function RemoveChip({ slug }: { slug: string }) {
+function RemoveChip({ slug, banned }: { slug: string; banned: boolean }) {
   const { pending } = useFormStatus();
   return (
     <button
       type="submit"
       disabled={pending}
       className={cn(
-        "group inline-flex items-center gap-1.5 rounded-full border border-bone-800 bg-bone-900 px-3 py-1 text-xs text-bone-100 transition-colors",
-        "hover:border-red-500/40 hover:bg-red-900/20 hover:text-red-100",
+        "group inline-flex items-center gap-1.5 rounded-full border px-3 py-1 text-xs transition-colors",
+        banned
+          ? "border-red-900/60 bg-red-950/40 text-red-100 hover:border-emerald-600/50 hover:bg-emerald-900/20 hover:text-emerald-100"
+          : "border-bone-800 bg-bone-900 text-bone-100 hover:border-red-500/40 hover:bg-red-900/20 hover:text-red-100",
         "focus:outline-none focus-visible:ring-2 focus-visible:ring-claude-400 disabled:cursor-not-allowed disabled:opacity-50",
       )}
-      aria-label={`Remove ${slug}`}
+      aria-label={banned ? `Unban ${slug}` : `Remove ${slug}`}
     >
       <span className="font-mono">{slug}</span>
       <span
         aria-hidden
-        className="text-bone-400 transition-colors group-hover:text-red-300"
+        className={cn(
+          "transition-colors",
+          banned
+            ? "text-red-400 group-hover:text-emerald-300"
+            : "text-bone-400 group-hover:text-red-300",
+        )}
       >
         ×
       </span>
@@ -149,7 +183,7 @@ function SubmitBtn({
   children,
 }: {
   pending: boolean;
-  kind: "secondary";
+  kind: "secondary" | "danger";
   children: ReactNode;
 }) {
   return (
@@ -158,9 +192,11 @@ function SubmitBtn({
       disabled={pending}
       className={cn(
         "rounded-md border px-3 py-1.5 text-xs font-medium transition-colors",
-        "focus:outline-none focus-visible:ring-2 focus-visible:ring-claude-400 disabled:cursor-not-allowed disabled:opacity-40",
+        "focus:outline-none focus-visible:ring-2 disabled:cursor-not-allowed disabled:opacity-40",
         kind === "secondary" &&
-          "border-bone-800 bg-bone-900/60 text-bone-200 hover:text-bone-50",
+          "border-bone-800 bg-bone-900/60 text-bone-200 hover:text-bone-50 focus-visible:ring-claude-400",
+        kind === "danger" &&
+          "border-red-900/60 bg-red-950/50 text-red-100 hover:border-red-700 hover:bg-red-900/40 focus-visible:ring-red-400",
       )}
     >
       {children}
@@ -182,6 +218,8 @@ const BUCKET_DESCRIPTORS: Record<string, string> = {
     "Teams, franchises, brands, recurring subjects — the catch-all bucket. Prefer specific over generic (chicago-bears, not bears).",
   vibes:
     "Activities + moods + recurring themes. Concrete over abstract — pool-day, not vacation; red-carpet, not fashion.",
+  banned:
+    "Tags that should never exist on a gallery item. Adding here runs a full sweep: strips from every Media row and blocks the AI from emitting it going forward. Click a chip to unban (future runs only — already-stripped rows don't come back).",
 };
 
 const EXAMPLE_SLUG: Record<string, string> = {
@@ -189,4 +227,5 @@ const EXAMPLE_SLUG: Record<string, string> = {
   places: "wrigley-field",
   topics: "chicago-bears",
   vibes: "pool-day",
+  banned: "a-tag-you-never-want",
 };

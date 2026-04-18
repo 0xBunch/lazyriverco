@@ -6,7 +6,7 @@ import {
   MAX_CAPTION_CHARS,
   MAX_ORIGIN_TEXT_CHARS,
 } from "@/lib/sanitize";
-import { buildTaxonomyHint } from "@/lib/ai-taxonomy";
+import { buildTaxonomyHint, getBannedSlugs } from "@/lib/ai-taxonomy";
 import { parseTag } from "@/lib/tag-shape";
 
 // Gallery v1.3 — Gemini 2.5 Flash vision pipeline. Called inline from
@@ -78,9 +78,14 @@ export async function analyzeMedia(
   const context = buildSanitizedContext(input);
   // Resolve before the withTimeout window opens — cache read is a no-op
   // most of the time, and the (stale-beyond-TTL) DB read is a single
-  // SELECT on a 4-row table. We don't want to count this against the
-  // 20s Gemini budget.
-  const taxonomyHint = await buildTaxonomyHint();
+  // SELECT on the small TaxonomyBucket table. We don't want to count
+  // this against the 20s Gemini budget. banned is used as a server-side
+  // backstop to the prompt-level ban (models occasionally ignore
+  // negative instructions) in parseAndCleanTags below.
+  const [taxonomyHint, banned] = await Promise.all([
+    buildTaxonomyHint(),
+    getBannedSlugs(),
+  ]);
 
   try {
     const response = await withTimeout(
@@ -116,7 +121,7 @@ export async function analyzeMedia(
       return { ok: false, analyzedAt, note: "failed: empty response" };
     }
 
-    const tags = parseAndCleanTags(text);
+    const tags = parseAndCleanTags(text, banned);
     if (tags.length === 0) {
       return { ok: false, analyzedAt, note: "failed: no valid tags" };
     }
@@ -224,7 +229,10 @@ function buildSanitizedContext(input: AnalyzeMediaInput): string {
   return parts.join("\n");
 }
 
-function parseAndCleanTags(text: string): string[] {
+function parseAndCleanTags(
+  text: string,
+  banned: ReadonlySet<string>,
+): string[] {
   let parsed: unknown;
   try {
     parsed = JSON.parse(text);
@@ -251,6 +259,12 @@ function parseAndCleanTags(text: string): string[] {
     const slug = parseTag(raw);
     if (!slug) continue;
     if (seen.has(slug)) continue;
+    // Banned-slug backstop. The prompt tells Gemini not to emit these;
+    // this guarantees it. Silently dropping is fine — no user-visible
+    // signal needed, and leaving the slug out of aiTags means the
+    // human-entered `tags` array (which ingest/upload also filters
+    // against banned) stays clean too.
+    if (banned.has(slug)) continue;
     seen.add(slug);
     out.push(slug);
     if (out.length >= MAX_TAGS_RETURNED) break;
