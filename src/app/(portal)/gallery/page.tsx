@@ -99,7 +99,7 @@ export default async function GalleryPage({
             Gallery
           </p>
           <h1 className="font-display text-3xl font-semibold tracking-tight text-bone-50 text-balance">
-            The wall
+            Latest
           </h1>
         </div>
         {/* "+ Add" → opens GalleryAddModal via ?add=1. */}

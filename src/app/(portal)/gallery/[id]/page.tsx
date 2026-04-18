@@ -8,22 +8,18 @@ import { requireUser } from "@/lib/auth";
 import { parseVideoEmbed } from "@/lib/video-embed";
 import { originLabel } from "@/lib/gallery-origin";
 import { initialsOf } from "@/lib/initials";
+import {
+  parseInstagramShortcode,
+  instagramEmbedUrl,
+} from "@/lib/instagram-embed";
 
-// /gallery/[id] — gallery item detail.
+// /gallery/[id] — gallery item detail. Media leads; metadata renders
+// below as caption-voice. Instagram uses its own /embed/captioned/
+// iframe so the real post (reel/carousel/full frame) shows instead of
+// the cropped OG still.
 //
-// Shape (per design-oracle on the plan review):
-//   1. Back nav
-//   2. Eyebrow: origin + date + "View on [Source]"
-//   3. Hero: image or embedded video iframe
-//   4. Caption (markdown, prose)
-//   5. Tag chips
-//   6. Thread — the "this is *our* app" move. v1 minimum: agent references
-//      + chat mentions (Messages whose content contains this item's
-//      sourceUrl or mediaId). No reactions in v1 (locked with KB).
-//
-// The thread query does a LIKE scan over Message.content; at 7 users + a
-// few hundred messages it's cheap. If this ever gets hot, denormalize
-// into a (mediaId, messageId) join populated by a message-ingest hook.
+// Thread query does a LIKE scan over Message.content; cheap at current
+// scale. If it gets hot, denormalize into a (mediaId, messageId) join.
 
 export const dynamic = "force-dynamic";
 
@@ -56,11 +52,27 @@ export default async function GalleryItemPage({
 
   const origin = item.origin;
   const video = origin === "YOUTUBE" ? parseVideoEmbed(item.sourceUrl) : null;
+  const igShortcode =
+    origin === "INSTAGRAM" ? parseInstagramShortcode(item.sourceUrl) : null;
   const dateLabel = item.createdAt.toLocaleDateString("en-US", {
     year: "numeric",
     month: "long",
     day: "numeric",
   });
+  const hasStatusFlag = item.hallOfFame || item.hiddenFromGrid;
+  // For WEB origin, "View on Web" is semantically empty — use the domain
+  // when we can parse it. Other origins keep the branded label.
+  const viewOnText = (() => {
+    if (origin === "WEB" && item.sourceUrl) {
+      try {
+        const host = new URL(item.sourceUrl).hostname.replace(/^www\./, "");
+        if (host) return host;
+      } catch {
+        // fall through to branded label
+      }
+    }
+    return originLabel(origin);
+  })();
 
   // Thread query — find Messages that reference this media by sourceUrl
   // or id. Limit to READY-era messages; no special index needed at this
@@ -96,52 +108,9 @@ export default async function GalleryItemPage({
         </Link>
       </nav>
 
-      <header className="mb-6">
-        <p className="text-xs uppercase tracking-[0.2em] text-claude-300">
-          {originLabel(origin)} · {dateLabel}
-          {item.hallOfFame ? (
-            <span className="ml-2 text-claude-200">· Hall of Fame</span>
-          ) : null}
-          {item.hiddenFromGrid ? (
-            <span className="ml-2 text-bone-400">· Hidden from grid</span>
-          ) : null}
-        </p>
-        <h1 className="mt-2 font-display text-3xl font-semibold tracking-tight text-bone-50 text-balance">
-          {item.originTitle ?? item.caption ?? "Shared on Lazy River"}
-        </h1>
-        <p className="mt-3 flex flex-wrap items-center gap-x-2 gap-y-1 text-sm text-bone-300">
-          <UploaderLine uploader={item.uploadedBy} />
-          {item.originAuthor ? (
-            <>
-              <span aria-hidden>·</span>
-              <span>
-                {origin === "INSTAGRAM" ? "@" : ""}
-                {item.originAuthor}
-              </span>
-            </>
-          ) : null}
-          {item.sourceUrl && item.origin !== "UPLOAD" ? (
-            <>
-              <span aria-hidden>·</span>
-              <a
-                href={item.sourceUrl}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="rounded-sm underline decoration-claude-500/40 underline-offset-2 hover:text-bone-50 hover:decoration-claude-300 focus:outline-none focus-visible:ring-2 focus-visible:ring-claude-400 focus-visible:ring-offset-2 focus-visible:ring-offset-bone-950"
-              >
-                View on {originLabel(origin)}
-              </a>
-            </>
-          ) : null}
-        </p>
-      </header>
-
-      {/* Hero. For YouTube prefer the iframe over the thumbnail so the
-          user can watch inline. Everything else gets the biggest image
-          we have. Tier-C items (origin=WEB with no image) fall through
-          to just the uploader's caption. */}
+      {/* Media-first. Metadata renders below as caption-voice. */}
       {video ? (
-        <section className="mb-8">
+        <section className="mb-6">
           <div className="relative aspect-video overflow-hidden rounded-2xl bg-bone-900">
             <iframe
               src={video.iframeSrc}
@@ -154,8 +123,19 @@ export default async function GalleryItemPage({
             />
           </div>
         </section>
+      ) : igShortcode ? (
+        <section className="mb-6 flex justify-center">
+          <iframe
+            src={instagramEmbedUrl(igShortcode)}
+            title={item.originTitle ?? "Embedded Instagram post"}
+            loading="lazy"
+            referrerPolicy="strict-origin-when-cross-origin"
+            allow="autoplay; clipboard-write; encrypted-media; picture-in-picture; web-share"
+            className="h-[900px] w-full max-w-[540px] rounded-2xl border border-bone-800/60 bg-bone-900"
+          />
+        </section>
       ) : item.url ? (
-        <figure className="mx-auto mb-8 overflow-hidden rounded-2xl bg-bone-900">
+        <figure className="mx-auto mb-6 overflow-hidden rounded-2xl bg-bone-900">
           {/* eslint-disable-next-line @next/next/no-img-element */}
           <img
             src={item.url}
@@ -164,6 +144,60 @@ export default async function GalleryItemPage({
           />
         </figure>
       ) : null}
+
+      <header className="mb-6">
+        {item.originTitle ? (
+          <h1 className="text-base font-medium leading-snug text-bone-100 text-pretty">
+            {truncate(item.originTitle, 180)}
+          </h1>
+        ) : (
+          <h1 className="sr-only">Shared item on Lazy River</h1>
+        )}
+        {hasStatusFlag ? (
+          <p className="mt-2 text-xs uppercase tracking-[0.2em] text-claude-300">
+            {originLabel(origin)} · {dateLabel}
+            {item.hallOfFame ? (
+              <span className="ml-2 text-claude-200">· Hall of Fame</span>
+            ) : null}
+            {item.hiddenFromGrid ? (
+              <span className="ml-2 text-bone-400">· Hidden from grid</span>
+            ) : null}
+          </p>
+        ) : null}
+        <p className="mt-2 flex flex-wrap items-center gap-x-2 gap-y-1 text-sm text-bone-300">
+          <UploaderLine uploader={item.uploadedBy} />
+          {!hasStatusFlag ? (
+            <>
+              <span aria-hidden>·</span>
+              <span>{originLabel(origin)}</span>
+              <span aria-hidden>·</span>
+              <span>{dateLabel}</span>
+            </>
+          ) : null}
+          {item.originAuthor ? (
+            <>
+              <span aria-hidden>·</span>
+              <span>
+                {origin === "INSTAGRAM" ? "@" : ""}
+                {truncate(item.originAuthor, 80)}
+              </span>
+            </>
+          ) : null}
+          {item.sourceUrl && item.origin !== "UPLOAD" ? (
+            <>
+              <span aria-hidden>·</span>
+              <a
+                href={item.sourceUrl}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="rounded-sm underline decoration-claude-500/40 underline-offset-2 hover:text-bone-50 hover:decoration-claude-300 focus:outline-none focus-visible:ring-2 focus-visible:ring-claude-400 focus-visible:ring-offset-2 focus-visible:ring-offset-bone-950"
+              >
+                View on {viewOnText}
+              </a>
+            </>
+          ) : null}
+        </p>
+      </header>
 
       {item.caption ? (
         <div className="prose prose-invert prose-sm mb-8 max-w-none prose-p:text-bone-200 prose-a:text-claude-300 prose-strong:text-bone-50">
