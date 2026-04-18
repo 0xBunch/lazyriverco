@@ -38,6 +38,12 @@ const CARDS = [
       "Bulk tools for the shared visual bank. Select rows to delete, hide, star for Hall of Fame, or add/remove tags in one shot. Drop photos directly to upload. Agents reach the same data via the gallery_search tool.",
   },
   {
+    href: "/admin/taxonomy",
+    title: "Taxonomy",
+    body:
+      "Controlled vocabulary for the Gemini vision tagger. Preferred buckets (people / places / topics / vibes) nudge the model toward canonical slugs; the banned bucket strips a tag from every item and blocks future AI emission in one click.",
+  },
+  {
     href: "/admin/calendar",
     title: "Calendar",
     body:
@@ -49,9 +55,10 @@ export default function AdminLanding() {
   return (
     <div className="space-y-4">
       <p className="text-sm text-bone-300">
-        Eight things you can curate. Canon, members, and relationships are
+        Nine things you can curate. Canon, members, and relationships are
         always injected. Lore and media are selectively pulled in based on
         conversation topic. Calendar entries auto-appear near their dates.
+        Taxonomy shapes how Gemini tags new gallery uploads.
       </p>
       <ul className="grid gap-3 sm:grid-cols-2">
         {CARDS.map((card) => (

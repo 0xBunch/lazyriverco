@@ -7,7 +7,7 @@ import { assertWithinLimit, RateLimitError } from "@/lib/rate-limit";
 import { ingestUrl, IngestError } from "@/lib/ingest";
 import { runVisionTagging } from "@/lib/ai-tagging-run";
 import { getBannedSlugs } from "@/lib/ai-taxonomy";
-import { TAG_SHAPE, MAX_TAG_CHARS } from "@/lib/tag-shape";
+import { TAG_SHAPE, MAX_TAG_CHARS, parseTag } from "@/lib/tag-shape";
 
 // Gallery server actions. Invoked from the add modal + anywhere a member
 // can edit their own item's metadata. All actions:
@@ -181,6 +181,80 @@ export async function updateMediaMetaAction(input: {
   revalidatePath("/gallery");
   revalidatePath(`/gallery/${mediaId}`);
   return { ok: true };
+}
+
+// ---------------------------------------------------------------------------
+// Per-tag remove on the detail page. Admin + uploader get a × on each
+// tag chip; clicking fires this. Strips the slug from both `tags` (the
+// render-time merged set) AND `aiTags` (the AI audit trail) so the tag
+// doesn't silently re-surface if the row is re-analyzed. The user's
+// intent with "remove this tag" is "make it stop being on this image" —
+// not "hide it from display until the next vision pass."
+//
+// useFormState-compatible signature so the client can surface inline
+// errors instead of Next's digest-throw path.
+
+export async function removeTagFromMediaAction(
+  _prev: MetaResult | null,
+  fd: FormData,
+): Promise<MetaResult> {
+  try {
+    const user = await requireUser();
+    const mediaId = fd.get("mediaId");
+    if (typeof mediaId !== "string" || !mediaId) {
+      return { ok: false, error: "Missing media id." };
+    }
+    // Normalize through parseTag so a drift (future caller, casing,
+    // whitespace) gets a clear rejection rather than silently becoming
+    // a "tag not found" no-op.
+    const tag = parseTag(fd.get("tag"));
+    if (!tag) {
+      return { ok: false, error: "Missing or malformed tag." };
+    }
+
+    // Same ownership gate as updateMediaMetaAction.
+    const where =
+      user.role === "ADMIN"
+        ? { id: mediaId }
+        : { id: mediaId, uploadedById: user.id };
+
+    // Read-modify-write — Prisma has no "array minus value" op on
+    // String[] that works through updateMany + ownership scope in one
+    // query. findFirst honors the where clause; updateMany on a single
+    // id is trivial.
+    const row = await prisma.media.findFirst({
+      where,
+      select: { tags: true, aiTags: true },
+    });
+    if (!row) {
+      return { ok: false, error: "Media not found or not yours." };
+    }
+
+    const nextTags = row.tags.filter((t) => t !== tag);
+    const nextAiTags = row.aiTags.filter((t) => t !== tag);
+
+    if (
+      nextTags.length === row.tags.length &&
+      nextAiTags.length === row.aiTags.length
+    ) {
+      return { ok: false, error: `Tag "${tag}" wasn't on this item.` };
+    }
+
+    await prisma.media.update({
+      where: { id: mediaId },
+      data: { tags: nextTags, aiTags: nextAiTags },
+    });
+
+    revalidatePath("/gallery");
+    revalidatePath(`/gallery/${mediaId}`);
+    return { ok: true };
+  } catch (e) {
+    // Don't surface raw Prisma / auth errors to the client — matches
+    // the swallow-and-log pattern `ingestAndSaveUrlAction` uses for
+    // unknown failures on the same file.
+    console.error("removeTagFromMediaAction failed", e);
+    return { ok: false, error: "Remove failed — try again." };
+  }
 }
 
 // ---------------------------------------------------------------------------

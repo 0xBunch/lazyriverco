@@ -16,6 +16,7 @@ import { USER_MARKDOWN_COMPONENTS } from "@/lib/safe-markdown";
 import { CommentComposer } from "./CommentComposer";
 import { CommentList } from "./CommentList";
 import { AdminReanalyzeButton } from "./AdminReanalyzeButton";
+import { MediaTagEditor } from "./MediaTagEditor";
 
 // /gallery/[id] — gallery item detail. Media leads; metadata renders
 // below as caption-voice. Instagram uses its own /embed/captioned/
@@ -214,19 +215,11 @@ export default async function GalleryItemPage({
         </div>
       ) : null}
 
-      {item.tags.length > 0 ? (
-        <div className="mb-8 flex flex-wrap gap-1.5">
-          {item.tags.map((tag) => (
-            <Link
-              key={tag}
-              href={`/gallery?tag=${encodeURIComponent(tag)}`}
-              className="rounded-full bg-bone-900 px-3 py-1.5 text-[0.65rem] font-medium uppercase tracking-wider text-bone-200 transition-colors hover:bg-bone-800 hover:text-bone-50 focus:outline-none focus-visible:ring-2 focus-visible:ring-claude-400 focus-visible:ring-offset-2 focus-visible:ring-offset-bone-950"
-            >
-              #{tag}
-            </Link>
-          ))}
-        </div>
-      ) : null}
+      <MediaTagEditor
+        mediaId={item.id}
+        tags={item.tags}
+        canEdit={canHide}
+      />
 
       <section className="mt-12 border-t border-bone-800 pt-6">
         <h2 className="mb-4 text-xs font-semibold uppercase tracking-[0.2em] text-claude-300">
