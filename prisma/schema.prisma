@@ -442,10 +442,18 @@ enum MediaOrigin {
 /// first-class `Tag` entity and this table just owns the label +
 /// sortOrder. Tags point back via Tag.bucketId.
 model TaxonomyBucket {
-  id        String   @id @default(uuid())
-  label     String   @unique
-  sortOrder Int      @default(0)
-  updatedAt DateTime @updatedAt
+  id          String   @id @default(uuid())
+  label       String   @unique
+  /// Human-written prose rule for what belongs in this bucket. Presence
+  /// of a non-empty description makes this a "priority" bucket: it gets
+  /// curated treatment in the Gemini vision prompt (scan-for-these
+  /// framing) AND is the only bucket class the classify-uncategorized
+  /// admin action will write into. Buckets without a description stay
+  /// loose — useful for generic descriptors that pile up from Gemini
+  /// output but aren't load-bearing for app/user flows.
+  description String?  @db.Text
+  sortOrder   Int      @default(0)
+  updatedAt   DateTime @updatedAt
 
   tags Tag[]
 

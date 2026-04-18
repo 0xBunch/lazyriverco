@@ -23,7 +23,12 @@ export default async function AdminTaxonomyPage() {
   const [buckets, tags, useCounts] = await Promise.all([
     prisma.taxonomyBucket.findMany({
       orderBy: { sortOrder: "asc" },
-      select: { id: true, label: true, sortOrder: true },
+      select: {
+        id: true,
+        label: true,
+        sortOrder: true,
+        description: true,
+      },
     }),
     prisma.tag.findMany({
       orderBy: [{ slug: "asc" }],
@@ -59,6 +64,7 @@ export default async function AdminTaxonomyPage() {
   const bucketOptions: BucketOption[] = buckets.map((b) => ({
     id: b.id,
     label: b.label,
+    description: b.description,
   }));
 
   const rows: TagRow[] = tags.map((t) => ({

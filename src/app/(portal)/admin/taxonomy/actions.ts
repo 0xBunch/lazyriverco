@@ -33,6 +33,7 @@ const MAX_LABEL_CHARS = 80;
 const MAX_BULK_IMPORT_TAGS = 100;
 const MAX_BULK_EDIT_SLUGS = 500;
 const MAX_BUCKET_LABEL_CHARS = 40;
+const MAX_BUCKET_DESCRIPTION_CHARS = 1000;
 
 function revalidateSurfaces(): void {
   invalidateTaxonomyCache();
@@ -508,13 +509,18 @@ export async function addBucketAction(
   }
 }
 
-export async function renameBucketAction(
+// v2: updateBucketAction supersedes v1's renameBucketAction. Accepts
+// label + optional description. Presence of a non-empty description
+// promotes the bucket to "priority" treatment in the Gemini hint and
+// classify destination filter. Empty description = secondary bucket.
+export async function updateBucketAction(
   _prev: AdminTaxonomyState,
   fd: FormData,
 ): Promise<AdminTaxonomyState> {
   try {
     await requireAdmin();
-    const id = typeof fd.get("id") === "string" ? (fd.get("id") as string) : "";
+    const idRaw = fd.get("id");
+    const id = typeof idRaw === "string" ? idRaw : "";
     if (!id) return { ok: false, error: "Missing bucket id." };
     const label = normalizeBucketLabel(fd.get("label"));
     if (!label) {
@@ -523,20 +529,24 @@ export async function renameBucketAction(
         error: `Label must be 1-${MAX_BUCKET_LABEL_CHARS} chars after trim.`,
       };
     }
+    const description = normalizeMultilineString(
+      fd.get("description"),
+      MAX_BUCKET_DESCRIPTION_CHARS,
+    );
 
     const existing = await prisma.taxonomyBucket.findUnique({
       where: { id },
-      select: { id: true, label: true },
+      select: { id: true, label: true, description: true },
     });
     if (!existing) return { ok: false, error: "Bucket not found." };
-    if (existing.label === label) {
+    if (existing.label === label && existing.description === description) {
       return { ok: true, message: "No change." };
     }
 
     try {
       await prisma.taxonomyBucket.update({
         where: { id },
-        data: { label },
+        data: { label, description },
       });
     } catch (e) {
       if (isUniqueConstraintError(e)) {
@@ -546,10 +556,23 @@ export async function renameBucketAction(
     }
 
     revalidateSurfaces();
-    return { ok: true, message: `Renamed to "${label}".` };
+    // Tailor the success message to what actually changed so the admin
+    // knows the priority / secondary tier flipped when they toggled the
+    // description. normalizeMultilineString trims + returns null on
+    // empty, so `!== null` alone is the priority signal on both sides.
+    const labelChanged = existing.label !== label;
+    const wasPriority = existing.description !== null;
+    const isPriority = description !== null;
+    let msg = labelChanged ? `Renamed to "${label}".` : `Updated "${label}".`;
+    if (wasPriority !== isPriority) {
+      msg += isPriority
+        ? " Bucket is now priority."
+        : " Bucket is now secondary.";
+    }
+    return { ok: true, message: msg };
   } catch (e) {
-    console.error("renameBucketAction failed", e);
-    return { ok: false, error: "Rename failed — try again." };
+    console.error("updateBucketAction failed", e);
+    return { ok: false, error: "Update failed — try again." };
   }
 }
 
@@ -588,14 +611,34 @@ export async function classifyUncategorizedAction(
     if (uncategorizedTags.length === 0) {
       return { ok: true, message: "Nothing to classify." };
     }
-    if (buckets.length === 0) {
-      return { ok: false, error: "No buckets defined — add one first." };
+
+    // v2: only priority buckets (description set) are valid classify
+    // destinations. Banned is excluded — we don't auto-ban. Generic
+    // tags that don't fit any priority bucket stay null. Type-guard
+    // narrows `description` so downstream .trim() is unambiguous.
+    type BucketWithDescription = (typeof buckets)[number] & {
+      description: string;
+    };
+    const isPriority = (
+      b: (typeof buckets)[number],
+    ): b is BucketWithDescription =>
+      b.label !== BANNED_LABEL &&
+      b.description !== null &&
+      b.description.trim().length > 0;
+    const priorityBuckets = buckets.filter(isPriority);
+    if (priorityBuckets.length === 0) {
+      return {
+        ok: false,
+        error:
+          "No priority buckets defined — add a description to at least one bucket before classifying.",
+      };
     }
 
     const slugs = uncategorizedTags.map((t) => t.slug);
-    const bucketInput: BucketForClassify[] = buckets.map((b) => ({
+    const bucketInput: BucketForClassify[] = priorityBuckets.map((b) => ({
       id: b.id,
       label: b.label,
+      description: b.description.trim(),
       sampleSlugs: b.tags.map((t) => t.slug),
     }));
 
@@ -634,7 +677,7 @@ export async function classifyUncategorizedAction(
     revalidateSurfaces();
     return {
       ok: true,
-      message: `Classified ${assignedCount} into ${byBucket.size} bucket${byBucket.size === 1 ? "" : "s"}; ${nullCount} left uncategorized.`,
+      message: `Classified ${assignedCount} into ${byBucket.size} priority bucket${byBucket.size === 1 ? "" : "s"}; ${nullCount} left uncategorized (generic tags stay loose on purpose).`,
     };
   } catch (e) {
     console.error("classifyUncategorizedAction failed", e);
