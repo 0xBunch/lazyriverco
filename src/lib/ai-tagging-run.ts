@@ -2,6 +2,7 @@ import "server-only";
 import { prisma } from "@/lib/prisma";
 import { assertWithinLimit, RateLimitError } from "@/lib/rate-limit";
 import { analyzeMedia, type AnalyzeMediaInput } from "@/lib/ai-tagging";
+import { upsertTagRegistry } from "@/lib/tag-registry";
 
 // Shared vision-tagging runner. Extracted from gallery/actions.ts so admin
 // reanalyze actions + the backfill script can reuse the same persist-and-
@@ -92,4 +93,10 @@ export async function runVisionTagging(
     .catch((err) =>
       console.error("vision-tag persist failed (success)", mediaId, err),
     );
+
+  // Register new slugs in the Tag table so they show up on the admin
+  // taxonomy page. Only the AI-produced tags need upserting here — any
+  // human-entered tags that landed in `existing.tags` already went
+  // through the ingest / upload-meta paths which upsert themselves.
+  await upsertTagRegistry(result.tags);
 }

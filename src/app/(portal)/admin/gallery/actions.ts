@@ -6,6 +6,7 @@ import { requireAdmin } from "@/lib/auth";
 import { runVisionTagging } from "@/lib/ai-tagging-run";
 import { getBannedSlugs } from "@/lib/ai-taxonomy";
 import { parseTag } from "@/lib/tag-shape";
+import { upsertTagRegistry } from "@/lib/tag-registry";
 
 // Commissioner-side bulk operations for the gallery. Each action is
 // useFormState-compatible: signature is (prevState, formData) => State
@@ -179,6 +180,14 @@ export async function bulkTagAction(
         });
       }),
     );
+
+    // Register the slug in the Tag table so the admin page sees it.
+    // Remove mode deliberately doesn't clean up the Tag row — the slug
+    // may still be on Media rows that weren't selected, and dropping
+    // the registry entry preemptively would hide those tags from the
+    // admin page. Tag rows only disappear via an explicit delete in
+    // the taxonomy admin.
+    if (mode === "add") await upsertTagRegistry([tag]);
 
     revalidateGallerySurfaces();
     return {

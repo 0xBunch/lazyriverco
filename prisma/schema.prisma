@@ -414,21 +414,48 @@ enum MediaOrigin {
   WEB
 }
 
-/// Controlled-vocabulary hints fed into the Gemini vision system prompt.
-/// One row per semantic bucket (people / places / topics / vibes). Admin
-/// edits via /admin/taxonomy; `slugs` are in-array canonical terms the
-/// model is nudged toward when applicable ("prefer these slugs when
-/// applicable" — softer pressure than "MUST", which triggered refusals in
-/// smoke-testing). Seed rows are inserted by the migration; schema lives
-/// here so `prisma generate` produces typed models for the admin page.
+/// Semantic grouping for tags. One row per bucket (people / places /
+/// topics / vibes / banned). The actual slug membership used to live
+/// here as a `slugs String[]` — that schema drifted from reality
+/// (Media.tags[] had slugs nobody curated), so v1.5 promotes tags to a
+/// first-class `Tag` entity and this table just owns the label +
+/// sortOrder. Tags point back via Tag.bucketId.
 model TaxonomyBucket {
   id        String   @id @default(uuid())
   label     String   @unique
-  slugs     String[] @default([])
   sortOrder Int      @default(0)
   updatedAt DateTime @updatedAt
 
+  tags Tag[]
+
   @@index([sortOrder])
+}
+
+/// Universal tag registry. Every distinct slug that appears anywhere
+/// in `Media.tags`, `Media.aiTags`, or is curated via /admin/taxonomy
+/// has a row here. Media.tags[] stays as String[] (FTS + filter code
+/// untouched); this table is the registry mirror + metadata home.
+///
+/// bucketId assignment drives the Gemini prompt hint. Null = tag exists
+/// in some Media row but hasn't been curated yet. Bucket with
+/// label='banned' = server-side strip + prompt-level forbid (enforced
+/// in src/lib/ai-taxonomy.ts + src/app/(portal)/admin/taxonomy/).
+///
+/// Usage counts are computed on demand via UNNEST aggregation on Media,
+/// not denormalized — at this scale (< 1k rows) the query is sub-10ms
+/// and keeping a counter in sync across write paths is the kind of
+/// drift the admin page just fought against for arrays.
+model Tag {
+  id          String   @id @default(uuid())
+  slug        String   @unique
+  label       String?
+  description String?  @db.Text
+  bucketId    String?
+  bucket      TaxonomyBucket? @relation(fields: [bucketId], references: [id], onDelete: SetNull)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@index([bucketId])
 }
 
 model LeaderboardEntry {

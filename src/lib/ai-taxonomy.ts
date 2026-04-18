@@ -41,10 +41,23 @@ async function loadCache(): Promise<CacheEntry> {
   const now = Date.now();
   if (_cache && _cache.expiresAt > now) return _cache;
 
-  const rows = await prisma.taxonomyBucket.findMany({
+  // v1.5: pull through the Tag registry. One join query returns every
+  // bucket with its tag slugs in sortOrder, and Prisma's include lets
+  // us keep the same { label, slugs[] } shape downstream renderHint
+  // already expects. Tags with bucketId=null (uncategorized — exist in
+  // Media.tags but haven't been curated yet) are deliberately skipped
+  // here — they don't contribute to the prompt hint.
+  const buckets = await prisma.taxonomyBucket.findMany({
     orderBy: { sortOrder: "asc" },
-    select: { label: true, slugs: true },
+    include: {
+      tags: { select: { slug: true }, orderBy: { slug: "asc" } },
+    },
   });
+  const rows: BucketRow[] = buckets.map((b) => ({
+    label: b.label,
+    slugs: b.tags.map((t) => t.slug),
+  }));
+
   const bannedRow = rows.find((r) => r.label === BANNED_LABEL);
   const banned = new Set<string>(bannedRow?.slugs ?? []);
   const preferred = rows.filter((r) => r.label !== BANNED_LABEL);

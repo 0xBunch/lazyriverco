@@ -8,6 +8,7 @@ import { ingestUrl, IngestError } from "@/lib/ingest";
 import { runVisionTagging } from "@/lib/ai-tagging-run";
 import { getBannedSlugs } from "@/lib/ai-taxonomy";
 import { TAG_SHAPE, MAX_TAG_CHARS, parseTag } from "@/lib/tag-shape";
+import { upsertTagRegistry } from "@/lib/tag-registry";
 
 // Gallery server actions. Invoked from the add modal + anywhere a member
 // can edit their own item's metadata. All actions:
@@ -98,6 +99,11 @@ export async function ingestAndSaveUrlAction(input: {
     select: { id: true },
   });
 
+  // Register any human-entered tags in the Tag table so /admin/taxonomy
+  // sees every slug that actually lives on a Media row. AI-produced
+  // tags are upserted inside runVisionTagging.
+  await upsertTagRegistry(tags);
+
   // Fire-and-forget: Railway runs a persistent Node process, so the
   // orphan promise continues after the action returns. The user's save
   // lands instantly; tags arrive seconds later on the next render.
@@ -151,6 +157,10 @@ export async function updateMediaMetaAction(input: {
   if (result.count === 0) {
     return { ok: false, error: "Media not found or not yours." };
   }
+
+  // Same registry upsert as the ingest path — ensure any slug the user
+  // just added/kept is known to the Tag table.
+  await upsertTagRegistry(tags);
 
   // Upload path: no OG scrape at creation time, so this is the first
   // moment we have the caption the user wants indexed alongside the
