@@ -77,16 +77,18 @@ export async function analyzeMedia(
   if (!image.ok) return { ok: false, analyzedAt, note: image.note };
 
   const context = buildSanitizedContext(input);
+  // Resolve before the withTimeout window opens — cache read is a no-op
+  // most of the time, and the (stale-beyond-TTL) DB read is a single
+  // SELECT on a 4-row table. We don't want to count this against the
+  // 20s Gemini budget.
+  const taxonomyHint = await buildTaxonomyHint();
 
   try {
     const response = await withTimeout(
       client().models.generateContent({
         model: MODEL_ID,
         config: {
-          // Appended at call time (not module load) so edits to
-          // ai-taxonomy.ts take effect on the next dev-server request
-          // without needing an HMR-breaking restart.
-          systemInstruction: SYSTEM_INSTRUCTION + buildTaxonomyHint(),
+          systemInstruction: SYSTEM_INSTRUCTION + taxonomyHint,
           responseMimeType: "application/json",
           responseSchema: TAGS_RESPONSE_SCHEMA,
           // Gallery content includes red-carpet / beach / fashion — the

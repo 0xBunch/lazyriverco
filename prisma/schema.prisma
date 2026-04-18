@@ -414,6 +414,23 @@ enum MediaOrigin {
   WEB
 }
 
+/// Controlled-vocabulary hints fed into the Gemini vision system prompt.
+/// One row per semantic bucket (people / places / topics / vibes). Admin
+/// edits via /admin/taxonomy; `slugs` are in-array canonical terms the
+/// model is nudged toward when applicable ("prefer these slugs when
+/// applicable" — softer pressure than "MUST", which triggered refusals in
+/// smoke-testing). Seed rows are inserted by the migration; schema lives
+/// here so `prisma generate` produces typed models for the admin page.
+model TaxonomyBucket {
+  id        String   @id @default(uuid())
+  label     String   @unique
+  slugs     String[] @default([])
+  sortOrder Int      @default(0)
+  updatedAt DateTime @updatedAt
+
+  @@index([sortOrder])
+}
+
 model LeaderboardEntry {
   id          String   @id @default(uuid())
   userId      String?

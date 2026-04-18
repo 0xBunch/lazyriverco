@@ -12,6 +12,7 @@ const ADMIN_TABS = [
   { href: "/admin/canon", label: "Canon" },
   { href: "/admin/lore", label: "Lore" },
   { href: "/admin/gallery", label: "Gallery" },
+  { href: "/admin/taxonomy", label: "Taxonomy" },
   { href: "/admin/calendar", label: "Calendar" },
 ] as const;
 
