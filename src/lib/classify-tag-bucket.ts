@@ -7,10 +7,17 @@ import Anthropic from "@anthropic-ai/sdk";
 // slug at once; returns a {slug -> bucketId | null} map. `null` means
 // "ambiguous, leave uncategorized" — we'd rather punt than misfile.
 //
-// Patterned line-for-line on src/lib/select-context.ts. Same lazy
-// singleton, same AbortController timeout, same JSON-fence regex,
-// same graceful-degrade-on-error shape. Deliberately no
-// usage-tracking wrapper — none exists in this repo (grep-verified).
+// v2: only priority buckets (description present) are valid destinations.
+// The caller filters the bucket list before passing it in. Generic tags
+// that don't fit any priority bucket stay null — they still earn their
+// keep as Media.tags for search/recall, they just don't clutter the
+// curated buckets that drive app flows.
+//
+// Patterned on src/lib/select-context.ts. Same lazy singleton, same
+// AbortController timeout, same JSON-fence regex, same graceful-degrade-
+// on-error shape. (The shipped v1 of this file predated the
+// trackedMessagesCreate wrapper on main — follow-up PR should retrofit
+// it; not in this scope.)
 
 const CLASSIFY_MODEL = "claude-haiku-4-5" as const;
 const CLASSIFY_MAX_TOKENS = 2_000;
@@ -20,6 +27,12 @@ const MAX_SAMPLE_MEMBERS_PER_BUCKET = 10;
 export type BucketForClassify = {
   id: string;
   label: string;
+  /** Admin-written prose rule for what belongs in this bucket. Required —
+   * callers must filter buckets with empty/null description before passing
+   * them in. The prompt leans heavily on this text for per-bucket criteria;
+   * without it the classifier falls back to sample-matching which is the
+   * brittle v1 behavior we're moving away from. */
+  description: string;
   sampleSlugs: string[];
 };
 
@@ -37,25 +50,34 @@ function getClassifyClient(): Anthropic {
   return _classifyClient;
 }
 
-const CLASSIFY_SYSTEM_PROMPT = `You are a taxonomy classifier for an AI chat platform's tag registry. Your job: assign each input tag slug to the best-matching bucket from a provided list, or return null when no bucket clearly fits.
+const CLASSIFY_SYSTEM_PROMPT = `You are a taxonomy classifier for a private gallery's priority tag registry. Your job: assign each input tag slug to the bucket whose description it clearly matches, or return null when no bucket's description clearly fits.
 
 Rules:
 - Return ONLY valid JSON: { "assignments": [{ "slug": "x", "bucketId": "y" }, ...] }
-- "bucketId" must be either one of the provided bucket ids, or null (for ambiguous or off-topic slugs)
+- "bucketId" must be either one of the provided bucket ids, or null (for slugs that don't clearly match any bucket's description)
 - Include every input slug in the output exactly once
-- Prefer null over a weak guess — uncategorized is safer than miscategorized
+- Apply the bucket's description as a rule — if a slug doesn't meet the description's criteria, return null even if it seems topically adjacent
+- Prefer null over a weak guess — uncategorized is safer than miscategorized; generic descriptive slugs (like "woman", "casual", "glossy") typically belong in null
 - Do NOT include any text outside the JSON object
 - Do NOT wrap the JSON in markdown fences`;
 
 function buildBucketPrompt(buckets: BucketForClassify[]): string {
-  const lines = buckets.map((b) => {
+  const lines: string[] = [
+    "Priority buckets (these are the ONLY valid destinations — anything that doesn't match a description should be null):",
+    "",
+  ];
+  for (const b of buckets) {
     const sample =
       b.sampleSlugs.length > 0
         ? b.sampleSlugs.slice(0, MAX_SAMPLE_MEMBERS_PER_BUCKET).join(", ")
         : "(no members yet)";
-    return `- [${b.id}] ${b.label}: ${sample}`;
-  });
-  return ["Available buckets (id, label, sample members):", ...lines].join("\n");
+    lines.push(`- id: ${b.id}`);
+    lines.push(`  label: ${b.label}`);
+    lines.push(`  description (rule): ${b.description.trim()}`);
+    lines.push(`  existing members: ${sample}`);
+    lines.push("");
+  }
+  return lines.join("\n").trimEnd();
 }
 
 /**

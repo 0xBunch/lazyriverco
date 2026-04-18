@@ -20,7 +20,7 @@ import {
   bulkImportTagsAction,
   classifyUncategorizedAction,
   deleteTagAction,
-  renameBucketAction,
+  updateBucketAction,
   updateTagMetaAction,
   type AdminTaxonomyState,
 } from "./actions";
@@ -31,7 +31,11 @@ import {
 // through a server action and pending states are scoped to the form
 // that fired, so the table never flickers globally.
 
-export type BucketOption = { id: string; label: string };
+export type BucketOption = {
+  id: string;
+  label: string;
+  description: string | null;
+};
 
 export type TagRow = {
   slug: string;
@@ -1014,15 +1018,15 @@ function BucketEditor({ buckets }: { buckets: BucketOption[] }) {
           {addState ? <StatusLine state={addState} /> : null}
         </form>
 
-        <div className="space-y-2 border-t border-bone-800 pt-3">
+        <div className="space-y-3 border-t border-bone-800 pt-3">
           <p className="text-xs text-bone-400">
-            Rename an existing bucket. The id stays the same so tag
-            assignments are preserved.
+            A rule makes the bucket operational — Gemini uses it and the
+            classifier writes into it. No rule = loose vocabulary.
           </p>
-          <ul className="space-y-2">
+          <ul className="space-y-4">
             {buckets.map((b) => (
               <li key={b.id}>
-                <BucketRenameRow bucket={b} />
+                <BucketEditRow bucket={b} />
               </li>
             ))}
           </ul>
@@ -1032,26 +1036,63 @@ function BucketEditor({ buckets }: { buckets: BucketOption[] }) {
   );
 }
 
-function BucketRenameRow({ bucket }: { bucket: BucketOption }) {
-  const [state, action] = useFormState(renameBucketAction, null);
-  // Uncontrolled — React has one-time default state caveat on useState,
-  // so a parent re-render after rename would leave a stale draft.
-  // `key={bucket.label}` forces remount when the label changes on any
-  // successful rename (same admin, other tab, revalidate, etc.), so the
-  // defaultValue always reflects the fresh server state.
+function isPriorityBucket(b: BucketOption): boolean {
+  return !!b.description && b.description.trim().length > 0;
+}
+
+function BucketEditRow({ bucket }: { bucket: BucketOption }) {
+  const [state, action] = useFormState(updateBucketAction, null);
+  const priority = isPriorityBucket(bucket);
+  // Remount on either field changing server-side so the uncontrolled
+  // inputs always reflect fresh defaults after a save. JSON.stringify
+  // is unambiguous even if a label happens to contain the field
+  // separator, which the `::` shorthand wasn't.
+  const remountKey = JSON.stringify([bucket.label, bucket.description]);
+  const descriptionId = `bucket-desc-${bucket.id}`;
+  const helpId = `bucket-desc-help-${bucket.id}`;
   return (
-    <form action={action} className="flex flex-wrap items-center gap-2">
+    <form
+      action={action}
+      className={cn(
+        "space-y-2 border-l-2 pl-3 transition-colors",
+        priority ? "border-claude-500/60" : "border-transparent",
+      )}
+      aria-label={
+        priority
+          ? `Bucket "${bucket.label}" — priority (included in the classifier prompt)`
+          : `Bucket "${bucket.label}" — secondary`
+      }
+      key={remountKey}
+    >
       <input type="hidden" name="id" value={bucket.id} />
-      <input
-        key={bucket.label}
-        name="label"
-        type="text"
-        defaultValue={bucket.label}
-        maxLength={40}
-        className="min-w-[220px] flex-1 rounded-md border border-bone-800 bg-bone-900/60 px-3 py-1.5 text-sm text-bone-100 focus:border-claude-500/60 focus:outline-none focus-visible:ring-2 focus-visible:ring-claude-400"
+      <div className="flex flex-wrap items-center gap-2">
+        <input
+          name="label"
+          type="text"
+          defaultValue={bucket.label}
+          maxLength={40}
+          className="min-w-[180px] flex-1 rounded-md border border-bone-800 bg-bone-900/60 px-3 py-1.5 text-sm text-bone-100 focus:border-claude-500/60 focus:outline-none focus-visible:ring-2 focus-visible:ring-claude-400"
+        />
+        {priority ? (
+          <span className="text-xs text-claude-300">Priority</span>
+        ) : null}
+        <SubmitButton kind="secondary">Save</SubmitButton>
+        {state ? <StatusLine state={state} /> : null}
+      </div>
+      <textarea
+        id={descriptionId}
+        name="description"
+        defaultValue={bucket.description ?? ""}
+        rows={2}
+        maxLength={1000}
+        placeholder="Rule for what belongs here…"
+        aria-describedby={helpId}
+        className="w-full rounded-md border border-bone-800 bg-bone-900/60 px-3 py-2 text-sm text-bone-100 placeholder:text-bone-500 focus:border-claude-500/60 focus:outline-none focus-visible:ring-2 focus-visible:ring-claude-400"
       />
-      <SubmitButton kind="secondary">Rename</SubmitButton>
-      {state ? <StatusLine state={state} /> : null}
+      <p id={helpId} className="text-xs text-bone-500">
+        Example: real named humans only — players, celebrities,
+        members. Skip mascots, teams, groups.
+      </p>
     </form>
   );
 }
