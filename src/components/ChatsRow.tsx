@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { initialsOf } from "@/lib/initials";
+import { AgentAvatar } from "@/components/AgentAvatar";
 import { relativeShort } from "@/lib/date-buckets";
 import { ChatsRowMenu } from "./ChatsRowMenu";
 
@@ -25,7 +25,7 @@ export function ChatsRow({ row }: { row: ChatsRowItem }) {
         href={`/chat/${row.id}`}
         className="flex items-center gap-3 rounded-md px-3 py-2.5 transition-colors hover:bg-bone-900/60 focus:outline-none focus-visible:ring-2 focus-visible:ring-claude-400"
       >
-        <CharacterAvatar character={row.character} />
+        <AgentAvatar character={row.character} size="md" tone="neutral" />
         <div className="min-w-0 flex-1">
           <div className="flex items-center gap-2">
             {row.isStarred ? (
@@ -59,27 +59,3 @@ export function ChatsRow({ row }: { row: ChatsRowItem }) {
   );
 }
 
-function CharacterAvatar({
-  character,
-}: {
-  character: ChatsRowItem["character"];
-}) {
-  if (character.avatarUrl) {
-    return (
-      // eslint-disable-next-line @next/next/no-img-element
-      <img
-        src={character.avatarUrl}
-        alt=""
-        className="h-8 w-8 shrink-0 rounded-full object-cover ring-1 ring-black/40"
-      />
-    );
-  }
-  return (
-    <span
-      aria-hidden
-      className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-bone-800 text-[10px] font-semibold text-bone-200 ring-1 ring-black/40"
-    >
-      {initialsOf(character.displayName)}
-    </span>
-  );
-}

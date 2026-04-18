@@ -13,6 +13,7 @@ import {
   instagramEmbedUrl,
 } from "@/lib/instagram-embed";
 import { USER_MARKDOWN_COMPONENTS } from "@/lib/safe-markdown";
+import { AgentAvatar } from "@/components/AgentAvatar";
 import { CommentComposer } from "./CommentComposer";
 import { CommentList } from "./CommentList";
 import { AdminReanalyzeButton } from "./AdminReanalyzeButton";
@@ -329,7 +330,13 @@ function ThreadSection({
           return (
             <li key={m.id} className="flex gap-3 text-sm">
               <div className="mt-0.5 shrink-0">
-                {actor?.avatarUrl ? (
+                {m.authorType === "CHARACTER" && m.character ? (
+                  <AgentAvatar
+                    character={m.character}
+                    size="sm"
+                    tone="neutral"
+                  />
+                ) : actor?.avatarUrl ? (
                   // eslint-disable-next-line @next/next/no-img-element
                   <img
                     src={actor.avatarUrl}

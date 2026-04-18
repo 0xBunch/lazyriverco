@@ -28,7 +28,11 @@ export type RateLimitBucket =
   // Gallery v1.3 — vision auto-tagging runs inline inside the ingest /
   // meta-update actions. Same per-user cap as gallery.ingest since it
   // fires once per newly-saved item.
-  | "gallery.ai-tag";
+  | "gallery.ai-tag"
+  // Admin avatar uploads. Tight cap — agents are ~a dozen entities
+  // total; a legitimate admin should never trip this. Firing = stolen
+  // cookie burning R2 egress.
+  | "avatars.presign";
 
 export type RateLimitOptions = {
   maxPerMinute: number;

@@ -6,6 +6,7 @@ import remarkGfm from "remark-gfm";
 import { cn } from "@/lib/utils";
 import type { ChatMessageDTO } from "@/lib/chat";
 import { AgentSuggestionButton } from "@/components/AgentSuggestionButton";
+import { AgentAvatar } from "@/components/AgentAvatar";
 
 type ChatMessageProps = {
   message: ChatMessageDTO;
@@ -146,17 +147,20 @@ export function ChatMessage({ message, isMe, showHeader, isStreaming = false }: 
       {/* Avatar column */}
       <div className="w-9 shrink-0">
         {showHeader ? (
-          <div
-            aria-hidden="true"
-            className={cn(
-              "flex h-9 w-9 items-center justify-center rounded-full text-xs font-semibold",
-              isCharacter
-                ? "bg-claude-500/25 text-claude-100"
-                : "bg-bone-700 text-bone-100",
-            )}
-          >
-            {initials(message.author.displayName)}
-          </div>
+          isCharacter ? (
+            <AgentAvatar
+              character={message.author}
+              size="lg"
+              tone="accent"
+            />
+          ) : (
+            <div
+              aria-hidden="true"
+              className="flex h-9 w-9 items-center justify-center rounded-full bg-bone-700 text-xs font-semibold text-bone-100"
+            >
+              {initials(message.author.displayName)}
+            </div>
+          )
         ) : null}
       </div>
 
