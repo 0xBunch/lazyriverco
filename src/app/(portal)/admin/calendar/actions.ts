@@ -36,6 +36,7 @@ export async function createCalendarEntry(formData: FormData): Promise<void> {
   const recurrence = formData.get("recurrence");
   const tagsRaw = formData.get("tags");
   const description = formData.get("description");
+  const time = formData.get("time");
 
   if (typeof title !== "string" || !title.trim()) throw new Error("Title is required");
   if (typeof date !== "string" || !date) throw new Error("Date is required");
@@ -50,6 +51,9 @@ export async function createCalendarEntry(formData: FormData): Promise<void> {
       recurrence: recurrence === "annual" ? "annual" : "none",
       tags: parseTags(typeof tagsRaw === "string" ? tagsRaw : ""),
       description: normalizeLongText(description, 500),
+      // Free-form string ("7:00 PM" / "Noon") — see schema comment on the
+      // `time` field for why this isn't @db.Time.
+      time: normalizeLongText(time, 40),
     },
   });
 
@@ -68,6 +72,7 @@ export async function updateCalendarEntry(formData: FormData): Promise<void> {
   const description = formData.get("description");
   const body = formData.get("body");
   const videoEmbedUrl = formData.get("videoEmbedUrl");
+  const time = formData.get("time");
 
   if (typeof id !== "string" || !id) throw new Error("Missing id");
   if (typeof title !== "string" || !title.trim()) throw new Error("Title is required");
@@ -75,6 +80,14 @@ export async function updateCalendarEntry(formData: FormData): Promise<void> {
 
   const parsedDate = new Date(date);
   if (isNaN(parsedDate.getTime())) throw new Error("Invalid date");
+
+  // Quick-edit form omits `time`; don't clobber an existing value when
+  // the field isn't in the payload. Any form that renders `name="time"`
+  // at all must render it unconditionally or its absence becomes a silent
+  // delete.
+  const timeUpdate = formData.has("time")
+    ? { time: normalizeLongText(time, 40) }
+    : {};
 
   await prisma.calendarEntry.update({
     where: { id },
@@ -86,6 +99,7 @@ export async function updateCalendarEntry(formData: FormData): Promise<void> {
       description: normalizeLongText(description, 500),
       body: normalizeLongText(body, 10_000),
       videoEmbedUrl: normalizeVideoUrl(videoEmbedUrl),
+      ...timeUpdate,
     },
   });
 
