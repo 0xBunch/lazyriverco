@@ -35,6 +35,7 @@ model User {
   rateLimitHits       RateLimitHit[]
   pins                Pin[]
   comments            Comment[]
+  usageEvents         LLMUsageEvent[]
 }
 
 enum Role {
@@ -701,4 +702,96 @@ model PromptSuggestion {
 
   @@index([groupId, sortOrder])
   @@index([groupId, isActive, sortOrder])
+}
+
+/// Append-only ledger of every LLM call the app makes. One row per
+/// provider call (top-level generate*Response, tool-loop iteration, or
+/// vision/Haiku helper). Columns cover the full cost-accounting surface
+/// — token counts split by role, cache tokens, image count — plus the
+/// stitching fields (`replyId`, `iteration`) that let us collapse a
+/// multi-step tool loop back into a single "reply" in analytics.
+///
+/// Writes are fire-and-forget from the providers layer so a DB outage
+/// can't take down chat. `userId`/`pricingId` use ON DELETE SET NULL so
+/// a deleted user or retired pricing row never cascades away history.
+///
+/// Read path: per-user daily/weekly aggregation in /admin/usage, plus
+/// future rate-limit "cost" budgets. Indexes below cover each of those
+/// lookups (user+time DESC, model+time, operation+time, conversation+time,
+/// and replyId for the stitch).
+model LLMUsageEvent {
+  id                  String   @id @default(uuid())
+  userId              String?
+  provider            String
+  model               String
+  operation           String
+  /// UUID minted at the top of generate*Response. Every tool-loop
+  /// iteration for the same user turn shares this value so analytics
+  /// can collapse the loop into one "reply" unit.
+  replyId             String?
+  /// 0 for the first call in a reply, 1+ for subsequent tool-loop
+  /// iterations. Always 0 for single-shot helpers (vision, Haiku lore).
+  iteration           Int      @default(0)
+  inputTokens         Int      @default(0)
+  outputTokens        Int      @default(0)
+  cacheReadTokens     Int      @default(0)
+  cacheCreationTokens Int      @default(0)
+  imageCount          Int      @default(0)
+  estimatedCostUsd    Float    @default(0)
+  /// FK to the ModelPricing row used to compute estimatedCostUsd at
+  /// write time. SetNull on delete so retiring a pricing row doesn't
+  /// erase historical events — the computed USD stays correct even if
+  /// the source row disappears.
+  pricingId           String?
+  conversationId      String?
+  messageId           String?
+  characterId         String?
+  mediaId             String?
+  requestMs           Int?
+  success             Boolean  @default(true)
+  errorCode           String?
+  createdAt           DateTime @default(now())
+
+  user    User?         @relation(fields: [userId],    references: [id], onDelete: SetNull)
+  pricing ModelPricing? @relation(fields: [pricingId], references: [id], onDelete: SetNull)
+
+  // Primary read path for /admin/usage: "all events for a user, newest first".
+  @@index([userId, createdAt(sort: Desc)])
+  // Model breakdown: "spend by model over last N days".
+  @@index([model, createdAt(sort: Desc)])
+  // Operation breakdown: chat vs vision vs lore-selection etc.
+  @@index([operation, createdAt(sort: Desc)])
+  // Drill-down from a conversation to its call history.
+  @@index([conversationId, createdAt(sort: Desc)])
+  // Stitch a tool-loop reply back together for a single "reply cost".
+  @@index([replyId])
+}
+
+/// Source-of-truth pricing per provider+model. Rates are USD per 1M
+/// tokens (inputPerMTokUsd / outputPerMTokUsd) with optional separate
+/// cache read/write rates for Anthropic prompt caching. Seeded with
+/// Sonnet 4.6, Haiku 4.5, and Gemini 2.5 Flash at verified 2026-04-18
+/// rates; admin updates this table when providers re-price.
+///
+/// LLMUsageEvent.pricingId points here with ON DELETE SET NULL so
+/// retiring a row never destroys event history. `@unique` on model
+/// guarantees one row per model string — the providers layer looks up
+/// by model to stamp pricingId at write time.
+model ModelPricing {
+  id                   String   @id @default(uuid())
+  provider             String
+  model                String   @unique
+  inputPerMTokUsd      Float
+  outputPerMTokUsd     Float
+  cacheReadPerMTokUsd  Float?
+  cacheWritePerMTokUsd Float?
+  /// Flat per-image surcharge. NULL for providers (Gemini) that fold
+  /// image input into the regular token count — imageCount on the
+  /// event is a product metric in that case, not a cost multiplier.
+  perImageUsd          Float?
+  notes                String?
+  createdAt            DateTime @default(now())
+  updatedAt            DateTime @updatedAt
+
+  events LLMUsageEvent[]
 }

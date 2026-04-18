@@ -252,16 +252,33 @@ function isRateLimitError(err: unknown): boolean {
   return err instanceof Anthropic.APIError && err.status === 429;
 }
 
+type GenerateWithRetryTracking = {
+  /** The user whose message triggered this reply. Null for the legacy
+   *  channel path where we don't have a conversation owner in scope. */
+  userId: string | null;
+  /** Active conversation id, if this reply belongs to one. Null for the
+   *  legacy channel orchestrator (messages land in a channel, not a
+   *  conversation). */
+  conversationId: string | null;
+};
+
 async function generateWithRetry(
   character: Character,
   contextLines: readonly ChatContextLine[],
   newLine: ChatContextLine,
   richContext: string | null,
+  tracking: GenerateWithRetryTracking,
 ): Promise<string> {
   // Legacy orchestrator path — dialogue mode is intentionally off here
   // (group-channel chat is always terse). The per-agent model DOES apply,
   // so a Haiku-tier character still gets the cheaper call.
-  const opts = { model: character.model, dialogueMode: false };
+  const opts = {
+    model: character.model,
+    dialogueMode: false,
+    userId: tracking.userId,
+    conversationId: tracking.conversationId,
+    characterId: character.id,
+  };
   try {
     return await generateCharacterResponse(
       character.systemPrompt,
@@ -383,6 +400,14 @@ export async function runOrchestrator(messageId: string): Promise<void> {
           contextLines,
           newLine,
           richContext || null,
+          {
+            // Legacy channel path: the triggering message's author is
+            // the user to attribute cost to. `null` when the trigger
+            // itself is a CHARACTER message (won't usually happen given
+            // the summon gate above, but defense in depth).
+            userId: newMessage.user?.id ?? null,
+            conversationId: null,
+          },
         );
         if (!text) {
           console.warn(
@@ -506,7 +531,10 @@ export async function runConversationOrchestrator(
           take: CONTEXT_MESSAGES,
           excludeMessageId: triggerMessage.id,
         }),
-        selectContext(triggerMessage.content),
+        selectContext(triggerMessage.content, {
+          userId: conversation.ownerId,
+          conversationId: conversation.id,
+        }),
         getUpcomingCalendarEntries(),
       ]);
 
@@ -533,6 +561,10 @@ export async function runConversationOrchestrator(
         contextLines,
         newLine,
         richContext || null,
+        {
+          userId: conversation.ownerId,
+          conversationId: conversation.id,
+        },
       );
     } catch (err) {
       console.error(

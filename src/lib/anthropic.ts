@@ -6,6 +6,7 @@ import {
   DEFAULT_AGENT_MODEL,
   isValidAgentModel,
 } from "@/lib/agent-models";
+import { trackedMessagesCreate, trackedMessagesStream } from "@/lib/usage";
 
 // Sonnet 4.6 — the latest and most capable Sonnet. Now that streaming
 // is wired, the 10-20s generation time is invisible to the user because
@@ -375,10 +376,18 @@ function buildUserPrompt(
  * `model` is narrowed via `resolveAgentModel` so a stale DB value can't
  * pin a request against a model the SDK no longer accepts. `dialogueMode`
  * toggles the dialogue addendum on the system prompt tail.
+ *
+ * `userId` / `conversationId` / `characterId` are tracking context passed
+ * through to `trackedMessagesCreate` / `trackedMessagesStream` so every
+ * LLMUsageEvent row can be attributed to the requesting user and stitched
+ * back to its conversation and responding character.
  */
 export type ChatGenerateOptions = {
   model?: string | null;
   dialogueMode?: boolean;
+  userId?: string | null;
+  conversationId?: string | null;
+  characterId?: string | null;
 };
 
 /**
@@ -403,6 +412,7 @@ export async function generateCharacterResponse(
 ): Promise<string> {
   const model = resolveAgentModel(opts.model);
   const dialogueMode = opts.dialogueMode ?? false;
+  const replyId = crypto.randomUUID();
   const messages: Anthropic.Messages.MessageParam[] = [
     {
       role: "user",
@@ -413,14 +423,25 @@ export async function generateCharacterResponse(
   let toolCallsUsed = 0;
 
   for (let iter = 0; iter < MAX_TOOL_ITERATIONS; iter++) {
-    const response = await getClient().messages.create({
-      model,
-      max_tokens: MAX_TOKENS,
-      temperature: 0.9,
-      system: composeSystemBlocks(systemPrompt, richContext, dialogueMode),
-      tools: TOOLS,
-      messages,
-    });
+    const response = await trackedMessagesCreate(
+      getClient(),
+      {
+        userId: opts.userId ?? null,
+        operation: "character.reply",
+        replyId,
+        iteration: iter,
+        conversationId: opts.conversationId ?? null,
+        characterId: opts.characterId ?? null,
+      },
+      {
+        model,
+        max_tokens: MAX_TOKENS,
+        temperature: 0.9,
+        system: composeSystemBlocks(systemPrompt, richContext, dialogueMode),
+        tools: TOOLS,
+        messages,
+      },
+    );
     logCacheUsage(model, response.usage);
 
     const thisText = joinTextBlocks(response.content);
@@ -499,6 +520,7 @@ export async function streamCharacterResponse(
 ): Promise<string> {
   const model = resolveAgentModel(opts.model);
   const dialogueMode = opts.dialogueMode ?? false;
+  const replyId = crypto.randomUUID();
   const messages: Anthropic.Messages.MessageParam[] = [
     {
       role: "user",
@@ -509,21 +531,36 @@ export async function streamCharacterResponse(
   let toolCallsUsed = 0;
 
   for (let iter = 0; iter < MAX_TOOL_ITERATIONS; iter++) {
-    const stream = getClient().messages.stream({
-      model,
-      max_tokens: MAX_TOKENS,
-      temperature: 0.9,
-      system: composeSystemBlocks(systemPrompt, richContext, dialogueMode),
-      tools: TOOLS,
-      messages,
-    });
+    const stream = trackedMessagesStream(
+      getClient(),
+      {
+        userId: opts.userId ?? null,
+        operation: "character.reply.stream",
+        replyId,
+        iteration: iter,
+        conversationId: opts.conversationId ?? null,
+        characterId: opts.characterId ?? null,
+      },
+      {
+        model,
+        max_tokens: MAX_TOKENS,
+        temperature: 0.9,
+        system: composeSystemBlocks(systemPrompt, richContext, dialogueMode),
+        tools: TOOLS,
+        messages,
+      },
+    );
 
-    stream.on("text", (delta) => {
+    stream.on("text", (delta: string) => {
       fullText += delta;
       onDelta(delta);
     });
 
-    const finalMsg = await stream.finalMessage();
+    // trackedMessagesStream's return is ReturnType<Anthropic["messages"]["stream"]>,
+    // which collapses the SDK's generic MessageStream<Parsed> param to
+    // `unknown`. finalMessage() is still Anthropic.Messages.Message — cast
+    // so downstream .content inference survives (no new type name introduced).
+    const finalMsg: Anthropic.Messages.Message = await stream.finalMessage();
     logCacheUsage(model, finalMsg.usage);
     if (finalMsg.stop_reason !== "tool_use") {
       return fullText;
@@ -576,14 +613,23 @@ export async function generateDraftCommentary(
     "Output ONLY the announcement text — no prefixes, no quoting, no meta commentary.",
   ].join("\n");
 
-  const response = await getClient().messages.create({
-    model,
-    max_tokens: MAX_TOKENS,
-    temperature: 0.9,
-    system: composeSystemBlocks(systemPrompt, richContext, false),
-    tools: [WEB_SEARCH_TOOL],
-    messages: [{ role: "user", content: userPrompt }],
-  });
+  const response = await trackedMessagesCreate(
+    getClient(),
+    {
+      userId: opts.userId ?? null,
+      operation: "draft.commentary",
+      conversationId: opts.conversationId ?? null,
+      characterId: opts.characterId ?? null,
+    },
+    {
+      model,
+      max_tokens: MAX_TOKENS,
+      temperature: 0.9,
+      system: composeSystemBlocks(systemPrompt, richContext, false),
+      tools: [WEB_SEARCH_TOOL],
+      messages: [{ role: "user", content: userPrompt }],
+    },
+  );
   logCacheUsage(model, response.usage);
 
   return requireText(response.content);

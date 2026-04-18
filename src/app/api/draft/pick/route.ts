@@ -94,7 +94,11 @@ export async function POST(): Promise<NextResponse<PickResponse>> {
         round,
       },
       richContext || null,
-      { model: character.model },
+      {
+        model: character.model,
+        userId: user.id,
+        characterId: character.id,
+      },
     );
   } catch (err) {
     console.error("[draft/pick] generateDraftCommentary failed:", err);
