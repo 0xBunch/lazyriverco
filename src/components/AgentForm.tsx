@@ -20,7 +20,7 @@ import {
 // useFormState so server-side validation errors render inline ("System
 // prompt too long (9123 / 16000 chars).") instead of bubbling to Next's
 // anonymized digest boundary in production. Same pattern as the
-// AdminGalleryTable action bar.
+// AdminLibraryTable action bar.
 
 type Agent = {
   id: string;

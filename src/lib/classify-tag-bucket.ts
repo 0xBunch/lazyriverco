@@ -50,7 +50,7 @@ function getClassifyClient(): Anthropic {
   return _classifyClient;
 }
 
-const CLASSIFY_SYSTEM_PROMPT = `You are a taxonomy classifier for a private gallery's priority tag registry. Your job: assign each input tag slug to the bucket whose description it clearly matches, or return null when no bucket's description clearly fits.
+const CLASSIFY_SYSTEM_PROMPT = `You are a taxonomy classifier for a private library's priority tag registry. Your job: assign each input tag slug to the bucket whose description it clearly matches, or return null when no bucket's description clearly fits.
 
 Rules:
 - Return ONLY valid JSON: { "assignments": [{ "slug": "x", "bucketId": "y" }, ...] }

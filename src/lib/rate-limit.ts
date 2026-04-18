@@ -17,18 +17,18 @@ import { prisma } from "@/lib/prisma";
 export type RateLimitBucket =
   | "conversation.create"
   | "conversation.message"
-  // Gallery v1 buckets. Presign guards R2 storage spend (runaway upload
+  // Library v1 buckets. Presign guards R2 storage spend (runaway upload
   // loops); ingest guards outbound fetch against arbitrary URLs. Both
   // apply to every signed-in member, not just admin.
   | "media.presign"
-  | "gallery.ingest"
-  // Gallery v1.2 — comments. Generous cap for a 7-user clubhouse; the
+  | "library.ingest"
+  // Library v1.2 — comments. Generous cap for a 7-user clubhouse; the
   // point is to catch an accidental submit-loop, not to police speech.
-  | "gallery.comment"
-  // Gallery v1.3 — vision auto-tagging runs inline inside the ingest /
-  // meta-update actions. Same per-user cap as gallery.ingest since it
+  | "library.comment"
+  // Library v1.3 — vision auto-tagging runs inline inside the ingest /
+  // meta-update actions. Same per-user cap as library.ingest since it
   // fires once per newly-saved item.
-  | "gallery.ai-tag"
+  | "library.ai-tag"
   // Admin avatar uploads. Tight cap — agents are ~a dozen entities
   // total; a legitimate admin should never trip this. Firing = stolen
   // cookie burning R2 egress.

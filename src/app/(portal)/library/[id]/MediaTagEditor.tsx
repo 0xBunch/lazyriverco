@@ -7,11 +7,11 @@ import { cn } from "@/lib/utils";
 import {
   removeTagFromMediaAction,
   type MetaResult,
-} from "@/app/(portal)/gallery/actions";
+} from "@/app/(portal)/library/actions";
 
-// Tag row on the gallery detail page. Has two modes:
+// Tag row on the library detail page. Has two modes:
 // - view (default): filter-link chips matching the existing member-
-//   facing behavior. Clicking a chip navigates to /gallery?tag=x.
+//   facing behavior. Clicking a chip navigates to /library?tag=x.
 // - edit (admin + uploader only): chips get a × button; clicking
 //   removes the tag from this media's `tags` + `aiTags` via the
 //   server action. An "Edit / Done" toggle flips between the two
@@ -56,7 +56,7 @@ export function MediaTagEditor({ mediaId, tags, canEdit }: Props) {
           ) : (
             <Link
               key={tag}
-              href={`/gallery?tag=${encodeURIComponent(tag)}`}
+              href={`/library?tag=${encodeURIComponent(tag)}`}
               className="rounded-full bg-bone-900 px-3 py-1.5 text-[0.65rem] font-medium uppercase tracking-wider text-bone-200 transition-colors hover:bg-bone-800 hover:text-bone-50 focus:outline-none focus-visible:ring-2 focus-visible:ring-claude-400 focus-visible:ring-offset-2 focus-visible:ring-offset-bone-950"
             >
               #{tag}

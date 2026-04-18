@@ -4,7 +4,7 @@ import { assertWithinLimit, RateLimitError } from "@/lib/rate-limit";
 import { analyzeMedia, type AnalyzeMediaInput } from "@/lib/ai-tagging";
 import { upsertTagRegistry } from "@/lib/tag-registry";
 
-// Shared vision-tagging runner. Extracted from gallery/actions.ts so admin
+// Shared vision-tagging runner. Extracted from library/actions.ts so admin
 // reanalyze actions + the backfill script can reuse the same persist-and-
 // rate-limit flow without living in a "use server" file (every export in
 // a server-action module becomes an RPC endpoint — we don't want this
@@ -41,7 +41,7 @@ export async function runVisionTagging(
 ): Promise<void> {
   if (!opts.skipRateLimit) {
     try {
-      await assertWithinLimit(userId, "gallery.ai-tag", AI_TAG_LIMIT);
+      await assertWithinLimit(userId, "library.ai-tag", AI_TAG_LIMIT);
     } catch (e) {
       if (e instanceof RateLimitError) {
         await prisma.media
@@ -83,7 +83,7 @@ export async function runVisionTagging(
   }
 
   // Merge AI tags into the primary `tags` array so the existing FTS
-  // functional index picks them up and the agent `gallery_search` tool can
+  // functional index picks them up and the agent `library_search` tool can
   // find named entities. `aiTags` stays in its own column as the audit
   // trail — admin tooling can diff them out to "un-AI-tag" a row.
   const existing = await prisma.media.findUnique({

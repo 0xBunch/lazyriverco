@@ -4,7 +4,7 @@ import { useEffect, useRef } from "react";
 
 // Minimal focus trap for dialog / sheet-style overlays. design-oracle
 // flagged the "one change I'd demand before v1 ships" was focus containment
-// on the gallery modals — without it, Tab escapes to the page beneath
+// on the library modals — without it, Tab escapes to the page beneath
 // and keyboard-only users end up in a dead-end.
 //
 // This is deliberately hand-rolled, not a react-aria FocusScope, because

@@ -666,8 +666,8 @@ function DeleteButton({ slug, uses }: { slug: string; uses: number }) {
         // cite the real count.
         const msg =
           uses > 0
-            ? `Delete "${slug}" and strip it from ${uses} gallery item${uses === 1 ? "" : "s"}? This can't be undone (you'd have to re-add it from scratch).`
-            : `Delete "${slug}"? Not attached to any gallery items.`;
+            ? `Delete "${slug}" and strip it from ${uses} library item${uses === 1 ? "" : "s"}? This can't be undone (you'd have to re-add it from scratch).`
+            : `Delete "${slug}"? Not attached to any library items.`;
         if (!window.confirm(msg)) e.preventDefault();
       }}
       className="rounded-md border border-red-900/60 bg-red-950/30 px-3 py-1.5 text-xs font-medium text-red-200 transition-colors hover:bg-red-900/40 focus:outline-none focus-visible:ring-2 focus-visible:ring-red-400 disabled:cursor-not-allowed disabled:opacity-40"
@@ -845,7 +845,7 @@ function BulkActionBar({
           action={assignAction}
           onSubmit={(e) => {
             const ok = window.confirm(
-              `Ban ${count} tag${count === 1 ? "" : "s"} and strip them from all gallery items? Banning is one-way — unbanning does NOT restore removed tags.`,
+              `Ban ${count} tag${count === 1 ? "" : "s"} and strip them from all library items? Banning is one-way — unbanning does NOT restore removed tags.`,
             );
             if (!ok) {
               e.preventDefault();
@@ -868,7 +868,7 @@ function BulkActionBar({
         action={deleteAction}
         onSubmit={(e) => {
           const ok = window.confirm(
-            `Delete ${count} tag${count === 1 ? "" : "s"} and strip them from all gallery items? This can't be undone.`,
+            `Delete ${count} tag${count === 1 ? "" : "s"} and strip them from all library items? This can't be undone.`,
           );
           if (!ok) {
             e.preventDefault();

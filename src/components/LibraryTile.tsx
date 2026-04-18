@@ -3,7 +3,7 @@ import type { $Enums } from "@prisma/client";
 import { cn } from "@/lib/utils";
 import { initialsOf } from "@/lib/initials";
 
-// Gallery tile — uniform aspect-square regardless of source, per the
+// Library tile — uniform aspect-square regardless of source, per the
 // design-oracle call: coherence with the calendar grid > media-appropriate
 // layout variance. Origin is communicated through treatment (play glyph
 // for video, bleeding photo for IG, typographic field for Tier-C web
@@ -13,7 +13,7 @@ import { initialsOf } from "@/lib/initials";
 // in a 7-person shared archive the attribution is half the joke and
 // hover-reveal hides the content.
 
-export type GalleryTileItem = {
+export type LibraryTileItem = {
   id: string;
   url: string;
   ogImageUrl: string | null;
@@ -38,13 +38,13 @@ export type GalleryTileItem = {
 };
 
 type Props = {
-  item: GalleryTileItem;
+  item: LibraryTileItem;
   /** Featured tiles in the Hall-of-Fame hero row get a subtle accent ring. */
   featured?: boolean;
 };
 
-export function GalleryTile({ item, featured }: Props) {
-  const href = `/gallery/${item.id}`;
+export function LibraryTile({ item, featured }: Props) {
+  const href = `/library/${item.id}`;
   const isVideo = item.origin === "YOUTUBE";
   const isWebLink = item.type === "link"; // Tier-C: no OG image found
   const displayImage = item.url || item.ogImageUrl;
@@ -64,7 +64,7 @@ export function GalleryTile({ item, featured }: Props) {
         <TypographicTile item={item} />
       ) : displayImage ? (
         /* Plain img (not next/image) so remote OG hosts don't need to be
-           allowlisted in next.config — the gallery accepts any domain. */
+           allowlisted in next.config — the library accepts any domain. */
         // eslint-disable-next-line @next/next/no-img-element
         <img
           src={displayImage}
@@ -109,7 +109,7 @@ export function GalleryTile({ item, featured }: Props) {
   );
 }
 
-function ariaLabel(item: GalleryTileItem): string {
+function ariaLabel(item: LibraryTileItem): string {
   const parts: string[] = [];
   const mediaKind = item.origin === "YOUTUBE" ? "video" : "photo";
   if (item.caption) parts.push(`${mediaKind}: ${item.caption}`);
@@ -136,7 +136,7 @@ function originWord(o: $Enums.MediaOrigin): string {
   }
 }
 
-function Avatar({ user }: { user: GalleryTileItem["uploadedBy"] }) {
+function Avatar({ user }: { user: LibraryTileItem["uploadedBy"] }) {
   if (user.avatarUrl) {
     // eslint-disable-next-line @next/next/no-img-element
     return (
@@ -157,7 +157,7 @@ function Avatar({ user }: { user: GalleryTileItem["uploadedBy"] }) {
 // Typographic "Tier-C" tile: raw web links with no OG image. Treats the
 // absence of an image as a feature — display type on a muted field with
 // the host and title up front.
-function TypographicTile({ item }: { item: GalleryTileItem }) {
+function TypographicTile({ item }: { item: LibraryTileItem }) {
   let host = "";
   try {
     host = item.sourceUrl ? new URL(item.sourceUrl).hostname.replace(/^www\./, "") : "";

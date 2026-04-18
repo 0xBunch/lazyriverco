@@ -3,7 +3,7 @@ import * as cheerio from "cheerio";
 import { copyRemoteToR2 } from "@/lib/r2";
 import { safeFetch, UnsafeUrlError } from "@/lib/safe-fetch";
 
-// Gallery URL ingestion. Paste a YouTube / X / Instagram / generic web URL;
+// Library URL ingestion. Paste a YouTube / X / Instagram / generic web URL;
 // an adapter resolves it into a Media row-shaped payload we persist. One
 // file on purpose — the architecture-strategist review pushed back on a
 // 5-file split until we have a second caller. Dispatch is hostname-based.

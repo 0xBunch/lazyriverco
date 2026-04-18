@@ -1,7 +1,7 @@
 // Pure string sanitizers for anything that flows from user or scraped
 // input into an LLM prompt. Extracted from media-context.ts so they can
 // run outside the server boundary — specifically in the prompt-injection
-// eval at scripts/evals/gallery-injection.ts, which runs under tsx and
+// eval at scripts/evals/library-injection.ts, which runs under tsx and
 // can't cross a "server-only" import.
 //
 // Invariants enforced here and relied on across the app:

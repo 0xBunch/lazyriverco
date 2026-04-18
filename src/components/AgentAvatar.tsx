@@ -4,7 +4,7 @@ import { initialsOf } from "@/lib/initials";
 // Shared avatar for agents (Character entities). Renders the uploaded
 // headshot when avatarUrl is set; otherwise a two-letter initials circle.
 // One place to evolve — the four+ render sites (sidebar row, chat header,
-// message bubble, gallery thread) should not re-implement this fallback.
+// message bubble, library thread) should not re-implement this fallback.
 //
 // The prop shape is structurally compatible with both `Character`
 // (prisma) and `message.author` when authorType === "CHARACTER" — both
@@ -44,7 +44,7 @@ export function AgentAvatar({
 
   if (character.avatarUrl) {
     return (
-      // Matches the pattern used elsewhere in the app (ChatsRow, gallery
+      // Matches the pattern used elsewhere in the app (ChatsRow, library
       // thread) — deliberate <img> because Character avatars are small,
       // already CDN-served from gallery.lazyriver.co, and next/image's
       // optimizer adds overhead we don't need at this scale.

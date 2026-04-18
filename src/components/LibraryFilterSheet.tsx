@@ -5,21 +5,21 @@ import { useRouter } from "next/navigation";
 import type { $Enums } from "@prisma/client";
 import { cn } from "@/lib/utils";
 import { FocusTrap } from "@/components/FocusTrap";
-import { originLabel } from "@/lib/gallery-origin";
-import { buildGalleryHref } from "@/lib/gallery-url";
+import { originLabel } from "@/lib/library-origin";
+import { buildLibraryHref } from "@/lib/library-url";
 
-// Gallery filter sheet. Opens via URL param ?filter=1 (server parses,
-// client renders). Same open/close discipline as GalleryAddModal: the
+// Library filter sheet. Opens via URL param ?filter=1 (server parses,
+// client renders). Same open/close discipline as LibraryAddModal: the
 // URL owns the state so back-button closes cleanly and deep-links work.
 //
 // Filter VALUES live in the other URL params (q / tag / by / origin).
 // The sheet is just the UI for picking them. "Apply" navigates to the
 // filtered URL (stripping ?filter=1) which closes the sheet AND applies.
-// "Clear all" navigates to /gallery.
+// "Clear all" navigates to /library.
 
 type OriginKey = $Enums.MediaOrigin;
 
-export type GalleryMember = {
+export type LibraryMember = {
   id: string;
   displayName: string;
 };
@@ -30,7 +30,7 @@ type Props = {
   allTags: string[];
   /** All members — for the uploader filter (v1 only allows self-filter,
    *  but surfacing every member's name sets us up for v2 picker). */
-  allMembers: GalleryMember[];
+  allMembers: LibraryMember[];
   viewerId: string;
   /** Current URL state — so we can seed the sheet with what's already active. */
   current: {
@@ -41,7 +41,7 @@ type Props = {
   };
 };
 
-export function GalleryFilterSheet({
+export function LibraryFilterSheet({
   open,
   allTags,
   allMembers,
@@ -64,7 +64,7 @@ export function GalleryFilterSheet({
   });
 
   const close = useCallback(() => {
-    router.push(buildGalleryHref(current));
+    router.push(buildLibraryHref(current));
   }, [router, current]);
 
   // Reset draft when reopening so stale local edits don't persist.
@@ -82,7 +82,7 @@ export function GalleryFilterSheet({
 
   const apply = () => {
     router.push(
-      buildGalleryHref({
+      buildLibraryHref({
         q: current.q,
         tag: draft.tag,
         origin: draft.origin,
@@ -92,7 +92,7 @@ export function GalleryFilterSheet({
   };
 
   const clearAll = () => {
-    router.push("/gallery");
+    router.push("/library");
   };
 
   const hasDraft = Boolean(draft.tag || draft.origin || draft.byUserId);
@@ -115,7 +115,7 @@ export function GalleryFilterSheet({
         <header className="mb-4 flex items-start justify-between gap-4">
           <div>
             <p className="text-xs uppercase tracking-[0.2em] text-claude-300">
-              Gallery
+              Library
             </p>
             <h2
               id={titleId}

@@ -55,7 +55,7 @@ function escapeForRegex(s: string): string {
 }
 
 // useFormState-compatible result shape. Same shape as
-// src/app/(portal)/admin/gallery/actions.ts so the pattern is uniform
+// src/app/(portal)/admin/library/actions.ts so the pattern is uniform
 // across admin surfaces. Clients bind with
 // `useFormState(action, null)` and render the returned { ok, error }.
 export type AgentFormState =

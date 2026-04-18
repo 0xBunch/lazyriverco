@@ -5,17 +5,17 @@ import { useState, type ReactNode } from "react";
 import Link from "next/link";
 import type { $Enums } from "@prisma/client";
 import { cn } from "@/lib/utils";
-import { originLabel } from "@/lib/gallery-origin";
+import { originLabel } from "@/lib/library-origin";
 import {
   bulkDeleteAction,
   bulkHideAction,
   bulkHoFAction,
   bulkReanalyzeAction,
   bulkTagAction,
-  type AdminGalleryState,
-} from "@/app/(portal)/admin/gallery/actions";
+  type AdminLibraryState,
+} from "@/app/(portal)/admin/library/actions";
 
-export type AdminGalleryItem = {
+export type AdminLibraryItem = {
   id: string;
   url: string;
   origin: $Enums.MediaOrigin;
@@ -31,10 +31,10 @@ export type AdminGalleryItem = {
 };
 
 type Props = {
-  items: AdminGalleryItem[];
+  items: AdminLibraryItem[];
 };
 
-export function AdminGalleryTable({ items }: Props) {
+export function AdminLibraryTable({ items }: Props) {
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const allSelected = selected.size === items.length && items.length > 0;
   const someSelected = selected.size > 0;
@@ -88,7 +88,7 @@ export function AdminGalleryTable({ items }: Props) {
                   colSpan={8}
                   className="p-8 text-center text-sm italic text-bone-400"
                 >
-                  No items yet. Drop a photo above or paste a link from /gallery.
+                  No items yet. Drop a photo above or paste a link from /library.
                 </td>
               </tr>
             ) : (
@@ -126,7 +126,7 @@ function Row({
   checked,
   onToggle,
 }: {
-  item: AdminGalleryItem;
+  item: AdminLibraryItem;
   checked: boolean;
   onToggle: () => void;
 }) {
@@ -150,10 +150,10 @@ function Row({
       </td>
       <td className="p-3 align-middle">
         <Link
-          href={`/gallery/${item.id}`}
+          href={`/library/${item.id}`}
           target="_blank"
           className="block h-10 w-10 overflow-hidden rounded bg-bone-900 focus:outline-none focus-visible:ring-2 focus-visible:ring-claude-400"
-          aria-label="Open gallery detail in new tab"
+          aria-label="Open library detail in new tab"
         >
           {item.url && item.type !== "link" ? (
             // eslint-disable-next-line @next/next/no-img-element
@@ -203,7 +203,7 @@ function Row({
   );
 }
 
-function StatusBadge({ status }: { status: AdminGalleryItem["status"] }) {
+function StatusBadge({ status }: { status: AdminLibraryItem["status"] }) {
   return (
     <span
       className={cn(
@@ -242,7 +242,7 @@ function BulkActionBar({
 
   // Most-recent result wins the status row. If multiple actions fire in a
   // session, the last one is what the user cares about.
-  const latest: AdminGalleryState =
+  const latest: AdminLibraryState =
     pickLatest([deleteState, hideState, hofState, tagState, reanalyzeState]) ??
     null;
 
@@ -399,8 +399,8 @@ function btnClasses(kind: "secondary" | "danger") {
 }
 
 function pickLatest(
-  states: (AdminGalleryState | null)[],
-): AdminGalleryState | null {
+  states: (AdminLibraryState | null)[],
+): AdminLibraryState | null {
   // States are the last-fired-action's result; when they're `null` the
   // action hasn't been invoked yet in this session. Return the last
   // non-null state (arbitrary across multiple non-null; in practice only

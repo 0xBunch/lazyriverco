@@ -10,12 +10,12 @@ import { getBannedSlugs } from "@/lib/ai-taxonomy";
 import { TAG_SHAPE, MAX_TAG_CHARS, parseTag } from "@/lib/tag-shape";
 import { upsertTagRegistry } from "@/lib/tag-registry";
 
-// Gallery server actions. Invoked from the add modal + anywhere a member
+// Library server actions. Invoked from the add modal + anywhere a member
 // can edit their own item's metadata. All actions:
 //   - require a signed-in user
 //   - rate-limit the expensive ones (outbound ingest fetch)
 //   - validate + normalize user-supplied strings
-//   - revalidate /gallery so the grid reflects mutations on the next render
+//   - revalidate /library so the grid reflects mutations on the next render
 //
 // Return shape is always { ok: true, ... } | { ok: false, error }. We
 // don't throw from server actions because Next turns thrown errors into
@@ -46,7 +46,7 @@ export async function ingestAndSaveUrlAction(input: {
   const user = await requireUser();
 
   try {
-    await assertWithinLimit(user.id, "gallery.ingest", INGEST_LIMIT);
+    await assertWithinLimit(user.id, "library.ingest", INGEST_LIMIT);
   } catch (e) {
     if (e instanceof RateLimitError) {
       return {
@@ -119,7 +119,7 @@ export async function ingestAndSaveUrlAction(input: {
     );
   }
 
-  revalidatePath("/gallery");
+  revalidatePath("/library");
   return { ok: true, mediaId: created.id };
 }
 
@@ -188,8 +188,8 @@ export async function updateMediaMetaAction(input: {
     );
   }
 
-  revalidatePath("/gallery");
-  revalidatePath(`/gallery/${mediaId}`);
+  revalidatePath("/library");
+  revalidatePath(`/library/${mediaId}`);
   return { ok: true };
 }
 
@@ -255,8 +255,8 @@ export async function removeTagFromMediaAction(
       data: { tags: nextTags, aiTags: nextAiTags },
     });
 
-    revalidatePath("/gallery");
-    revalidatePath(`/gallery/${mediaId}`);
+    revalidatePath("/library");
+    revalidatePath(`/library/${mediaId}`);
     return { ok: true };
   } catch (e) {
     // Don't surface raw Prisma / auth errors to the client — matches
