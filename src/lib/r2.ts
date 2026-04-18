@@ -30,6 +30,7 @@ const ALLOWED_CONTENT_TYPES = new Set<string>([
 ]);
 
 export const MAX_UPLOAD_BYTES = 25 * 1024 * 1024; // 25 MB
+export const MAX_AVATAR_BYTES = 2 * 1024 * 1024; // 2 MB — avatar-specific cap
 export const PRESIGN_EXPIRY_SECONDS = 300; // 5 minutes
 
 export function isAllowedContentType(mimeType: string): boolean {
@@ -62,6 +63,11 @@ function extensionFor(contentType: string): string {
 export function newMediaKey(contentType: string): { mediaId: string; key: string } {
   const mediaId = randomUUID();
   return { mediaId, key: `media/${mediaId}.${extensionFor(contentType)}` };
+}
+
+export function newAvatarKey(contentType: string): { avatarId: string; key: string } {
+  const avatarId = randomUUID();
+  return { avatarId, key: `avatars/${avatarId}.${extensionFor(contentType)}` };
 }
 
 export type PresignUploadInput = {
@@ -170,6 +176,72 @@ export async function presignUpload(
     contentType: input.mimeType,
     expiresIn: PRESIGN_EXPIRY_SECONDS,
     maxBytes: MAX_UPLOAD_BYTES,
+  };
+}
+
+// ---------------------------------------------------------------------------
+// Avatars: same presign pattern as media but (a) smaller 2 MB cap, (b)
+// `avatars/` key prefix so images are routable on the public CDN under a
+// distinct path, (c) no Media row — caller persists the URL directly into
+// Character.avatarUrl. Uploads that never get persisted leave orphan R2
+// objects; acceptable trade-off since keys are UUID-guessed and capped at
+// 2 MB, and the route is admin-only.
+
+export type PresignAvatarUploadResult = {
+  avatarId: string;
+  key: string;
+  uploadUrl: string;
+  fields: Record<string, string>;
+  publicUrl: string;
+  contentType: string;
+  expiresIn: number;
+  maxBytes: number;
+};
+
+export async function presignAvatarUpload(
+  input: PresignUploadInput,
+): Promise<PresignAvatarUploadResult> {
+  if (!isAllowedContentType(input.mimeType)) {
+    throw new R2UploadError(
+      `Content-type "${input.mimeType}" is not in the upload allowlist. Allowed: ${listAllowedContentTypes().join(", ")}`,
+    );
+  }
+
+  const bucketName = process.env.R2_BUCKET_NAME;
+  const publicBase = process.env.NEXT_PUBLIC_R2_PUBLIC_BASE_URL;
+  if (!bucketName || !publicBase) {
+    throw new R2UploadError(
+      "R2 not configured: set R2_BUCKET_NAME and NEXT_PUBLIC_R2_PUBLIC_BASE_URL before calling presignAvatarUpload.",
+    );
+  }
+
+  const { avatarId, key } = newAvatarKey(input.mimeType);
+  const s3 = getS3Client();
+
+  const { url, fields } = await createPresignedPost(s3, {
+    Bucket: bucketName,
+    Key: key,
+    Expires: PRESIGN_EXPIRY_SECONDS,
+    Conditions: [
+      ["content-length-range", 0, MAX_AVATAR_BYTES],
+      ["eq", "$Content-Type", input.mimeType],
+    ],
+    Fields: {
+      "Content-Type": input.mimeType,
+    },
+  });
+
+  const base = publicBase.replace(/\/+$/, "");
+
+  return {
+    avatarId,
+    key,
+    uploadUrl: url,
+    fields,
+    publicUrl: `${base}/${key}`,
+    contentType: input.mimeType,
+    expiresIn: PRESIGN_EXPIRY_SECONDS,
+    maxBytes: MAX_AVATAR_BYTES,
   };
 }
 

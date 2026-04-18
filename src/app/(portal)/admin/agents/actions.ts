@@ -9,6 +9,36 @@ import { requireAdmin } from "@/lib/auth";
 // purely editorial; raise further if a future prompt needs it.
 const MAX_PROMPT_LENGTH = 16000;
 
+// Defense in depth: even though admins are trusted, clamp avatarUrl to a
+// canonical shape produced by /api/avatars/presign. This rejects any URL
+// not under our R2 public base, and rejects paths that could backtrack
+// out of the avatars/ prefix. Matches newAvatarKey()'s output in
+// src/lib/r2.ts — UUID key with a jpg/png/webp/gif extension.
+type ParsedAvatar =
+  | { ok: true; value: string | null }
+  | { ok: false; error: string };
+
+function parseAvatarUrl(raw: unknown): ParsedAvatar {
+  if (typeof raw !== "string" || raw === "") return { ok: true, value: null };
+  const publicBase = process.env.NEXT_PUBLIC_R2_PUBLIC_BASE_URL;
+  if (!publicBase) {
+    return { ok: false, error: "Avatar uploads not configured (missing R2 public base)." };
+  }
+  const base = publicBase.replace(/\/+$/, "");
+  const pattern = new RegExp(
+    `^${escapeForRegex(base)}/avatars/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}\\.(jpg|png|webp|gif)$`,
+    "i",
+  );
+  if (!pattern.test(raw)) {
+    return { ok: false, error: "Avatar URL rejected — must come from the uploader." };
+  }
+  return { ok: true, value: raw };
+}
+
+function escapeForRegex(s: string): string {
+  return s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+}
+
 // useFormState-compatible result shape. Same shape as
 // src/app/(portal)/admin/gallery/actions.ts so the pattern is uniform
 // across admin surfaces. Clients bind with
@@ -29,6 +59,7 @@ export async function createAgent(
     const displayName = formData.get("displayName");
     const systemPrompt = formData.get("systemPrompt");
     const active = formData.get("active");
+    const rawAvatarUrl = formData.get("avatarUrl");
 
     if (typeof rawName !== "string" || !rawName.trim()) {
       return { ok: false, error: "Slug (@handle) is required." };
@@ -50,12 +81,18 @@ export async function createAgent(
       };
     }
 
+    const avatarParsed = parseAvatarUrl(rawAvatarUrl);
+    if (!avatarParsed.ok) {
+      return { ok: false, error: avatarParsed.error };
+    }
+
     await prisma.character.create({
       data: {
         name,
         displayName: displayName.trim(),
         systemPrompt: systemPrompt.trim(),
         active: active === "on",
+        avatarUrl: avatarParsed.value,
         triggerKeywords: [],
         activeModules: ["chat"],
       },
@@ -83,6 +120,7 @@ export async function updateAgent(
     const displayName = formData.get("displayName");
     const systemPrompt = formData.get("systemPrompt");
     const active = formData.get("active");
+    const rawAvatarUrl = formData.get("avatarUrl");
 
     if (typeof id !== "string" || !id) {
       return { ok: false, error: "Missing agent id." };
@@ -100,12 +138,18 @@ export async function updateAgent(
       };
     }
 
+    const avatarParsed = parseAvatarUrl(rawAvatarUrl);
+    if (!avatarParsed.ok) {
+      return { ok: false, error: avatarParsed.error };
+    }
+
     await prisma.character.update({
       where: { id },
       data: {
         displayName: displayName.trim(),
         systemPrompt: systemPrompt.trim(),
         active: active === "on",
+        avatarUrl: avatarParsed.value,
       },
     });
 

@@ -45,6 +45,7 @@ export default async function AdminAgentsPage() {
                 displayName: agent.displayName,
                 systemPrompt: agent.systemPrompt,
                 active: agent.active,
+                avatarUrl: agent.avatarUrl,
               }}
             />
           </li>

@@ -1,9 +1,10 @@
 "use client";
 
 import { useFormState, useFormStatus } from "react-dom";
-import { type ReactNode } from "react";
+import { useState, type ReactNode } from "react";
 import { cn } from "@/lib/utils";
 import { PromptSuggester } from "@/components/PromptSuggester";
+import { AvatarUploader } from "@/components/AvatarUploader";
 import {
   createAgent,
   updateAgent,
@@ -22,6 +23,7 @@ type Agent = {
   displayName: string;
   systemPrompt: string;
   active: boolean;
+  avatarUrl: string | null;
 };
 
 type Props =
@@ -29,51 +31,69 @@ type Props =
   | { mode: "update"; agent: Agent };
 
 export function AgentForm(props: Props) {
-  const action = props.mode === "create" ? createAgent : updateAgent;
+  return props.mode === "create" ? (
+    <CreateAgentForm />
+  ) : (
+    <UpdateAgentForm agent={props.agent} />
+  );
+}
+
+function CreateAgentForm() {
   const [state, formAction] = useFormState<AgentFormState, FormData>(
-    action,
+    createAgent,
     null,
   );
+  const [avatarUrl, setAvatarUrl] = useState<string | null>(null);
 
-  if (props.mode === "create") {
-    return (
-      <form action={formAction} className="space-y-4">
-        <div className="grid gap-4 sm:grid-cols-2">
-          <LabeledInput
-            id="new-name"
-            name="name"
-            label="Slug (@handle)"
-            placeholder="e.g. barfdog"
-            required
-          />
-          <LabeledInput
-            id="new-displayName"
-            name="displayName"
-            label="Display name"
-            placeholder='e.g. Joey "Barfdog" Freedman'
-            required
-          />
-        </div>
+  return (
+    <form action={formAction} className="space-y-4">
+      <input type="hidden" name="avatarUrl" value={avatarUrl ?? ""} />
 
-        <PromptField
-          id="new-systemPrompt"
-          characterName="New agent"
-          rows={8}
+      <AvatarUploader value={avatarUrl} onChange={setAvatarUrl} />
+
+      <div className="grid gap-4 sm:grid-cols-2">
+        <LabeledInput
+          id="new-name"
+          name="name"
+          label="Slug (@handle)"
+          placeholder="e.g. barfdog"
+          required
         />
+        <LabeledInput
+          id="new-displayName"
+          name="displayName"
+          label="Display name"
+          placeholder='e.g. Joey "Barfdog" Freedman'
+          required
+        />
+      </div>
 
-        <FooterRow hasActive>
-          <SubmitButton>Create Agent</SubmitButton>
-        </FooterRow>
+      <PromptField
+        id="new-systemPrompt"
+        characterName="New agent"
+        rows={8}
+      />
 
-        <StateLine state={state} />
-      </form>
-    );
-  }
+      <FooterRow hasActive>
+        <SubmitButton>Create Agent</SubmitButton>
+      </FooterRow>
 
-  const agent = props.agent;
+      <StateLine state={state} />
+    </form>
+  );
+}
+
+function UpdateAgentForm({ agent }: { agent: Agent }) {
+  const [state, formAction] = useFormState<AgentFormState, FormData>(
+    updateAgent,
+    null,
+  );
+  const [avatarUrl, setAvatarUrl] = useState<string | null>(agent.avatarUrl);
+
   return (
     <form action={formAction} className="space-y-4">
       <input type="hidden" name="id" value={agent.id} />
+      <input type="hidden" name="avatarUrl" value={avatarUrl ?? ""} />
 
       <header className="flex items-start justify-between gap-4">
         <div>
@@ -94,6 +114,8 @@ export function AgentForm(props: Props) {
           Active
         </label>
       </header>
+
+      <AvatarUploader value={avatarUrl} onChange={setAvatarUrl} />
 
       <LabeledInput
         id={`displayName-${agent.id}`}
