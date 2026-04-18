@@ -104,7 +104,7 @@ export default async function ChatsPage({
     }),
     prisma.character.findMany({
       where: { active: true },
-      orderBy: { displayName: "asc" },
+      orderBy: [{ displayOrder: "asc" }, { displayName: "asc" }],
       select: { id: true, displayName: true },
     }),
   ]);

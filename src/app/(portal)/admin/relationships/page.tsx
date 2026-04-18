@@ -7,7 +7,7 @@ export const dynamic = "force-dynamic";
 export default async function AdminRelationshipsPage() {
   const [agents, members, relationships] = await Promise.all([
     prisma.character.findMany({
-      orderBy: { name: "asc" },
+      orderBy: [{ displayOrder: "asc" }, { displayName: "asc" }],
       select: { id: true, name: true, displayName: true },
     }),
     prisma.user.findMany({
