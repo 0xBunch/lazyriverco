@@ -182,7 +182,10 @@ export async function POST(
       take: CONTEXT_MESSAGES,
       excludeMessageId: userMessage.id,
     }),
-    selectContext(userMessage.content),
+    selectContext(userMessage.content, {
+      userId: user.id,
+      conversationId: conversation.id,
+    }),
     getUpcomingCalendarEntries(),
   ]);
 
@@ -274,6 +277,9 @@ export async function POST(
           {
             model: resolveAgentModel(character.model),
             dialogueMode: character.dialogueMode,
+            userId: user.id,
+            conversationId: conversation.id,
+            characterId: character.id,
           },
         );
 

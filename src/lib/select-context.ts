@@ -1,6 +1,7 @@
 import "server-only";
 import Anthropic from "@anthropic-ai/sdk";
 import { prisma } from "@/lib/prisma";
+import { trackedMessagesCreate } from "@/lib/usage";
 
 // Two-pass context selection: a fast Haiku call reads a "table of
 // contents" of all Lore entries + READY Media entries, then picks the
@@ -85,6 +86,17 @@ function buildTableOfContents(
     : "(No lore or media entries available)";
 }
 
+export type SelectContextOptions = {
+  /** The requesting user — recorded on the usage event for this Haiku
+   *  call. `null` is acceptable when the caller genuinely has no user
+   *  in scope (none currently, but kept flexible). */
+  userId?: string | null;
+  /** Active conversation id. Threaded onto the usage event so admin
+   *  usage views can collapse pre-reply Haiku cost into the same
+   *  conversation as the Sonnet reply that follows it. */
+  conversationId?: string | null;
+};
+
 /**
  * Two-pass context selection. Runs a fast Haiku call to pick which Lore
  * and Media entries are relevant to the user's message. Returns validated
@@ -96,6 +108,7 @@ function buildTableOfContents(
  */
 export async function selectContext(
   userMessage: string,
+  opts: SelectContextOptions = {},
 ): Promise<SelectContextResult> {
   const empty: SelectContextResult = { loreIds: [], mediaIds: [] };
 
@@ -120,29 +133,44 @@ export async function selectContext(
 
     const toc = buildTableOfContents(loreEntries, mediaEntries);
 
-    // 2. Call Haiku with a timeout
-    const abort = new AbortController();
-    const timer = setTimeout(() => abort.abort(), SELECTION_TIMEOUT_MS);
-
+    // 2. Call Haiku with a timeout. Using Promise.race rather than the
+    //    SDK's AbortSignal option because trackedMessagesCreate's
+    //    signature doesn't carry RequestOptions through — the race
+    //    preserves the 2s ceiling, and a stray fulfilled response after
+    //    timeout is harmless (tracked once, then discarded here).
+    let timer: ReturnType<typeof setTimeout> | undefined;
     let response: Anthropic.Message;
     try {
-      response = await getSelectionClient().messages.create(
-        {
-          model: SELECTION_MODEL,
-          max_tokens: SELECTION_MAX_TOKENS,
-          temperature: 0,
-          system: SELECTION_SYSTEM_PROMPT,
-          messages: [
-            {
-              role: "user",
-              content: `User message: "${userMessage}"\n\nTable of contents:\n${toc}`,
-            },
-          ],
-        },
-        { signal: abort.signal },
-      );
+      response = await Promise.race([
+        trackedMessagesCreate(
+          getSelectionClient(),
+          {
+            userId: opts.userId ?? null,
+            operation: "context.select",
+            conversationId: opts.conversationId ?? null,
+          },
+          {
+            model: SELECTION_MODEL,
+            max_tokens: SELECTION_MAX_TOKENS,
+            temperature: 0,
+            system: SELECTION_SYSTEM_PROMPT,
+            messages: [
+              {
+                role: "user",
+                content: `User message: "${userMessage}"\n\nTable of contents:\n${toc}`,
+              },
+            ],
+          },
+        ),
+        new Promise<never>((_, reject) => {
+          timer = setTimeout(
+            () => reject(new DOMException("Timed out", "AbortError")),
+            SELECTION_TIMEOUT_MS,
+          );
+        }),
+      ]);
     } finally {
-      clearTimeout(timer);
+      if (timer) clearTimeout(timer);
     }
 
     // 3. Parse the JSON response

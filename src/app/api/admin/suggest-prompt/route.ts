@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
 import Anthropic from "@anthropic-ai/sdk";
 import { requireAdmin } from "@/lib/auth";
+import { trackedMessagesCreate } from "@/lib/usage";
 
 export const runtime = "nodejs";
 
@@ -20,7 +21,7 @@ Your job: suggest an improved version of the character's system prompt. Focus on
 Return ONLY the improved system prompt text. No preamble, no explanation, no wrapping — just the prompt itself.`;
 
 export async function POST(req: NextRequest) {
-  await requireAdmin();
+  const admin = await requireAdmin();
 
   if (!req.headers.get("content-type")?.includes("application/json")) {
     return NextResponse.json(
@@ -69,18 +70,22 @@ export async function POST(req: NextRequest) {
 
   const client = new Anthropic({ apiKey });
 
-  const response = await client.messages.create({
-    model: "claude-sonnet-4-6",
-    max_tokens: 2000,
-    temperature: 0.7,
-    system: META_PROMPT,
-    messages: [
-      {
-        role: "user",
-        content: `Here is the current system prompt for a character named "${characterName}":\n\n${currentPrompt}\n\nPlease suggest an improved version.`,
-      },
-    ],
-  });
+  const response = await trackedMessagesCreate(
+    client,
+    { userId: admin.id, operation: "admin.suggest_prompt" },
+    {
+      model: "claude-sonnet-4-6",
+      max_tokens: 2000,
+      temperature: 0.7,
+      system: META_PROMPT,
+      messages: [
+        {
+          role: "user",
+          content: `Here is the current system prompt for a character named "${characterName}":\n\n${currentPrompt}\n\nPlease suggest an improved version.`,
+        },
+      ],
+    },
+  );
 
   const textBlock = response.content.find((b) => b.type === "text");
   if (!textBlock || textBlock.type !== "text") {
