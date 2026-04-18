@@ -103,14 +103,14 @@ export function ConversationLanding({
 
   // `pt-16` on mobile clears the fixed hamburger (`top-4`, ~40px tall) so
   // we don't need horizontal padding to dodge it. Container is `mx-auto`
-  // with `max-w-xl` — keep the hero optically centered, not shoved right.
+  // with `max-w-2xl` — keep the hero optically centered, not shoved right.
   return (
-    <div className="mx-auto flex min-h-[100dvh] w-full max-w-xl flex-col justify-center gap-8 px-4 pb-12 pt-16 md:pt-20">
+    <div className="mx-auto flex min-h-[100dvh] w-full max-w-2xl flex-col justify-center gap-8 px-4 pb-12 pt-16 md:pt-20">
       {/* Hero — single load-bearing element: time-based greeting. The
           brand wordmark already lives in the sidebar; repeating it here
           would fight the input card for focus. */}
       <header className="text-center">
-        <h1 className="font-display text-balance text-4xl font-semibold tracking-tight text-bone-50 md:text-5xl">
+        <h1 className="font-display text-balance text-4xl font-medium tracking-tight text-bone-50 md:text-5xl">
           {greeting}, {firstName}
         </h1>
       </header>
@@ -232,7 +232,7 @@ export function ConversationLanding({
               disabled={submitting}
               onClick={() => setContent(chip)}
               className={cn(
-                "shrink-0 whitespace-nowrap rounded-full border border-bone-700 bg-bone-900/60 px-3 py-2 text-xs text-bone-200 transition-colors",
+                "shrink-0 whitespace-nowrap rounded-full border border-bone-700 bg-bone-900/60 px-4 py-2 text-sm text-bone-200 transition-colors",
                 "hover:border-claude-500/60 hover:text-claude-100",
                 "disabled:cursor-not-allowed disabled:opacity-60",
                 "focus:outline-none focus-visible:ring-2 focus-visible:ring-claude-500 focus-visible:ring-offset-2 focus-visible:ring-offset-bone-950",
