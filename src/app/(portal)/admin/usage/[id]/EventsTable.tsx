@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { formatUsd } from "../_format";
 
 // Recent-events log for a single user's drilldown page. Pure
 // presentational — the server page fetches the last 100 rows in
@@ -19,13 +20,6 @@ export type UsageEventRow = {
   errorCode: string | null;
   conversationId: string | null;
 };
-
-function formatUsd(value: number): string {
-  if (!Number.isFinite(value)) return "$0.00";
-  const abs = Math.abs(value);
-  if (abs > 0 && abs < 0.01) return `$${value.toFixed(4)}`;
-  return `$${value.toFixed(2)}`;
-}
 
 function formatTime(d: Date): string {
   try {

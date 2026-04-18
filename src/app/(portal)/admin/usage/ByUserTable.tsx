@@ -3,11 +3,15 @@
 import Link from "next/link";
 import { useMemo, useState } from "react";
 import { cn } from "@/lib/utils";
+import { formatUsd } from "./_format";
 
 // Sortable per-user breakdown. N <= 7 at the phase-1 clubhouse scale,
 // so client-side sort over an already-fetched array is faster and
-// simpler than round-tripping sort state to the server. Row clicks
-// navigate to /admin/usage/[id].
+// simpler than round-tripping sort state to the server. The name cell
+// is the real navigation target — keyboard-friendly, Next.js-routed,
+// and prefetched. We used to make the whole row clickable via
+// window.location.href, but that broke prefetch + keyboard use and
+// added an a11y gap for no real UX gain.
 
 export type UsageByUserRow = {
   userId: string | null;
@@ -30,13 +34,6 @@ type SortKey =
   | "lastCall";
 
 type SortDir = "asc" | "desc";
-
-function formatUsd(value: number): string {
-  if (!Number.isFinite(value)) return "$0.00";
-  const abs = Math.abs(value);
-  if (abs > 0 && abs < 0.01) return `$${value.toFixed(4)}`;
-  return `$${value.toFixed(2)}`;
-}
 
 function formatLastCall(d: Date | null): string {
   if (!d) return "—";
@@ -175,30 +172,22 @@ export function ByUserTable({ rows }: { rows: UsageByUserRow[] }) {
             {sortedRows.map((row) => {
               // System rows (null userId) render as a non-interactive
               // line — no drilldown target exists for unauthenticated
-              // / background calls. Members are clickable (whole row
-              // navigates, name cell has a real <Link> for keyboard).
+              // / background calls. Members get a real <Link> on the
+              // name cell; row hover still lights up for affordance.
               const key = row.userId ?? "__system__";
               const href = row.userId ? `/admin/usage/${row.userId}` : null;
               return (
                 <tr
                   key={key}
-                  onClick={
-                    href
-                      ? () => {
-                          window.location.href = href;
-                        }
-                      : undefined
-                  }
                   className={cn(
                     "border-b border-bone-800/50 last:border-b-0",
-                    href && "cursor-pointer transition-colors hover:bg-bone-950/40",
+                    href && "transition-colors hover:bg-bone-950/40",
                   )}
                 >
                   <td className="px-4 py-2.5 align-middle">
                     {href ? (
                       <Link
                         href={href}
-                        onClick={(e) => e.stopPropagation()}
                         className="font-medium text-bone-50 underline decoration-claude-500/40 underline-offset-2 hover:decoration-claude-300 focus:outline-none focus-visible:ring-2 focus-visible:ring-claude-400"
                       >
                         {row.displayName}

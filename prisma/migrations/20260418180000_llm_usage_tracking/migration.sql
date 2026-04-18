@@ -20,6 +20,12 @@
 -- NOT cascade-delete the event ledger. Historical cost analysis has to
 -- survive both events.
 
+-- gen_random_uuid() lives in pgcrypto on Postgres < 13. Railway ships
+-- 15/16 where it's in core, but this IF NOT EXISTS guard makes the
+-- seed block safe against any older DB template we (or a future env)
+-- might provision from. No-op on current Railway.
+CREATE EXTENSION IF NOT EXISTS pgcrypto;
+
 -- CreateTable
 CREATE TABLE "LLMUsageEvent" (
     "id" TEXT NOT NULL,

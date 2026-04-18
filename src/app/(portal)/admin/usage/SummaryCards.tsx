@@ -1,3 +1,5 @@
+import { formatUsd } from "./_format";
+
 // Four summary cards at the top of /admin/usage. Pure presentational —
 // the server page does all the aggregation and passes the already-
 // computed numbers in. No client JS; renders inside the server tree.
@@ -8,17 +10,6 @@ export type SummaryCardsProps = {
   outputTokens: number;
   estimatedCostUsd: number;
 };
-
-// Kept local rather than a shared util — usage formatting is specific
-// to this surface (4-decimal for sub-cent rows) and the spec caps this
-// feature at 8 new files. Duplicated in the sibling client components
-// on purpose; cross-file reuse would need a 9th file.
-function formatUsd(value: number): string {
-  if (!Number.isFinite(value)) return "$0.00";
-  const abs = Math.abs(value);
-  if (abs > 0 && abs < 0.01) return `$${value.toFixed(4)}`;
-  return `$${value.toFixed(2)}`;
-}
 
 export function SummaryCards({
   requests,
