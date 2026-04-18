@@ -24,7 +24,11 @@ export type RateLimitBucket =
   | "gallery.ingest"
   // Gallery v1.2 — comments. Generous cap for a 7-user clubhouse; the
   // point is to catch an accidental submit-loop, not to police speech.
-  | "gallery.comment";
+  | "gallery.comment"
+  // Gallery v1.3 — vision auto-tagging runs inline inside the ingest /
+  // meta-update actions. Same per-user cap as gallery.ingest since it
+  // fires once per newly-saved item.
+  | "gallery.ai-tag";
 
 export type RateLimitOptions = {
   maxPerMinute: number;

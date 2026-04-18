@@ -365,6 +365,19 @@ model Media {
   /// or in the agent gallery_search tool — but remain linkable by id.
   hiddenFromGrid Boolean     @default(false)
 
+  /// Gemini vision output — separate column from `tags` so admin bulk-ops
+  /// can distinguish AI-applied tags from human-applied ones and reprocess
+  /// selectively. Merged into the render-time tag list in the UI + into the
+  /// FTS text at read-side. Slug-shape (TAG_SHAPE regex) same as `tags`.
+  aiTags         String[]    @default([])
+  /// Timestamp of the last successful vision run. Null = never analyzed;
+  /// set on both success and soft-failure (see aiAnalysisNote).
+  aiAnalyzedAt   DateTime?
+  /// One of: null = success, "skipped: <reason>", "failed: <reason>".
+  /// Lets the admin sweeper re-target rows with transient failures
+  /// (rate-limit, 5xx) while leaving permanent skips (policy blocks) alone.
+  aiAnalysisNote String?     @db.Text
+
   uploadedBy      User                 @relation(fields: [uploadedById], references: [id])
   calendarEntries CalendarEntryMedia[]
   comments        Comment[]
