@@ -8,7 +8,7 @@ import type {
   CreateConversationResponse,
   PromptGroupDTO,
 } from "@/lib/chat";
-import { PromptGroupMenu } from "@/components/PromptGroupMenu";
+import { PromptGroupBar } from "@/components/PromptGroupBar";
 
 // Inlined user shape — keeps this client component free of any
 // runtime dep on src/lib/auth (which is server-only).
@@ -220,24 +220,16 @@ export function ConversationLanding({
         ) : null}
       </form>
 
-      {/* Suggestion dropdowns — each PromptGroup is a button that opens a
-          menu of short-labeled items. Picking an item pastes the item's
-          full prompt text into the textarea above. Row centers beneath
-          the prompt box and wraps to a second line when it overflows.
-          Row is hidden entirely if no active groups exist (admin-curated
-          via /admin/prompts). */}
-      {promptGroups.length > 0 ? (
-        <div className="flex flex-wrap justify-center gap-2">
-          {promptGroups.map((group) => (
-            <PromptGroupMenu
-              key={group.id}
-              group={group}
-              onPick={(prompt) => setContent(prompt)}
-              disabled={submitting}
-            />
-          ))}
-        </div>
-      ) : null}
+      {/* Suggestion bar — row of category chips that expand into a
+          full-width panel (Claude-style tab swap). Picking an item
+          pastes its full prompt text into the textarea above and
+          collapses the panel. Bar hides entirely when no active groups
+          exist (admin-curated via /admin/prompts). */}
+      <PromptGroupBar
+        groups={promptGroups}
+        onPick={(prompt) => setContent(prompt)}
+        disabled={submitting}
+      />
     </div>
   );
 }
