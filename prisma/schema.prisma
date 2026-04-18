@@ -35,6 +35,7 @@ model User {
   rateLimitHits       RateLimitHit[]
   pins                Pin[]
   comments            Comment[]
+  usageEvents         LLMUsageEvent[]
 }
 
 enum Role {
@@ -57,8 +58,11 @@ model Character {
   /// (Moises, seeded by the phase-1 migration). Enforced as a partial unique
   /// index in the migration (`CREATE UNIQUE INDEX "Character_isDefault_key"
   /// ON "Character"("isDefault") WHERE "isDefault" = true`) because Prisma
-  /// can't model partial predicates in @@unique. Mirror constant lives in
-  /// src/lib/characters.ts as DEFAULT_CHARACTER_ID and MUST stay in sync.
+  /// can't model partial predicates in @@unique. Flipped at runtime via
+  /// `setDefaultAgent` in src/app/(portal)/admin/agents/actions.ts. The
+  /// legacy `DEFAULT_CHARACTER_ID` constant in src/lib/characters.ts is the
+  /// migration seed value — runtime callers should rely on this DB flag,
+  /// not the constant.
   isDefault           Boolean  @default(false)
   /// When true, the agent may give longer, proportional replies and may
   /// optionally emit <followups>…</followups> tags at the end of a reply
@@ -70,6 +74,11 @@ model Character {
   /// against the allowlist in src/lib/anthropic.ts (AGENT_MODELS). Default
   /// mirrors CHAT_MODEL so pre-existing agents keep their current model.
   model               String   @default("claude-sonnet-4-6")
+  /// Admin-curated display order for agent pickers (homepage card, chats
+  /// filter, relationships matrix, admin list). Lower sorts first; ties
+  /// broken by displayName. Backfilled by the migration from the prior
+  /// alphabetical order so the UX is unchanged on first load.
+  displayOrder        Int      @default(0)
   createdAt           DateTime @default(now())
 
   messages            Message[]
@@ -79,6 +88,8 @@ model Character {
   agentRelationships  AgentRelationship[]
   conversations       Conversation[]
   pins                Pin[]
+
+  @@index([displayOrder])
 }
 
 /// A conversational lane inside the Mens League clubhouse. v1 ships exactly
@@ -431,10 +442,18 @@ enum MediaOrigin {
 /// first-class `Tag` entity and this table just owns the label +
 /// sortOrder. Tags point back via Tag.bucketId.
 model TaxonomyBucket {
-  id        String   @id @default(uuid())
-  label     String   @unique
-  sortOrder Int      @default(0)
-  updatedAt DateTime @updatedAt
+  id          String   @id @default(uuid())
+  label       String   @unique
+  /// Human-written prose rule for what belongs in this bucket. Presence
+  /// of a non-empty description makes this a "priority" bucket: it gets
+  /// curated treatment in the Gemini vision prompt (scan-for-these
+  /// framing) AND is the only bucket class the classify-uncategorized
+  /// admin action will write into. Buckets without a description stay
+  /// loose — useful for generic descriptors that pile up from Gemini
+  /// output but aren't load-bearing for app/user flows.
+  description String?  @db.Text
+  sortOrder   Int      @default(0)
+  updatedAt   DateTime @updatedAt
 
   tags Tag[]
 
@@ -582,6 +601,11 @@ model CalendarEntry {
   id            String   @id @default(uuid())
   title         String
   date          DateTime @db.Date
+  /// Optional free-form time-of-day string (e.g. "7:00 PM", "Noon").
+  /// Intentionally a string, not @db.Time — no TZ math, admins write what
+  /// they mean. Null = all-day/untimed (birthdays, trip start dates, etc).
+  /// Rendered only in the list view; the month grid ignores it.
+  time          String?
   recurrence    String   @default("none")
   tags          String[] @default([])
   /// Short summary shown in admin list + agent context. Keep <200 chars.
@@ -701,4 +725,96 @@ model PromptSuggestion {
 
   @@index([groupId, sortOrder])
   @@index([groupId, isActive, sortOrder])
+}
+
+/// Append-only ledger of every LLM call the app makes. One row per
+/// provider call (top-level generate*Response, tool-loop iteration, or
+/// vision/Haiku helper). Columns cover the full cost-accounting surface
+/// — token counts split by role, cache tokens, image count — plus the
+/// stitching fields (`replyId`, `iteration`) that let us collapse a
+/// multi-step tool loop back into a single "reply" in analytics.
+///
+/// Writes are fire-and-forget from the providers layer so a DB outage
+/// can't take down chat. `userId`/`pricingId` use ON DELETE SET NULL so
+/// a deleted user or retired pricing row never cascades away history.
+///
+/// Read path: per-user daily/weekly aggregation in /admin/usage, plus
+/// future rate-limit "cost" budgets. Indexes below cover each of those
+/// lookups (user+time DESC, model+time, operation+time, conversation+time,
+/// and replyId for the stitch).
+model LLMUsageEvent {
+  id                  String   @id @default(uuid())
+  userId              String?
+  provider            String
+  model               String
+  operation           String
+  /// UUID minted at the top of generate*Response. Every tool-loop
+  /// iteration for the same user turn shares this value so analytics
+  /// can collapse the loop into one "reply" unit.
+  replyId             String?
+  /// 0 for the first call in a reply, 1+ for subsequent tool-loop
+  /// iterations. Always 0 for single-shot helpers (vision, Haiku lore).
+  iteration           Int      @default(0)
+  inputTokens         Int      @default(0)
+  outputTokens        Int      @default(0)
+  cacheReadTokens     Int      @default(0)
+  cacheCreationTokens Int      @default(0)
+  imageCount          Int      @default(0)
+  estimatedCostUsd    Float    @default(0)
+  /// FK to the ModelPricing row used to compute estimatedCostUsd at
+  /// write time. SetNull on delete so retiring a pricing row doesn't
+  /// erase historical events — the computed USD stays correct even if
+  /// the source row disappears.
+  pricingId           String?
+  conversationId      String?
+  messageId           String?
+  characterId         String?
+  mediaId             String?
+  requestMs           Int?
+  success             Boolean  @default(true)
+  errorCode           String?
+  createdAt           DateTime @default(now())
+
+  user    User?         @relation(fields: [userId],    references: [id], onDelete: SetNull)
+  pricing ModelPricing? @relation(fields: [pricingId], references: [id], onDelete: SetNull)
+
+  // Primary read path for /admin/usage: "all events for a user, newest first".
+  @@index([userId, createdAt(sort: Desc)])
+  // Model breakdown: "spend by model over last N days".
+  @@index([model, createdAt(sort: Desc)])
+  // Operation breakdown: chat vs vision vs lore-selection etc.
+  @@index([operation, createdAt(sort: Desc)])
+  // Drill-down from a conversation to its call history.
+  @@index([conversationId, createdAt(sort: Desc)])
+  // Stitch a tool-loop reply back together for a single "reply cost".
+  @@index([replyId])
+}
+
+/// Source-of-truth pricing per provider+model. Rates are USD per 1M
+/// tokens (inputPerMTokUsd / outputPerMTokUsd) with optional separate
+/// cache read/write rates for Anthropic prompt caching. Seeded with
+/// Sonnet 4.6, Haiku 4.5, and Gemini 2.5 Flash at verified 2026-04-18
+/// rates; admin updates this table when providers re-price.
+///
+/// LLMUsageEvent.pricingId points here with ON DELETE SET NULL so
+/// retiring a row never destroys event history. `@unique` on model
+/// guarantees one row per model string — the providers layer looks up
+/// by model to stamp pricingId at write time.
+model ModelPricing {
+  id                   String   @id @default(uuid())
+  provider             String
+  model                String   @unique
+  inputPerMTokUsd      Float
+  outputPerMTokUsd     Float
+  cacheReadPerMTokUsd  Float?
+  cacheWritePerMTokUsd Float?
+  /// Flat per-image surcharge. NULL for providers (Gemini) that fold
+  /// image input into the regular token count — imageCount on the
+  /// event is a product metric in that case, not a cost multiplier.
+  perImageUsd          Float?
+  notes                String?
+  createdAt            DateTime @default(now())
+  updatedAt            DateTime @updatedAt
+
+  events LLMUsageEvent[]
 }

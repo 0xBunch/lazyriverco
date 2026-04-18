@@ -1,6 +1,7 @@
 import "server-only";
 import Anthropic from "@anthropic-ai/sdk";
 import { prisma } from "@/lib/prisma";
+import { trackedMessagesCreate } from "@/lib/usage";
 
 // Two-pass context selection: a fast Haiku call reads a "table of
 // contents" of all Lore entries + READY Media entries, then picks the
@@ -85,6 +86,17 @@ function buildTableOfContents(
     : "(No lore or media entries available)";
 }
 
+export type SelectContextOptions = {
+  /** The requesting user — recorded on the usage event for this Haiku
+   *  call. `null` is acceptable when the caller genuinely has no user
+   *  in scope (none currently, but kept flexible). */
+  userId?: string | null;
+  /** Active conversation id. Threaded onto the usage event so admin
+   *  usage views can collapse pre-reply Haiku cost into the same
+   *  conversation as the Sonnet reply that follows it. */
+  conversationId?: string | null;
+};
+
 /**
  * Two-pass context selection. Runs a fast Haiku call to pick which Lore
  * and Media entries are relevant to the user's message. Returns validated
@@ -96,6 +108,7 @@ function buildTableOfContents(
  */
 export async function selectContext(
   userMessage: string,
+  opts: SelectContextOptions = {},
 ): Promise<SelectContextResult> {
   const empty: SelectContextResult = { loreIds: [], mediaIds: [] };
 
@@ -120,13 +133,22 @@ export async function selectContext(
 
     const toc = buildTableOfContents(loreEntries, mediaEntries);
 
-    // 2. Call Haiku with a timeout
+    // 2. Call Haiku with a real HTTP-level timeout. The tracked wrapper
+    //    forwards RequestOptions to the SDK, so an AbortSignal aborts
+    //    the actual fetch — we stop billing for tokens we're not going
+    //    to consume. The outer catch still handles `err.name === "AbortError"`
+    //    the same way as before.
     const abort = new AbortController();
     const timer = setTimeout(() => abort.abort(), SELECTION_TIMEOUT_MS);
-
     let response: Anthropic.Message;
     try {
-      response = await getSelectionClient().messages.create(
+      response = await trackedMessagesCreate(
+        getSelectionClient(),
+        {
+          userId: opts.userId ?? null,
+          operation: "context.select",
+          conversationId: opts.conversationId ?? null,
+        },
         {
           model: SELECTION_MODEL,
           max_tokens: SELECTION_MAX_TOKENS,

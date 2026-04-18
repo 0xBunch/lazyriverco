@@ -5,6 +5,10 @@ import { prisma } from "@/lib/prisma";
 import { requireAdmin } from "@/lib/auth";
 import { BANNED_LABEL, invalidateTaxonomyCache } from "@/lib/ai-taxonomy";
 import { parseTag } from "@/lib/tag-shape";
+import {
+  classifyTagsIntoBuckets,
+  type BucketForClassify,
+} from "@/lib/classify-tag-bucket";
 
 // Tag-first admin API for /admin/taxonomy. v1.5 promoted tags to a
 // first-class Tag entity; this file owns the CRUD.
@@ -27,6 +31,9 @@ export type AdminTaxonomyState =
 const MAX_DESCRIPTION_CHARS = 500;
 const MAX_LABEL_CHARS = 80;
 const MAX_BULK_IMPORT_TAGS = 100;
+const MAX_BULK_EDIT_SLUGS = 500;
+const MAX_BUCKET_LABEL_CHARS = 40;
+const MAX_BUCKET_DESCRIPTION_CHARS = 1000;
 
 function revalidateSurfaces(): void {
   invalidateTaxonomyCache();
@@ -335,6 +342,350 @@ export async function deleteTagAction(
 }
 
 // ---------------------------------------------------------------------------
+// bulkAssignBucketAction — move N tags into one bucket in a single
+// transaction. Mirrors the single-row assignTagBucketAction but lifted
+// to a slug set. When the destination is banned, update + sweep both
+// happen inside one transaction so the invariant can't be left half-
+// applied on mid-flight failure (same shape as bulkImportTagsAction's
+// ban branch).
+
+export async function bulkAssignBucketAction(
+  _prev: AdminTaxonomyState,
+  fd: FormData,
+): Promise<AdminTaxonomyState> {
+  try {
+    await requireAdmin();
+    const slugs = parseBulkSlugs(fd);
+    if (slugs.length === 0) return { ok: false, error: "No tags selected." };
+
+    const bucketIdRaw = fd.get("bucketId");
+    const nextBucketId =
+      typeof bucketIdRaw === "string" && bucketIdRaw ? bucketIdRaw : null;
+
+    if (nextBucketId) {
+      const bucketExists = await prisma.taxonomyBucket.findUnique({
+        where: { id: nextBucketId },
+        select: { id: true },
+      });
+      if (!bucketExists) return { ok: false, error: "Bucket not found." };
+    }
+
+    const bannedId = await resolveBannedBucketId();
+    const movingToBanned = nextBucketId !== null && nextBucketId === bannedId;
+
+    if (movingToBanned) {
+      await prisma.$transaction(async (tx) => {
+        await tx.tag.updateMany({
+          where: { slug: { in: slugs } },
+          data: { bucketId: nextBucketId },
+        });
+        await tx.$executeRaw`
+          UPDATE "Media"
+          SET "tags" = "tags" - ${slugs}::text[],
+              "aiTags" = "aiTags" - ${slugs}::text[]
+          WHERE "tags" && ${slugs}::text[]
+             OR "aiTags" && ${slugs}::text[]
+        `;
+      });
+      revalidateSurfaces();
+      revalidateLibrarySurfaces();
+      return {
+        ok: true,
+        message: `Banned ${slugs.length} tag${slugs.length === 1 ? "" : "s"} and swept them from library items.`,
+      };
+    }
+
+    const result = await prisma.tag.updateMany({
+      where: { slug: { in: slugs } },
+      data: { bucketId: nextBucketId },
+    });
+    revalidateSurfaces();
+    const target = nextBucketId ? "bucket" : "Uncategorized";
+    return {
+      ok: true,
+      message: `Moved ${result.count} tag${result.count === 1 ? "" : "s"} to ${target === "bucket" ? "the selected bucket" : target}.`,
+    };
+  } catch (e) {
+    console.error("bulkAssignBucketAction failed", e);
+    return { ok: false, error: "Bulk move failed — try again." };
+  }
+}
+
+// ---------------------------------------------------------------------------
+// bulkDeleteTagsAction — remove N Tag rows + sweep all N slugs from every
+// Media row in a single transaction. Modelled on deleteTagAction lifted
+// to arrays. The array-literal form of `- ::text[]` removes every
+// occurrence of every slug in one UPDATE.
+
+export async function bulkDeleteTagsAction(
+  _prev: AdminTaxonomyState,
+  fd: FormData,
+): Promise<AdminTaxonomyState> {
+  try {
+    await requireAdmin();
+    const slugs = parseBulkSlugs(fd);
+    if (slugs.length === 0) return { ok: false, error: "No tags selected." };
+
+    const found = await prisma.tag.findMany({
+      where: { slug: { in: slugs } },
+      select: { slug: true },
+    });
+    const foundSlugs = found.map((t) => t.slug);
+    if (foundSlugs.length === 0) {
+      return { ok: false, error: "None of the selected tags exist." };
+    }
+
+    await prisma.$transaction(async (tx) => {
+      await tx.$executeRaw`
+        UPDATE "Media"
+        SET "tags" = "tags" - ${foundSlugs}::text[],
+            "aiTags" = "aiTags" - ${foundSlugs}::text[]
+        WHERE "tags" && ${foundSlugs}::text[]
+           OR "aiTags" && ${foundSlugs}::text[]
+      `;
+      await tx.tag.deleteMany({ where: { slug: { in: foundSlugs } } });
+    });
+
+    revalidateSurfaces();
+    revalidateLibrarySurfaces();
+    return {
+      ok: true,
+      message: `Deleted ${foundSlugs.length} tag${foundSlugs.length === 1 ? "" : "s"} and swept them from library items.`,
+    };
+  } catch (e) {
+    console.error("bulkDeleteTagsAction failed", e);
+    return { ok: false, error: "Bulk delete failed — try again." };
+  }
+}
+
+// ---------------------------------------------------------------------------
+// addBucketAction / renameBucketAction — basic bucket editing. Skip
+// delete + merge: both need Media-sweep semantics that are worth a
+// separate design pass.
+
+export async function addBucketAction(
+  _prev: AdminTaxonomyState,
+  fd: FormData,
+): Promise<AdminTaxonomyState> {
+  try {
+    await requireAdmin();
+    const label = normalizeBucketLabel(fd.get("label"));
+    if (!label) {
+      return {
+        ok: false,
+        error: `Label must be 1-${MAX_BUCKET_LABEL_CHARS} chars after trim.`,
+      };
+    }
+
+    const sortOrderRaw = fd.get("sortOrder");
+    let sortOrder: number;
+    if (typeof sortOrderRaw === "string" && sortOrderRaw.trim()) {
+      const parsed = Number.parseInt(sortOrderRaw, 10);
+      if (!Number.isFinite(parsed)) {
+        return { ok: false, error: "Sort order must be a number." };
+      }
+      sortOrder = parsed;
+    } else {
+      const max = await prisma.taxonomyBucket.aggregate({
+        _max: { sortOrder: true },
+      });
+      sortOrder = (max._max.sortOrder ?? -1) + 1;
+    }
+
+    try {
+      await prisma.taxonomyBucket.create({ data: { label, sortOrder } });
+    } catch (e) {
+      if (isUniqueConstraintError(e)) {
+        return { ok: false, error: `Bucket "${label}" already exists.` };
+      }
+      throw e;
+    }
+
+    revalidateSurfaces();
+    return { ok: true, message: `Added bucket "${label}".` };
+  } catch (e) {
+    console.error("addBucketAction failed", e);
+    return { ok: false, error: "Add bucket failed — try again." };
+  }
+}
+
+// v2: updateBucketAction supersedes v1's renameBucketAction. Accepts
+// label + optional description. Presence of a non-empty description
+// promotes the bucket to "priority" treatment in the Gemini hint and
+// classify destination filter. Empty description = secondary bucket.
+export async function updateBucketAction(
+  _prev: AdminTaxonomyState,
+  fd: FormData,
+): Promise<AdminTaxonomyState> {
+  try {
+    await requireAdmin();
+    const idRaw = fd.get("id");
+    const id = typeof idRaw === "string" ? idRaw : "";
+    if (!id) return { ok: false, error: "Missing bucket id." };
+    const label = normalizeBucketLabel(fd.get("label"));
+    if (!label) {
+      return {
+        ok: false,
+        error: `Label must be 1-${MAX_BUCKET_LABEL_CHARS} chars after trim.`,
+      };
+    }
+    const description = normalizeMultilineString(
+      fd.get("description"),
+      MAX_BUCKET_DESCRIPTION_CHARS,
+    );
+
+    const existing = await prisma.taxonomyBucket.findUnique({
+      where: { id },
+      select: { id: true, label: true, description: true },
+    });
+    if (!existing) return { ok: false, error: "Bucket not found." };
+    if (existing.label === label && existing.description === description) {
+      return { ok: true, message: "No change." };
+    }
+
+    try {
+      await prisma.taxonomyBucket.update({
+        where: { id },
+        data: { label, description },
+      });
+    } catch (e) {
+      if (isUniqueConstraintError(e)) {
+        return { ok: false, error: `Bucket "${label}" already exists.` };
+      }
+      throw e;
+    }
+
+    revalidateSurfaces();
+    // Tailor the success message to what actually changed so the admin
+    // knows the priority / secondary tier flipped when they toggled the
+    // description. normalizeMultilineString trims + returns null on
+    // empty, so `!== null` alone is the priority signal on both sides.
+    const labelChanged = existing.label !== label;
+    const wasPriority = existing.description !== null;
+    const isPriority = description !== null;
+    let msg = labelChanged ? `Renamed to "${label}".` : `Updated "${label}".`;
+    if (wasPriority !== isPriority) {
+      msg += isPriority
+        ? " Bucket is now priority."
+        : " Bucket is now secondary.";
+    }
+    return { ok: true, message: msg };
+  } catch (e) {
+    console.error("updateBucketAction failed", e);
+    return { ok: false, error: "Update failed — try again." };
+  }
+}
+
+// ---------------------------------------------------------------------------
+// classifyUncategorizedAction — one Haiku call across every bucketId=null
+// tag; write the results back with a `bucketId: null` guard so we never
+// clobber a manual assignment that raced with the call. Null model
+// verdicts (ambiguous) stay uncategorized. Admin can override anything
+// via the single-row editor or bulk-move.
+
+export async function classifyUncategorizedAction(
+  _prev: AdminTaxonomyState,
+  _fd: FormData,
+): Promise<AdminTaxonomyState> {
+  try {
+    await requireAdmin();
+
+    const [uncategorizedTags, buckets] = await Promise.all([
+      prisma.tag.findMany({
+        where: { bucketId: null },
+        select: { slug: true },
+        orderBy: { slug: "asc" },
+      }),
+      prisma.taxonomyBucket.findMany({
+        orderBy: { sortOrder: "asc" },
+        include: {
+          tags: {
+            select: { slug: true },
+            orderBy: { slug: "asc" },
+            take: 10,
+          },
+        },
+      }),
+    ]);
+
+    if (uncategorizedTags.length === 0) {
+      return { ok: true, message: "Nothing to classify." };
+    }
+
+    // v2: only priority buckets (description set) are valid classify
+    // destinations. Banned is excluded — we don't auto-ban. Generic
+    // tags that don't fit any priority bucket stay null. Type-guard
+    // narrows `description` so downstream .trim() is unambiguous.
+    type BucketWithDescription = (typeof buckets)[number] & {
+      description: string;
+    };
+    const isPriority = (
+      b: (typeof buckets)[number],
+    ): b is BucketWithDescription =>
+      b.label !== BANNED_LABEL &&
+      b.description !== null &&
+      b.description.trim().length > 0;
+    const priorityBuckets = buckets.filter(isPriority);
+    if (priorityBuckets.length === 0) {
+      return {
+        ok: false,
+        error:
+          "No priority buckets defined — add a description to at least one bucket before classifying.",
+      };
+    }
+
+    const slugs = uncategorizedTags.map((t) => t.slug);
+    const bucketInput: BucketForClassify[] = priorityBuckets.map((b) => ({
+      id: b.id,
+      label: b.label,
+      description: b.description.trim(),
+      sampleSlugs: b.tags.map((t) => t.slug),
+    }));
+
+    const result = await classifyTagsIntoBuckets(slugs, bucketInput);
+
+    // Group by bucket id → slugs for one updateMany per bucket. Keeps
+    // the write atomic per bucket. The `bucketId: null` guard means we
+    // never clobber a manual assignment that raced with the classify call.
+    const byBucket = new Map<string, string[]>();
+    let nullCount = 0;
+    for (const [slug, bucketId] of result.entries()) {
+      if (bucketId === null) {
+        nullCount++;
+        continue;
+      }
+      const list = byBucket.get(bucketId) ?? [];
+      list.push(slug);
+      byBucket.set(bucketId, list);
+    }
+
+    let assignedCount = 0;
+    if (byBucket.size > 0) {
+      await prisma.$transaction(
+        Array.from(byBucket.entries()).map(([bucketId, bucketSlugs]) =>
+          prisma.tag.updateMany({
+            where: { slug: { in: bucketSlugs }, bucketId: null },
+            data: { bucketId },
+          }),
+        ),
+      );
+      for (const rows of byBucket.values()) {
+        assignedCount += rows.length;
+      }
+    }
+
+    revalidateSurfaces();
+    return {
+      ok: true,
+      message: `Classified ${assignedCount} into ${byBucket.size} priority bucket${byBucket.size === 1 ? "" : "s"}; ${nullCount} left uncategorized (generic tags stay loose on purpose).`,
+    };
+  } catch (e) {
+    console.error("classifyUncategorizedAction failed", e);
+    return { ok: false, error: "Classify failed — try again." };
+  }
+}
+
+// ---------------------------------------------------------------------------
 // Shared helpers
 
 async function sweepMediaForSlug(slug: string): Promise<void> {
@@ -364,4 +715,39 @@ function normalizeMultilineString(
   const trimmed = raw.replace(/\r\n/g, "\n").trim();
   if (!trimmed) return null;
   return trimmed.slice(0, cap);
+}
+
+function normalizeBucketLabel(raw: FormDataEntryValue | null): string | null {
+  if (typeof raw !== "string") return null;
+  const trimmed = raw.trim();
+  if (!trimmed || trimmed.length > MAX_BUCKET_LABEL_CHARS) return null;
+  return trimmed;
+}
+
+// Bulk actions accept multiple `<input name="slug">` fields. FormData.getAll
+// returns every value; we dedupe + parseTag-validate. Cap at MAX_BULK_EDIT_SLUGS
+// so a pathological request can't ask us to update the entire registry in one
+// txn.
+function parseBulkSlugs(fd: FormData): string[] {
+  const raw = fd.getAll("slug");
+  const out = new Set<string>();
+  for (const v of raw) {
+    if (typeof v !== "string") continue;
+    const normalized = parseTag(v);
+    if (normalized) out.add(normalized);
+    if (out.size >= MAX_BULK_EDIT_SLUGS) break;
+  }
+  return Array.from(out);
+}
+
+// Prisma's P2002 surfaces as an object with a `code` property. We only
+// pattern-match `code`; avoid importing the Prisma namespace type to keep
+// this file lean.
+function isUniqueConstraintError(e: unknown): boolean {
+  return (
+    typeof e === "object" &&
+    e !== null &&
+    "code" in e &&
+    (e as { code: unknown }).code === "P2002"
+  );
 }

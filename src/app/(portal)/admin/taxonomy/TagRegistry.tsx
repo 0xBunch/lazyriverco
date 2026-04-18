@@ -1,14 +1,26 @@
 "use client";
 
 import { useFormState, useFormStatus } from "react-dom";
-import { useMemo, useState, type ReactNode } from "react";
+import {
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  type ReactNode,
+} from "react";
 import { cn } from "@/lib/utils";
 import { BANNED_LABEL } from "@/lib/taxonomy-constants";
 import {
+  addBucketAction,
   addTagAction,
   assignTagBucketAction,
+  bulkAssignBucketAction,
+  bulkDeleteTagsAction,
   bulkImportTagsAction,
+  classifyUncategorizedAction,
   deleteTagAction,
+  updateBucketAction,
   updateTagMetaAction,
   type AdminTaxonomyState,
 } from "./actions";
@@ -19,7 +31,11 @@ import {
 // through a server action and pending states are scoped to the form
 // that fired, so the table never flickers globally.
 
-export type BucketOption = { id: string; label: string };
+export type BucketOption = {
+  id: string;
+  label: string;
+  description: string | null;
+};
 
 export type TagRow = {
   slug: string;
@@ -42,6 +58,7 @@ export function TagRegistry({
   const [filter, setFilter] = useState<FilterKey>("all");
   const [query, setQuery] = useState("");
   const [expandedSlug, setExpandedSlug] = useState<string | null>(null);
+  const [selected, setSelected] = useState<Set<string>>(new Set());
 
   const counts = useMemo(() => {
     const byBucket = new Map<string, number>();
@@ -76,8 +93,72 @@ export function TagRegistry({
     [filteredRows],
   );
 
+  // Prune selection when rows change (e.g. after a bulk delete, deleted
+  // slugs shouldn't linger in the selection Set). The action-bar also
+  // clears on ok:true via useEffect below, so this is belt-and-suspenders.
+  useEffect(() => {
+    setSelected((prev) => {
+      if (prev.size === 0) return prev;
+      const registered = new Set(rows.map((r) => r.slug));
+      let changed = false;
+      const next = new Set<string>();
+      for (const s of prev) {
+        if (registered.has(s)) next.add(s);
+        else changed = true;
+      }
+      return changed ? next : prev;
+    });
+  }, [rows]);
+
+  const filteredSlugs = useMemo(() => sortedRows.map((r) => r.slug), [sortedRows]);
+
+  const allFilteredSelected =
+    filteredSlugs.length > 0 && filteredSlugs.every((s) => selected.has(s));
+  const someFilteredSelected =
+    !allFilteredSelected && filteredSlugs.some((s) => selected.has(s));
+
+  function toggleOne(slug: string) {
+    setSelected((prev) => {
+      const next = new Set(prev);
+      if (next.has(slug)) next.delete(slug);
+      else next.add(slug);
+      return next;
+    });
+  }
+  function toggleAllFiltered() {
+    setSelected((prev) => {
+      const next = new Set(prev);
+      if (allFilteredSelected) {
+        for (const s of filteredSlugs) next.delete(s);
+      } else {
+        for (const s of filteredSlugs) next.add(s);
+      }
+      return next;
+    });
+  }
+  // Stable across renders so `BulkActionBar`'s useEffect deps don't
+  // re-subscribe every parent render.
+  const clearSelection = useCallback(() => setSelected(new Set()), []);
+  // After a bulk op commits, drop ONLY the slugs we just submitted —
+  // not the whole selection. If the admin selected more tags while the
+  // server action was in flight, those stay selected. This is the
+  // correct semantic for a "I acted on THESE" operation.
+  const removeFromSelection = useCallback((slugs: readonly string[]) => {
+    setSelected((prev) => {
+      if (prev.size === 0) return prev;
+      const next = new Set(prev);
+      let changed = false;
+      for (const s of slugs) {
+        if (next.delete(s)) changed = true;
+      }
+      return changed ? next : prev;
+    });
+  }, []);
+
   return (
     <div className="space-y-5">
+      <BucketEditor buckets={buckets} />
+
       <BulkImportBar buckets={buckets} />
 
       <div className="flex flex-wrap items-center gap-2">
@@ -106,6 +187,7 @@ export function TagRegistry({
         >
           Uncategorized
         </FilterChip>
+        <ClassifyUncategorizedButton count={counts.uncategorized} />
 
         <div className="ml-auto flex items-center gap-2">
           <label htmlFor="tag-search" className="sr-only">
@@ -126,6 +208,14 @@ export function TagRegistry({
         <table className="w-full text-sm">
           <thead>
             <tr className="border-b border-bone-800 bg-bone-900">
+              <ThHead className="w-10">
+                <SelectAllCheckbox
+                  checked={allFilteredSelected}
+                  indeterminate={someFilteredSelected}
+                  onChange={toggleAllFiltered}
+                  disabled={filteredSlugs.length === 0}
+                />
+              </ThHead>
               <ThHead className="w-1/3">Slug</ThHead>
               <ThHead className="w-20 text-right">Uses</ThHead>
               <ThHead className="w-48">Bucket</ThHead>
@@ -137,7 +227,7 @@ export function TagRegistry({
             {sortedRows.length === 0 ? (
               <tr>
                 <td
-                  colSpan={5}
+                  colSpan={6}
                   className="p-6 text-center text-sm italic text-bone-400"
                 >
                   No tags match. {query ? "Clear the search" : "Add one above"}.
@@ -153,12 +243,23 @@ export function TagRegistry({
                   onToggle={() =>
                     setExpandedSlug((s) => (s === row.slug ? null : row.slug))
                   }
+                  selected={selected.has(row.slug)}
+                  onToggleSelect={() => toggleOne(row.slug)}
                 />
               ))
             )}
           </tbody>
         </table>
       </div>
+
+      {selected.size > 0 ? (
+        <BulkActionBar
+          buckets={buckets}
+          selectedSlugs={Array.from(selected)}
+          onClear={clearSelection}
+          onCommitted={removeFromSelection}
+        />
+      ) : null}
     </div>
   );
 }
@@ -170,11 +271,15 @@ function TagTableRow({
   buckets,
   expanded,
   onToggle,
+  selected,
+  onToggleSelect,
 }: {
   row: TagRow;
   buckets: BucketOption[];
   expanded: boolean;
   onToggle: () => void;
+  selected: boolean;
+  onToggleSelect: () => void;
 }) {
   const bucketLabel = row.bucketLabel ?? "Uncategorized";
   const isBanned = bucketLabel === BANNED_LABEL;
@@ -185,9 +290,17 @@ function TagTableRow({
         className={cn(
           "border-b border-bone-800/50 transition-colors",
           expanded && "bg-claude-500/5",
+          selected && !expanded && "bg-claude-500/[0.03]",
           isBanned && "bg-red-950/20",
         )}
       >
+        <td className="px-4 py-2.5 align-middle">
+          <RowCheckbox
+            slug={row.slug}
+            checked={selected}
+            onChange={onToggleSelect}
+          />
+        </td>
         <td className="px-4 py-2.5 align-middle">
           <button
             type="button"
@@ -235,7 +348,7 @@ function TagTableRow({
       </tr>
       {expanded ? (
         <tr className="border-b border-bone-800 bg-bone-900/40">
-          <td colSpan={5} className="px-4 py-4">
+          <td colSpan={6} className="px-4 py-4">
             <TagEditor row={row} buckets={buckets} onDone={onToggle} />
           </td>
         </tr>
@@ -358,10 +471,7 @@ function BulkImportBar({ buckets }: { buckets: BucketOption[] }) {
   const [importState, importAction] = useFormState(bulkImportTagsAction, null);
 
   return (
-    <details
-      open
-      className="group rounded-2xl border border-bone-800 bg-bone-900/40 open:bg-bone-900/60"
-    >
+    <details className="group rounded-2xl border border-bone-800 bg-bone-900/40 open:bg-bone-900/60">
       <summary className="flex cursor-pointer select-none items-center justify-between rounded-2xl px-5 py-3 font-display text-sm font-semibold uppercase tracking-[0.18em] text-claude-300 focus:outline-none focus-visible:ring-2 focus-visible:ring-claude-400">
         <span>Add / import tags</span>
         <span className="text-bone-400 transition-transform group-open:rotate-45">
@@ -580,5 +690,409 @@ function StatusLine({ state }: { state: AdminTaxonomyState }) {
     >
       {state.ok ? state.message : state.error}
     </span>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Bulk selection + action bar
+
+function RowCheckbox({
+  slug,
+  checked,
+  onChange,
+}: {
+  slug: string;
+  checked: boolean;
+  onChange: () => void;
+}) {
+  return (
+    <label className="inline-flex cursor-pointer items-center">
+      <span className="sr-only">Select {slug}</span>
+      <input
+        type="checkbox"
+        checked={checked}
+        onChange={onChange}
+        className="h-4 w-4 cursor-pointer rounded border-bone-700 bg-bone-900 accent-claude-500 focus:outline-none focus-visible:ring-2 focus-visible:ring-claude-400"
+      />
+    </label>
+  );
+}
+
+function SelectAllCheckbox({
+  checked,
+  indeterminate,
+  onChange,
+  disabled,
+}: {
+  checked: boolean;
+  indeterminate: boolean;
+  onChange: () => void;
+  disabled: boolean;
+}) {
+  // indeterminate is a DOM-only property — React has no prop for it.
+  // useRef + useEffect (not a ref callback) so the property syncs on
+  // EVERY re-render when the value changes, not just on mount.
+  const ref = useRef<HTMLInputElement>(null);
+  useEffect(() => {
+    if (ref.current) ref.current.indeterminate = indeterminate;
+  }, [indeterminate]);
+  return (
+    <label className="inline-flex cursor-pointer items-center">
+      <span className="sr-only">Select all visible tags</span>
+      <input
+        type="checkbox"
+        ref={ref}
+        checked={checked}
+        onChange={onChange}
+        disabled={disabled}
+        aria-checked={indeterminate ? "mixed" : checked}
+        className="h-4 w-4 cursor-pointer rounded border-bone-700 bg-bone-900 accent-claude-500 focus:outline-none focus-visible:ring-2 focus-visible:ring-claude-400 disabled:cursor-not-allowed disabled:opacity-40"
+      />
+    </label>
+  );
+}
+
+function BulkActionBar({
+  buckets,
+  selectedSlugs,
+  onClear,
+  onCommitted,
+}: {
+  buckets: BucketOption[];
+  selectedSlugs: string[];
+  onClear: () => void;
+  onCommitted: (slugs: readonly string[]) => void;
+}) {
+  const [assignState, assignAction] = useFormState(
+    bulkAssignBucketAction,
+    null,
+  );
+  const [deleteState, deleteAction] = useFormState(
+    bulkDeleteTagsAction,
+    null,
+  );
+  const bannedBucket = buckets.find((b) => b.label === BANNED_LABEL);
+
+  // Snapshot the slugs we actually submitted. When the server action
+  // resolves, we clear only those from the selection — NOT the whole
+  // set. If the admin added more tags while the call was in flight,
+  // those stay selected. `assignCommitRef` / `deleteCommitRef` are
+  // keyed to the most recent submission of each action; the effects
+  // drain the ref after applying it to avoid double-applying.
+  const assignCommitRef = useRef<readonly string[] | null>(null);
+  const deleteCommitRef = useRef<readonly string[] | null>(null);
+
+  useEffect(() => {
+    if (assignState?.ok && assignCommitRef.current) {
+      onCommitted(assignCommitRef.current);
+      assignCommitRef.current = null;
+    }
+  }, [assignState, onCommitted]);
+  useEffect(() => {
+    if (deleteState?.ok && deleteCommitRef.current) {
+      onCommitted(deleteCommitRef.current);
+      deleteCommitRef.current = null;
+    }
+  }, [deleteState, onCommitted]);
+
+  const count = selectedSlugs.length;
+  const countId = "bulk-action-count";
+
+  // Toolbar-flush treatment: anchored at the bottom as a horizontal
+  // band instead of a centered floating capsule. Reads as a workflow
+  // toolbar, not a hero ornament.
+  return (
+    <div
+      role="region"
+      aria-label="Bulk actions"
+      className="sticky bottom-0 z-20 flex flex-wrap items-center gap-3 border-t border-claude-500/30 bg-bone-900/95 px-4 py-3 backdrop-blur"
+    >
+      <span id={countId} className="text-sm font-medium text-claude-200">
+        {count} selected
+      </span>
+
+      <form
+        action={assignAction}
+        onSubmit={() => {
+          assignCommitRef.current = selectedSlugs.slice();
+        }}
+        className="flex flex-wrap items-center gap-2"
+      >
+        {selectedSlugs.map((s) => (
+          <input key={s} type="hidden" name="slug" value={s} />
+        ))}
+        <label htmlFor="bulk-move-bucket" className="sr-only">
+          Move to bucket
+        </label>
+        <select
+          id="bulk-move-bucket"
+          name="bucketId"
+          defaultValue=""
+          className="rounded-md border border-bone-800 bg-bone-950 px-2 py-1.5 text-xs text-bone-100 focus:border-claude-500/60 focus:outline-none focus-visible:ring-2 focus-visible:ring-claude-400"
+        >
+          <option value="">Uncategorized</option>
+          {buckets.map((b) => (
+            <option key={b.id} value={b.id}>
+              {b.label}
+            </option>
+          ))}
+        </select>
+        <SubmitButton kind="primary">Move</SubmitButton>
+      </form>
+
+      {bannedBucket ? (
+        <form
+          action={assignAction}
+          onSubmit={(e) => {
+            const ok = window.confirm(
+              `Ban ${count} tag${count === 1 ? "" : "s"} and strip them from all library items? Banning is one-way — unbanning does NOT restore removed tags.`,
+            );
+            if (!ok) {
+              e.preventDefault();
+              return;
+            }
+            assignCommitRef.current = selectedSlugs.slice();
+          }}
+        >
+          {selectedSlugs.map((s) => (
+            <input key={s} type="hidden" name="slug" value={s} />
+          ))}
+          <input type="hidden" name="bucketId" value={bannedBucket.id} />
+          <BulkDangerButton tone="ban" aria-describedby={countId}>
+            Ban
+          </BulkDangerButton>
+        </form>
+      ) : null}
+
+      <form
+        action={deleteAction}
+        onSubmit={(e) => {
+          const ok = window.confirm(
+            `Delete ${count} tag${count === 1 ? "" : "s"} and strip them from all library items? This can't be undone.`,
+          );
+          if (!ok) {
+            e.preventDefault();
+            return;
+          }
+          deleteCommitRef.current = selectedSlugs.slice();
+        }}
+      >
+        {selectedSlugs.map((s) => (
+          <input key={s} type="hidden" name="slug" value={s} />
+        ))}
+        <BulkDangerButton tone="delete" aria-describedby={countId}>
+          Delete permanently
+        </BulkDangerButton>
+      </form>
+
+      <button
+        type="button"
+        onClick={onClear}
+        className="ml-auto rounded-md border border-bone-800 bg-transparent px-3 py-1.5 text-xs font-medium text-bone-300 transition-colors hover:text-bone-100 focus:outline-none focus-visible:ring-2 focus-visible:ring-claude-400"
+      >
+        Clear
+      </button>
+
+      {assignState ? <StatusLine state={assignState} /> : null}
+      {deleteState ? <StatusLine state={deleteState} /> : null}
+    </div>
+  );
+}
+
+// Pending-aware destructive button. Ban is restrained red outline;
+// Delete is filled red — both readable as dangerous, but Delete reads
+// louder because it's terminal whereas Ban is a bucket reassignment
+// with a sweep.
+function BulkDangerButton({
+  children,
+  tone,
+  "aria-describedby": ariaDescribedby,
+}: {
+  children: ReactNode;
+  tone: "ban" | "delete";
+  "aria-describedby"?: string;
+}) {
+  const { pending } = useFormStatus();
+  return (
+    <button
+      type="submit"
+      disabled={pending}
+      aria-describedby={ariaDescribedby}
+      className={cn(
+        "rounded-md px-3 py-1.5 text-xs font-medium transition-colors",
+        "focus:outline-none focus-visible:ring-2 focus-visible:ring-red-400 disabled:cursor-not-allowed disabled:opacity-40",
+        tone === "ban" &&
+          "border border-red-900/60 bg-transparent text-red-200 hover:bg-red-950/40",
+        tone === "delete" &&
+          "border border-red-700 bg-red-800/70 text-red-50 hover:bg-red-700",
+      )}
+    >
+      {pending ? "Working…" : children}
+    </button>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// "Classify uncategorized" button — one Haiku call across every
+// bucketId=null tag. Admin-invoked (not auto-fire at creation).
+
+function ClassifyUncategorizedButton({ count }: { count: number }) {
+  const [state, action] = useFormState(classifyUncategorizedAction, null);
+  return (
+    <form action={action} className="flex items-center gap-2">
+      <ClassifyButtonInner count={count} />
+      {state ? <StatusLine state={state} /> : null}
+    </form>
+  );
+}
+
+function ClassifyButtonInner({ count }: { count: number }) {
+  const { pending } = useFormStatus();
+  const disabled = pending || count === 0;
+  return (
+    <button
+      type="submit"
+      disabled={disabled}
+      title={
+        count === 0
+          ? "Nothing uncategorized"
+          : `Ask Haiku to classify ${count} uncategorized tag${count === 1 ? "" : "s"}`
+      }
+      className="inline-flex items-center gap-1.5 rounded-full border border-claude-500/50 bg-claude-500/10 px-3 py-1 text-xs font-medium uppercase tracking-wider text-claude-100 transition-colors hover:bg-claude-500/20 focus:outline-none focus-visible:ring-2 focus-visible:ring-claude-400 disabled:cursor-not-allowed disabled:opacity-40"
+    >
+      {pending ? "Classifying…" : `Classify uncategorized${count > 0 ? ` (${count})` : ""}`}
+    </button>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Bucket editor — add + rename. Skips delete and merge (those have
+// downstream Media-sweep implications worth a separate design pass).
+
+function BucketEditor({ buckets }: { buckets: BucketOption[] }) {
+  const [addState, addAction] = useFormState(addBucketAction, null);
+
+  return (
+    <details className="group rounded-2xl border border-bone-800 bg-bone-900/40 open:bg-bone-900/60">
+      <summary className="flex cursor-pointer select-none items-center justify-between rounded-2xl px-5 py-3 font-display text-sm font-semibold uppercase tracking-[0.18em] text-claude-300 focus:outline-none focus-visible:ring-2 focus-visible:ring-claude-400">
+        <span>Edit buckets ({buckets.length})</span>
+        <span className="text-bone-400 transition-transform group-open:rotate-45">
+          +
+        </span>
+      </summary>
+      <div className="space-y-4 px-5 pb-5">
+        <form action={addAction} className="flex flex-wrap items-end gap-2">
+          <div className="flex-1 min-w-[220px]">
+            <label
+              htmlFor="bucket-add-label"
+              className="mb-1 block text-xs font-semibold uppercase tracking-wider text-bone-300"
+            >
+              New bucket label
+            </label>
+            <input
+              id="bucket-add-label"
+              name="label"
+              type="text"
+              placeholder="e.g. vibes"
+              maxLength={40}
+              autoComplete="off"
+              className="w-full rounded-md border border-bone-800 bg-bone-900/60 px-3 py-1.5 text-sm text-bone-100 placeholder:text-bone-500 focus:border-claude-500/60 focus:outline-none focus-visible:ring-2 focus-visible:ring-claude-400"
+            />
+          </div>
+          <div>
+            <label
+              htmlFor="bucket-add-sortorder"
+              className="mb-1 block text-xs font-semibold uppercase tracking-wider text-bone-300"
+            >
+              Sort order
+            </label>
+            <input
+              id="bucket-add-sortorder"
+              name="sortOrder"
+              type="number"
+              placeholder="auto"
+              className="w-24 rounded-md border border-bone-800 bg-bone-900/60 px-2 py-1.5 text-sm text-bone-100 placeholder:text-bone-500 focus:border-claude-500/60 focus:outline-none focus-visible:ring-2 focus-visible:ring-claude-400"
+            />
+          </div>
+          <SubmitButton kind="secondary">Add bucket</SubmitButton>
+          {addState ? <StatusLine state={addState} /> : null}
+        </form>
+
+        <div className="space-y-3 border-t border-bone-800 pt-3">
+          <p className="text-xs text-bone-400">
+            A rule makes the bucket operational — Gemini uses it and the
+            classifier writes into it. No rule = loose vocabulary.
+          </p>
+          <ul className="space-y-4">
+            {buckets.map((b) => (
+              <li key={b.id}>
+                <BucketEditRow bucket={b} />
+              </li>
+            ))}
+          </ul>
+        </div>
+      </div>
+    </details>
+  );
+}
+
+function isPriorityBucket(b: BucketOption): boolean {
+  return !!b.description && b.description.trim().length > 0;
+}
+
+function BucketEditRow({ bucket }: { bucket: BucketOption }) {
+  const [state, action] = useFormState(updateBucketAction, null);
+  const priority = isPriorityBucket(bucket);
+  // Remount on either field changing server-side so the uncontrolled
+  // inputs always reflect fresh defaults after a save. JSON.stringify
+  // is unambiguous even if a label happens to contain the field
+  // separator, which the `::` shorthand wasn't.
+  const remountKey = JSON.stringify([bucket.label, bucket.description]);
+  const descriptionId = `bucket-desc-${bucket.id}`;
+  const helpId = `bucket-desc-help-${bucket.id}`;
+  return (
+    <form
+      action={action}
+      className={cn(
+        "space-y-2 border-l-2 pl-3 transition-colors",
+        priority ? "border-claude-500/60" : "border-transparent",
+      )}
+      aria-label={
+        priority
+          ? `Bucket "${bucket.label}" — priority (included in the classifier prompt)`
+          : `Bucket "${bucket.label}" — secondary`
+      }
+      key={remountKey}
+    >
+      <input type="hidden" name="id" value={bucket.id} />
+      <div className="flex flex-wrap items-center gap-2">
+        <input
+          name="label"
+          type="text"
+          defaultValue={bucket.label}
+          maxLength={40}
+          className="min-w-[180px] flex-1 rounded-md border border-bone-800 bg-bone-900/60 px-3 py-1.5 text-sm text-bone-100 focus:border-claude-500/60 focus:outline-none focus-visible:ring-2 focus-visible:ring-claude-400"
+        />
+        {priority ? (
+          <span className="text-xs text-claude-300">Priority</span>
+        ) : null}
+        <SubmitButton kind="secondary">Save</SubmitButton>
+        {state ? <StatusLine state={state} /> : null}
+      </div>
+      <textarea
+        id={descriptionId}
+        name="description"
+        defaultValue={bucket.description ?? ""}
+        rows={2}
+        maxLength={1000}
+        placeholder="Rule for what belongs here…"
+        aria-describedby={helpId}
+        className="w-full rounded-md border border-bone-800 bg-bone-900/60 px-3 py-2 text-sm text-bone-100 placeholder:text-bone-500 focus:border-claude-500/60 focus:outline-none focus-visible:ring-2 focus-visible:ring-claude-400"
+      />
+      <p id={helpId} className="text-xs text-bone-500">
+        Example: real named humans only — players, celebrities,
+        members. Skip mascots, teams, groups.
+      </p>
+    </form>
   );
 }

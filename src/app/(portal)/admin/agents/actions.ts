@@ -104,6 +104,13 @@ export async function createAgent(
     const dialogueMode = formData.get("dialogueMode") === "on";
     const model = parseAgentModel(formData.get("model"));
 
+    // Append at the end. Without this, the schema default of 0 would push
+    // new rows above the existing ones (backfilled starting at 10).
+    const maxRow = await prisma.character.aggregate({
+      _max: { displayOrder: true },
+    });
+    const nextOrder = (maxRow._max.displayOrder ?? 0) + 10;
+
     await prisma.character.create({
       data: {
         name,
@@ -115,6 +122,7 @@ export async function createAgent(
         activeModules: ["chat"],
         dialogueMode,
         model,
+        displayOrder: nextOrder,
       },
     });
 
@@ -127,6 +135,73 @@ export async function createAgent(
       e instanceof Error ? e.message : "Unknown error creating agent.";
     return { ok: false, error: msg };
   }
+}
+
+/** Move an agent up or down one slot. Reads the full ordered list,
+ *  swaps in JS, then re-stamps every row's displayOrder in one
+ *  Serializable transaction — simpler than swapping two rows in place
+ *  and immune to ties or concurrent-admin races (Postgres aborts the
+ *  loser, who refreshes). Cheap at ≤20 agents. */
+export async function reorderAgent(formData: FormData): Promise<void> {
+  await requireAdmin();
+
+  const id = formData.get("id");
+  const direction = formData.get("direction");
+  if (typeof id !== "string" || !id) return;
+  if (direction !== "up" && direction !== "down") return;
+
+  await prisma.$transaction(
+    async (tx) => {
+      const all = await tx.character.findMany({
+        orderBy: [{ displayOrder: "asc" }, { displayName: "asc" }],
+        select: { id: true },
+      });
+
+      const idx = all.findIndex((c) => c.id === id);
+      if (idx === -1) return;
+
+      const swapWith = direction === "up" ? idx - 1 : idx + 1;
+      if (swapWith < 0 || swapWith >= all.length) return;
+
+      const reordered = all.slice();
+      [reordered[idx], reordered[swapWith]] = [reordered[swapWith]!, reordered[idx]!];
+
+      await Promise.all(
+        reordered.map((c, i) =>
+          tx.character.update({
+            where: { id: c.id },
+            data: { displayOrder: (i + 1) * 10 },
+          }),
+        ),
+      );
+    },
+    { isolationLevel: "Serializable" },
+  );
+
+  revalidatePath("/admin/agents");
+}
+
+/** Flip the single isDefault row to a new agent. Clear-then-set in one
+ *  transaction so the partial-unique index `Character_isDefault_key`
+ *  (only one row may have isDefault=true) never sees two true rows. */
+export async function setDefaultAgent(formData: FormData): Promise<void> {
+  await requireAdmin();
+
+  const id = formData.get("id");
+  if (typeof id !== "string" || !id) return;
+
+  await prisma.$transaction([
+    prisma.character.updateMany({
+      where: { isDefault: true },
+      data: { isDefault: false },
+    }),
+    prisma.character.update({
+      where: { id },
+      data: { isDefault: true },
+    }),
+  ]);
+
+  revalidatePath("/admin/agents");
 }
 
 export async function updateAgent(

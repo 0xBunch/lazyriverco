@@ -20,7 +20,10 @@ type LandingUser = {
 type ConversationLandingProps = {
   user: LandingUser;
   characters: readonly ConversationCharacterDTO[];
-  defaultCharacterId: string;
+  /// Pre-selected character on first paint. Null in the (theoretical)
+  /// case of an empty roster; falls back to the first character in the
+  /// list when present.
+  defaultCharacterId: string | null;
   promptGroups: readonly PromptGroupDTO[];
 };
 
@@ -52,7 +55,7 @@ export function ConversationLanding({
       const found = characters.find((c) => c.name === prefillAgent);
       if (found) return found.id;
     }
-    return defaultCharacterId;
+    return defaultCharacterId ?? characters[0]?.id ?? "";
   });
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);

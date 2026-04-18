@@ -8,6 +8,7 @@ import {
 } from "@/lib/sanitize";
 import { buildTaxonomyHint, getBannedSlugs } from "@/lib/ai-taxonomy";
 import { parseTag } from "@/lib/tag-shape";
+import { trackedGeminiCall } from "@/lib/usage";
 
 // Library v1.3 — Gemini 2.5 Flash vision pipeline. Called inline from
 // the ingest + upload-meta actions; returns a small structured result
@@ -52,6 +53,13 @@ export type AnalyzeMediaInput = {
   caption: string | null;
   originTitle: string | null;
   originAuthor: string | null;
+  /** Requesting user id. Threaded onto the LLMUsageEvent so admin
+   *  views can attribute vision-tagging cost to the uploader. `null`
+   *  is only acceptable for cron / system-initiated paths. */
+  userId: string | null;
+  /** Media row id. Stored on the usage event so per-asset cost can be
+   *  rolled up when a row is re-analyzed. */
+  mediaId: string | null;
 };
 
 export type AnalyzeMediaResult =
@@ -89,30 +97,40 @@ export async function analyzeMedia(
 
   try {
     const response = await withTimeout(
-      client().models.generateContent({
-        model: MODEL_ID,
-        config: {
-          systemInstruction: SYSTEM_INSTRUCTION + taxonomyHint,
-          responseMimeType: "application/json",
-          responseSchema: TAGS_RESPONSE_SCHEMA,
-          // Library content includes red-carpet / beach / fashion — the
-          // moderate defaults block more than we want. Lower only the
-          // categories that affect public-figure + everyday social-media
-          // imagery. We don't need to block at the model layer — the app
-          // already has admin hide / delete tools.
-          safetySettings: SAFETY_SETTINGS,
-          temperature: 0.2,
+      trackedGeminiCall(
+        {
+          userId: input.userId,
+          operation: "media.analyze",
+          model: MODEL_ID,
+          mediaId: input.mediaId,
+          imageCount: 1,
         },
-        contents: [
-          {
-            role: "user",
-            parts: [
-              { inlineData: { mimeType: image.mime, data: image.b64 } },
-              { text: context },
+        () =>
+          client().models.generateContent({
+            model: MODEL_ID,
+            config: {
+              systemInstruction: SYSTEM_INSTRUCTION + taxonomyHint,
+              responseMimeType: "application/json",
+              responseSchema: TAGS_RESPONSE_SCHEMA,
+              // Library content includes red-carpet / beach / fashion — the
+              // moderate defaults block more than we want. Lower only the
+              // categories that affect public-figure + everyday social-media
+              // imagery. We don't need to block at the model layer — the app
+              // already has admin hide / delete tools.
+              safetySettings: SAFETY_SETTINGS,
+              temperature: 0.2,
+            },
+            contents: [
+              {
+                role: "user",
+                parts: [
+                  { inlineData: { mimeType: image.mime, data: image.b64 } },
+                  { text: context },
+                ],
+              },
             ],
-          },
-        ],
-      }),
+          }),
+      ),
       GEMINI_CALL_TIMEOUT_MS,
     );
 

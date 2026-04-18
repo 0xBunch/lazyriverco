@@ -73,7 +73,19 @@ export default async function AdminCalendarPage() {
             </div>
           </div>
 
-          <div className="grid gap-4 sm:grid-cols-2">
+          <div className="grid gap-4 sm:grid-cols-3">
+            <div className="space-y-1">
+              <label htmlFor="new-time" className="text-xs font-medium text-bone-200">
+                Time (optional)
+              </label>
+              <input
+                id="new-time"
+                name="time"
+                type="text"
+                placeholder="7:00 PM"
+                className="w-full rounded-lg border border-bone-700 bg-bone-950 px-3 py-2 text-sm text-bone-50 placeholder-bone-500 focus:border-claude-500 focus:outline-none focus:ring-1 focus:ring-claude-500"
+              />
+            </div>
             <div className="space-y-1">
               <label htmlFor="new-tags" className="text-xs font-medium text-bone-200">
                 Tags (comma-separated)

@@ -24,10 +24,19 @@ export type RunVisionTaggingOptions = {
   skipRateLimit?: boolean;
 };
 
+/** Input shape accepted by runVisionTagging — the outer context fields
+ *  (userId, mediaId) travel as separate positional args and are injected
+ *  into the AnalyzeMediaInput we hand to analyzeMedia below. Callers
+ *  supply only the per-image context (url + metadata). */
+export type RunVisionTaggingInput = Omit<
+  AnalyzeMediaInput,
+  "userId" | "mediaId"
+>;
+
 export async function runVisionTagging(
   userId: string,
   mediaId: string,
-  input: AnalyzeMediaInput,
+  input: RunVisionTaggingInput,
   opts: RunVisionTaggingOptions = {},
 ): Promise<void> {
   if (!opts.skipRateLimit) {
@@ -52,7 +61,11 @@ export async function runVisionTagging(
     }
   }
 
-  const result = await analyzeMedia(input);
+  const result = await analyzeMedia({
+    ...input,
+    userId,
+    mediaId,
+  });
 
   if (!result.ok) {
     await prisma.media
