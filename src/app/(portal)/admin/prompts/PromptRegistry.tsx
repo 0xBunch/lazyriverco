@@ -3,6 +3,8 @@
 import { useFormState, useFormStatus } from "react-dom";
 import { useState, type ReactNode } from "react";
 import { cn } from "@/lib/utils";
+import { getPromptIcon } from "@/lib/prompt-icons";
+import { PromptIconPicker } from "@/components/PromptIconPicker";
 import {
   createGroupAction,
   createItemAction,
@@ -22,6 +24,7 @@ import {
 export type PromptItemRow = {
   id: string;
   label: string;
+  icon: string | null;
   prompt: string;
   sortOrder: number;
   isActive: boolean;
@@ -30,6 +33,7 @@ export type PromptItemRow = {
 export type PromptGroupRow = {
   id: string;
   label: string;
+  icon: string | null;
   sortOrder: number;
   isActive: boolean;
   items: PromptItemRow[];
@@ -108,9 +112,7 @@ function GroupCard({
     >
       <header className="flex flex-wrap items-center justify-between gap-3 border-b border-bone-800 pb-3">
         <div className="flex items-center gap-2">
-          <h2 className="font-display text-lg font-semibold text-bone-50">
-            {group.label}
-          </h2>
+          <GroupLabelWithIcon group={group} />
           {!group.isActive ? (
             <span className="rounded-full border border-bone-700 px-2 py-0.5 text-[10px] uppercase tracking-wider text-bone-400">
               Hidden
@@ -217,32 +219,47 @@ function EditGroupForm({ group }: { group: PromptGroupRow }) {
   return (
     <form
       action={action}
-      className="mt-3 flex flex-wrap items-end gap-3 rounded-md border border-bone-800 bg-bone-950/40 p-3"
+      className="mt-3 space-y-3 rounded-md border border-bone-800 bg-bone-950/40 p-3"
     >
       <input type="hidden" name="groupId" value={group.id} />
-      <label className="flex min-w-[12rem] flex-1 flex-col gap-1 text-xs text-bone-300">
-        Label
-        <input
-          name="label"
-          type="text"
-          required
-          maxLength={40}
-          defaultValue={group.label}
-          className="rounded-md border border-bone-800 bg-bone-950 px-3 py-1.5 text-sm text-bone-100 focus:border-claude-500/60 focus:outline-none focus-visible:ring-2 focus-visible:ring-claude-400"
-        />
-      </label>
-      <label className="flex items-center gap-2 text-xs text-bone-300">
-        <input
-          name="isActive"
-          type="checkbox"
-          defaultChecked={group.isActive}
-          className="h-4 w-4 rounded border-bone-700 bg-bone-950 text-claude-500 focus-visible:ring-2 focus-visible:ring-claude-400"
-        />
-        Active (shown on homepage)
-      </label>
-      <SubmitButton kind="primary">Save</SubmitButton>
-      {state ? <StatusLine state={state} /> : null}
+      <div className="flex flex-wrap items-end gap-3">
+        <label className="flex min-w-[12rem] flex-1 flex-col gap-1 text-xs text-bone-300">
+          Label
+          <input
+            name="label"
+            type="text"
+            required
+            maxLength={40}
+            defaultValue={group.label}
+            className="rounded-md border border-bone-800 bg-bone-950 px-3 py-1.5 text-sm text-bone-100 focus:border-claude-500/60 focus:outline-none focus-visible:ring-2 focus-visible:ring-claude-400"
+          />
+        </label>
+        <label className="flex items-center gap-2 text-xs text-bone-300">
+          <input
+            name="isActive"
+            type="checkbox"
+            defaultChecked={group.isActive}
+            className="h-4 w-4 rounded border-bone-700 bg-bone-950 text-claude-500 focus-visible:ring-2 focus-visible:ring-claude-400"
+          />
+          Active (shown on homepage)
+        </label>
+      </div>
+      <PromptIconPicker name="icon" defaultValue={group.icon} />
+      <div className="flex items-center gap-2">
+        <SubmitButton kind="primary">Save</SubmitButton>
+        {state ? <StatusLine state={state} /> : null}
+      </div>
     </form>
+  );
+}
+
+function GroupLabelWithIcon({ group }: { group: PromptGroupRow }) {
+  const Icon = getPromptIcon(group.icon);
+  return (
+    <h2 className="flex items-center gap-1.5 font-display text-lg font-semibold text-bone-50">
+      {Icon ? <Icon className="h-4 w-4 text-bone-300" aria-hidden="true" /> : null}
+      <span>{group.label}</span>
+    </h2>
   );
 }
 
@@ -266,9 +283,7 @@ function ItemRow({
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div className="min-w-0 flex-1">
           <div className="flex items-center gap-2">
-            <span className="text-sm font-medium text-bone-100">
-              {item.label}
-            </span>
+            <ItemLabelWithIcon item={item} />
             {!item.isActive ? (
               <span className="rounded-full border border-bone-700 px-2 py-0.5 text-[10px] uppercase tracking-wider text-bone-400">
                 Hidden
@@ -328,6 +343,7 @@ function EditItemForm({ item }: { item: PromptItemRow }) {
           className="mt-1 w-full rounded-md border border-bone-800 bg-bone-950 px-3 py-1.5 text-sm text-bone-100 focus:border-claude-500/60 focus:outline-none focus-visible:ring-2 focus-visible:ring-claude-400"
         />
       </label>
+      <PromptIconPicker name="icon" defaultValue={item.icon} />
       <label className="flex items-center gap-2 text-xs text-bone-300">
         <input
           name="isActive"
@@ -342,6 +358,16 @@ function EditItemForm({ item }: { item: PromptItemRow }) {
         {state ? <StatusLine state={state} /> : null}
       </div>
     </form>
+  );
+}
+
+function ItemLabelWithIcon({ item }: { item: PromptItemRow }) {
+  const Icon = getPromptIcon(item.icon);
+  return (
+    <span className="flex items-center gap-1.5 text-sm font-medium text-bone-100">
+      {Icon ? <Icon className="h-3.5 w-3.5 text-bone-300" aria-hidden="true" /> : null}
+      <span>{item.label}</span>
+    </span>
   );
 }
 
@@ -394,6 +420,7 @@ function AddItemForm({ groupId }: { groupId: string }) {
           className="mt-1 w-full rounded-md border border-bone-800 bg-bone-950 px-3 py-1.5 text-sm text-bone-100 placeholder-bone-500 focus:border-claude-500/60 focus:outline-none focus-visible:ring-2 focus-visible:ring-claude-400"
         />
       </label>
+      <PromptIconPicker name="icon" defaultValue={null} />
     </form>
   );
 }

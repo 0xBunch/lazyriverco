@@ -134,10 +134,12 @@ export type CreateConversationResponse =
 
 /** One selectable suggestion inside a PromptGroupDTO. `label` is the
  * short CTA shown in the dropdown; `prompt` is the full text pasted
- * into the homepage input on click. */
+ * into the homepage input on click. `icon` is a Lucide icon name from
+ * the allowlist in src/lib/prompt-icons.ts (null = text only). */
 export type PromptSuggestionDTO = {
   id: string;
   label: string;
+  icon: string | null;
   prompt: string;
 };
 
@@ -146,6 +148,7 @@ export type PromptSuggestionDTO = {
 export type PromptGroupDTO = {
   id: string;
   label: string;
+  icon: string | null;
   items: readonly PromptSuggestionDTO[];
 };
 

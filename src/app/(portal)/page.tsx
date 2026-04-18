@@ -38,10 +38,11 @@ export default async function LandingPage() {
       select: {
         id: true,
         label: true,
+        icon: true,
         items: {
           where: { isActive: true },
           orderBy: { sortOrder: "asc" },
-          select: { id: true, label: true, prompt: true },
+          select: { id: true, label: true, icon: true, prompt: true },
         },
       },
     }),

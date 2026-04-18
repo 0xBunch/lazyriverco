@@ -655,6 +655,10 @@ model Pin {
 model PromptGroup {
   id        String   @id @default(uuid())
   label     String
+  /// Name of a Lucide icon from the curated allowlist in
+  /// src/lib/prompt-icons.ts. Null = render label only. Unknown names
+  /// silently downgrade to null at render time (getPromptIcon helper).
+  icon      String?
   sortOrder Int      @default(0)
   isActive  Boolean  @default(true)
   createdAt DateTime @default(now())
@@ -675,6 +679,8 @@ model PromptSuggestion {
   id        String   @id @default(uuid())
   groupId   String
   label     String
+  /// Lucide icon name — see PromptGroup.icon for the contract.
+  icon      String?
   prompt    String   @db.Text
   sortOrder Int      @default(0)
   isActive  Boolean  @default(true)

@@ -3,6 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { prisma } from "@/lib/prisma";
 import { requireAdmin } from "@/lib/auth";
+import { PROMPT_ICONS } from "@/lib/prompt-icons";
 
 // Admin API for /admin/prompts. Manages PromptGroup rows (the dropdown
 // buttons beneath the homepage prompt box) and their PromptSuggestion
@@ -56,6 +57,20 @@ function parseDirection(raw: FormDataEntryValue | null): "up" | "down" | null {
   return raw === "up" || raw === "down" ? raw : null;
 }
 
+// Icon name is validated against the curated Lucide allowlist. Unknown
+// names (including names that have since been removed from the
+// allowlist) are silently downgraded to null rather than rejected, so
+// trimming the list never strands admin UI or produces a blocking error.
+// `Object.hasOwn` (not `in`) so prototype chain lookups like "toString"
+// or "__proto__" don't sneak through validation and hit render as
+// non-Component values.
+function parseIconName(raw: FormDataEntryValue | null): string | null {
+  if (typeof raw !== "string") return null;
+  const trimmed = raw.trim();
+  if (!trimmed) return null;
+  return Object.hasOwn(PROMPT_ICONS, trimmed) ? trimmed : null;
+}
+
 // ---------------------------------------------------------------------------
 // Group actions
 
@@ -69,12 +84,13 @@ export async function createGroupAction(
     if (!label) {
       return { ok: false, error: "Label is required." };
     }
+    const icon = parseIconName(fd.get("icon"));
     const max = await prisma.promptGroup.aggregate({
       _max: { sortOrder: true },
     });
     const nextOrder = (max._max.sortOrder ?? -1) + 1;
     await prisma.promptGroup.create({
-      data: { label, sortOrder: nextOrder },
+      data: { label, icon, sortOrder: nextOrder },
     });
     revalidateSurfaces();
     return { ok: true, message: `Added group "${label}".` };
@@ -94,11 +110,14 @@ export async function updateGroupAction(
     if (!groupId) return { ok: false, error: "Missing group id." };
     const label = normalizeString(fd.get("label"), MAX_GROUP_LABEL);
     if (!label) return { ok: false, error: "Label is required." };
+    const icon = parseIconName(fd.get("icon"));
+    // Unchecked checkboxes are absent from FormData; presence + "on" =
+    // checked. Taxonomy uses the same pattern — see admin/taxonomy/actions.
     const isActive = fd.get("isActive") === "on";
 
     const result = await prisma.promptGroup.updateMany({
       where: { id: groupId },
-      data: { label, isActive },
+      data: { label, icon, isActive },
     });
     if (result.count === 0) {
       return { ok: false, error: "Group not found." };
@@ -186,6 +205,7 @@ export async function createItemAction(
     const prompt = normalizeMultiline(fd.get("prompt"), MAX_PROMPT_CHARS);
     if (!label) return { ok: false, error: "Label is required." };
     if (!prompt) return { ok: false, error: "Prompt is required." };
+    const icon = parseIconName(fd.get("icon"));
 
     const group = await prisma.promptGroup.findUnique({
       where: { id: groupId },
@@ -200,7 +220,7 @@ export async function createItemAction(
     const nextOrder = (max._max.sortOrder ?? -1) + 1;
 
     await prisma.promptSuggestion.create({
-      data: { groupId, label, prompt, sortOrder: nextOrder },
+      data: { groupId, label, icon, prompt, sortOrder: nextOrder },
     });
     revalidateSurfaces();
     return { ok: true, message: `Added "${label}".` };
@@ -222,11 +242,12 @@ export async function updateItemAction(
     const prompt = normalizeMultiline(fd.get("prompt"), MAX_PROMPT_CHARS);
     if (!label) return { ok: false, error: "Label is required." };
     if (!prompt) return { ok: false, error: "Prompt is required." };
+    const icon = parseIconName(fd.get("icon"));
     const isActive = fd.get("isActive") === "on";
 
     const result = await prisma.promptSuggestion.updateMany({
       where: { id: itemId },
-      data: { label, prompt, isActive },
+      data: { label, icon, prompt, isActive },
     });
     if (result.count === 0) {
       return { ok: false, error: "Item not found." };

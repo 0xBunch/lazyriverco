@@ -18,6 +18,7 @@ export default async function AdminPromptsPage() {
     select: {
       id: true,
       label: true,
+      icon: true,
       sortOrder: true,
       isActive: true,
       items: {
@@ -25,6 +26,7 @@ export default async function AdminPromptsPage() {
         select: {
           id: true,
           label: true,
+          icon: true,
           prompt: true,
           sortOrder: true,
           isActive: true,

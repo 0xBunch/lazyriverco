@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { cn } from "@/lib/utils";
+import { getPromptIcon } from "@/lib/prompt-icons";
 import type { PromptGroupDTO } from "@/lib/chat";
 
 type Props = {
@@ -63,6 +64,8 @@ export function PromptGroupMenu({ group, onPick, disabled }: Props) {
     setOpen(false);
   }
 
+  const GroupIcon = getPromptIcon(group.icon);
+
   return (
     <>
       <button
@@ -79,6 +82,9 @@ export function PromptGroupMenu({ group, onPick, disabled }: Props) {
           "focus:outline-none focus-visible:ring-2 focus-visible:ring-claude-500 focus-visible:ring-offset-2 focus-visible:ring-offset-bone-950",
         )}
       >
+        {GroupIcon ? (
+          <GroupIcon aria-hidden="true" className="h-3.5 w-3.5" />
+        ) : null}
         <span>{group.label}</span>
         <svg
           aria-hidden="true"
@@ -105,17 +111,36 @@ export function PromptGroupMenu({ group, onPick, disabled }: Props) {
               style={{ top: coords.top, left: coords.left }}
               className="fixed z-50 min-w-[14rem] max-w-xs rounded-md border border-bone-700 bg-bone-900 py-1 text-sm shadow-xl"
             >
-              {group.items.map((item) => (
-                <button
-                  key={item.id}
-                  role="menuitem"
-                  type="button"
-                  onClick={() => pick(item.prompt)}
-                  className="block w-full px-3 py-1.5 text-left text-bone-200 transition-colors hover:bg-bone-800 hover:text-bone-50 focus:outline-none focus-visible:bg-bone-800"
-                >
-                  {item.label}
-                </button>
-              ))}
+              {/* Reserve the icon gutter for the whole menu when any item
+                  has an icon, so label columns stay aligned even when
+                  some items lack their own icon. */}
+              {(() => {
+                const hasAnyIcon = group.items.some((i) =>
+                  getPromptIcon(i.icon),
+                );
+                return group.items.map((item) => {
+                  const ItemIcon = getPromptIcon(item.icon);
+                  return (
+                    <button
+                      key={item.id}
+                      role="menuitem"
+                      type="button"
+                      onClick={() => pick(item.prompt)}
+                      className="flex w-full items-center gap-2 px-3 py-1.5 text-left text-bone-200 transition-colors hover:bg-bone-800 hover:text-bone-50 focus:outline-none focus-visible:bg-bone-800"
+                    >
+                      {ItemIcon ? (
+                        <ItemIcon
+                          aria-hidden="true"
+                          className="h-3.5 w-3.5 shrink-0 text-bone-400"
+                        />
+                      ) : hasAnyIcon ? (
+                        <span aria-hidden className="h-3.5 w-3.5 shrink-0" />
+                      ) : null}
+                      <span>{item.label}</span>
+                    </button>
+                  );
+                });
+              })()}
             </div>,
             document.body,
           )

@@ -219,22 +219,20 @@ export function ConversationLanding({
 
       {/* Suggestion dropdowns — each PromptGroup is a button that opens a
           menu of short-labeled items. Picking an item pastes the item's
-          full prompt text into the textarea above. Horizontal scroll
-          preserves Claude's one-line rhythm when there are many groups.
+          full prompt text into the textarea above. Row centers beneath
+          the prompt box and wraps to a second line when it overflows.
           Row is hidden entirely if no active groups exist (admin-curated
           via /admin/prompts). */}
       {promptGroups.length > 0 ? (
-        <div className="-mx-4 overflow-x-auto px-4 no-scrollbar">
-          <div className="flex w-max flex-nowrap gap-2">
-            {promptGroups.map((group) => (
-              <PromptGroupMenu
-                key={group.id}
-                group={group}
-                onPick={(prompt) => setContent(prompt)}
-                disabled={submitting}
-              />
-            ))}
-          </div>
+        <div className="flex flex-wrap justify-center gap-2">
+          {promptGroups.map((group) => (
+            <PromptGroupMenu
+              key={group.id}
+              group={group}
+              onPick={(prompt) => setContent(prompt)}
+              disabled={submitting}
+            />
+          ))}
         </div>
       ) : null}
     </div>
