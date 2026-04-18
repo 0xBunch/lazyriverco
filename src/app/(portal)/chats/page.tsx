@@ -124,7 +124,7 @@ export default async function ChatsPage({
   const passthroughParams = params as Record<string, string | undefined>;
 
   return (
-    <div className="mx-auto max-w-3xl px-4 py-8 pt-20 md:pt-8">
+    <div className="mx-auto max-w-6xl px-4 py-8 pt-20 md:pt-8">
       <header className="mb-6">
         <p className="text-xs uppercase tracking-[0.2em] text-claude-300">
           Chats
