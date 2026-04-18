@@ -15,6 +15,7 @@ import {
 import { USER_MARKDOWN_COMPONENTS } from "@/lib/safe-markdown";
 import { CommentComposer } from "./CommentComposer";
 import { CommentList } from "./CommentList";
+import { AdminReanalyzeButton } from "./AdminReanalyzeButton";
 
 // /gallery/[id] — gallery item detail. Media leads; metadata renders
 // below as caption-voice. Instagram uses its own /embed/captioned/
@@ -242,6 +243,10 @@ export default async function GalleryItemPage({
       </section>
 
       <ThreadSection rows={threadRows} />
+
+      {viewer.role === "ADMIN" && item.type !== "link" ? (
+        <AdminReanalyzeButton mediaId={item.id} />
+      ) : null}
 
       {canHide ? (
         <p className="mt-12 text-xs italic text-bone-300">

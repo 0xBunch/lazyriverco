@@ -3,6 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { prisma } from "@/lib/prisma";
 import { requireAdmin } from "@/lib/auth";
+import { runVisionTagging } from "@/lib/ai-tagging-run";
 
 // Commissioner-side bulk operations for the gallery. Each action is
 // useFormState-compatible: signature is (prevState, formData) => State
@@ -23,10 +24,14 @@ const TAG_SHAPE = /^[a-z0-9][a-z0-9\-_]*$/;
 const MAX_TAG_CHARS = 40;
 
 function parseIds(fd: FormData): string[] {
-  return fd
-    .getAll("mediaIds")
-    .filter((v): v is string => typeof v === "string" && v.length > 0)
-    .slice(0, MAX_IDS_PER_ACTION);
+  // Dedupe before the cap so 30 copies of one id don't eat the whole slot
+  // budget + fan out into N parallel background jobs against the same row.
+  const unique = new Set(
+    fd
+      .getAll("mediaIds")
+      .filter((v): v is string => typeof v === "string" && v.length > 0),
+  );
+  return Array.from(unique).slice(0, MAX_IDS_PER_ACTION);
 }
 
 function parseTag(raw: FormDataEntryValue | null): string | null {
@@ -175,6 +180,185 @@ export async function bulkTagAction(
     return {
       ok: false,
       error: e instanceof Error ? e.message : "Tag update failed.",
+    };
+  }
+}
+
+// --- bulk reanalyze (AI vision) -------------------------------------------
+// Reruns Gemini tagging on selected rows. Capped tight because the runner
+// respects a 30/min rate-limit bucket per user — queuing 200 would just
+// soft-fail 170 of them as "skipped: rate-limited". For full repopulation
+// or large sweeps, run `pnpm backfill:ai-tags` instead.
+
+const MAX_REANALYZE_PER_ACTION = 30;
+const REANALYZE_CONCURRENCY = 3;
+
+export async function bulkReanalyzeAction(
+  _prev: AdminGalleryState,
+  fd: FormData,
+): Promise<AdminGalleryState> {
+  try {
+    const admin = await requireAdmin();
+    const ids = parseIds(fd);
+    if (ids.length === 0) return { ok: false, error: "No items selected." };
+    if (ids.length > MAX_REANALYZE_PER_ACTION) {
+      return {
+        ok: false,
+        error: `Re-analyze is capped at ${MAX_REANALYZE_PER_ACTION} per click (rate-limit). Run the backfill script for larger batches.`,
+      };
+    }
+
+    const rows = await prisma.media.findMany({
+      where: {
+        id: { in: ids },
+        type: { not: "link" },
+        status: { not: "DELETED" },
+      },
+      select: {
+        id: true,
+        url: true,
+        mimeType: true,
+        caption: true,
+        originTitle: true,
+        originAuthor: true,
+      },
+    });
+
+    // Strict eligibility: must have a url AND a known image/* mimeType.
+    // Unknown-mimeType rows (embed-origin Twitter/IG where we never
+    // scraped a content-type) don't fetch as images anyway — Gemini
+    // soft-fails them but the call still burns a rate-limit slot. Gate
+    // them out here so the admin isn't billed for guaranteed-fail work.
+    const eligible = rows.filter(
+      (r) => r.url && (r.mimeType?.startsWith("image/") ?? false),
+    );
+    if (eligible.length === 0) {
+      return {
+        ok: false,
+        error: "None of the selected items have a fetchable image (links + videos + embed-only rows skipped).",
+      };
+    }
+
+    // Concurrency-capped background pool. Prior shape was `for … void
+    // runVisionTagging(…)` which fans out all 30 Gemini calls in parallel
+    // — bad for event-loop + per-IP outbound limits on Railway. The pool
+    // runs unawaited (caller returns immediately) but internally only
+    // REANALYZE_CONCURRENCY outbound calls are live at a time.
+    void runReanalyzePool(
+      admin.id,
+      eligible.map((r) => ({
+        id: r.id,
+        imageUrl: r.url,
+        caption: r.caption,
+        originTitle: r.originTitle,
+        originAuthor: r.originAuthor,
+      })),
+    ).catch((err) => console.error("reanalyze pool failed", err));
+
+    revalidateGallerySurfaces();
+    return {
+      ok: true,
+      message: `Re-analyzing ${eligible.length} item${eligible.length === 1 ? "" : "s"} in the background. Refresh in ~30s to see updated tags.`,
+    };
+  } catch (e) {
+    return {
+      ok: false,
+      error: e instanceof Error ? e.message : "Re-analyze failed.",
+    };
+  }
+}
+
+type PoolItem = {
+  id: string;
+  imageUrl: string;
+  caption: string | null;
+  originTitle: string | null;
+  originAuthor: string | null;
+};
+
+async function runReanalyzePool(
+  adminId: string,
+  items: PoolItem[],
+): Promise<void> {
+  const queue = [...items];
+  async function worker(): Promise<void> {
+    while (queue.length > 0) {
+      const item = queue.shift();
+      if (!item) return;
+      try {
+        await runVisionTagging(adminId, item.id, {
+          imageUrl: item.imageUrl,
+          caption: item.caption,
+          originTitle: item.originTitle,
+          originAuthor: item.originAuthor,
+        });
+      } catch (err) {
+        console.error("reanalyze worker failed", item.id, err);
+      }
+    }
+  }
+  await Promise.all(
+    Array.from({ length: REANALYZE_CONCURRENCY }, () => worker()),
+  );
+}
+
+// --- single reanalyze (detail page) ---------------------------------------
+
+export async function reanalyzeOneAction(
+  _prev: AdminGalleryState,
+  fd: FormData,
+): Promise<AdminGalleryState> {
+  try {
+    const admin = await requireAdmin();
+    const mediaId = fd.get("mediaId");
+    if (typeof mediaId !== "string" || !mediaId) {
+      return { ok: false, error: "Missing media id." };
+    }
+
+    const row = await prisma.media.findFirst({
+      where: { id: mediaId, status: { not: "DELETED" } },
+      select: {
+        id: true,
+        url: true,
+        type: true,
+        mimeType: true,
+        caption: true,
+        originTitle: true,
+        originAuthor: true,
+      },
+    });
+    if (!row) return { ok: false, error: "Media not found (or soft-deleted)." };
+    if (row.type === "link") {
+      return { ok: false, error: "Link-only items have no preview image to analyze." };
+    }
+    if (!row.url) return { ok: false, error: "Media row is missing url." };
+    const isImage = row.mimeType?.startsWith("image/") ?? false;
+    if (!isImage) {
+      return {
+        ok: false,
+        error: "No image mime-type on this row — nothing to analyze (direct videos + embed-only items skipped).",
+      };
+    }
+
+    void runVisionTagging(admin.id, row.id, {
+      imageUrl: row.url,
+      caption: row.caption,
+      originTitle: row.originTitle,
+      originAuthor: row.originAuthor,
+    }).catch((err) =>
+      console.error("reanalyze one bg failed", row.id, err),
+    );
+
+    revalidateGallerySurfaces();
+    revalidatePath(`/gallery/${mediaId}`);
+    return {
+      ok: true,
+      message: "Re-analyzing in the background. Refresh in ~15s.",
+    };
+  } catch (e) {
+    return {
+      ok: false,
+      error: e instanceof Error ? e.message : "Re-analyze failed.",
     };
   }
 }

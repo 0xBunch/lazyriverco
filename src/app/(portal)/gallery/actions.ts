@@ -5,7 +5,7 @@ import { prisma } from "@/lib/prisma";
 import { requireUser } from "@/lib/auth";
 import { assertWithinLimit, RateLimitError } from "@/lib/rate-limit";
 import { ingestUrl, IngestError } from "@/lib/ingest";
-import { analyzeMedia, type AnalyzeMediaInput } from "@/lib/ai-tagging";
+import { runVisionTagging } from "@/lib/ai-tagging-run";
 
 // Gallery server actions. Invoked from the add modal + anywhere a member
 // can edit their own item's metadata. All actions:
@@ -181,81 +181,6 @@ export async function updateMediaMetaAction(input: {
   revalidatePath("/gallery");
   revalidatePath(`/gallery/${mediaId}`);
   return { ok: true };
-}
-
-// ---------------------------------------------------------------------------
-// Vision tagging — inline after save. Soft-fails: anything that goes
-// wrong here still leaves the Media row committed; aiAnalysisNote
-// records the reason so an admin sweeper can retry later.
-
-const AI_TAG_LIMIT = { maxPerMinute: 30, maxPerDay: 1000 };
-
-async function runVisionTagging(
-  userId: string,
-  mediaId: string,
-  input: AnalyzeMediaInput,
-): Promise<void> {
-  try {
-    await assertWithinLimit(userId, "gallery.ai-tag", AI_TAG_LIMIT);
-  } catch (e) {
-    if (e instanceof RateLimitError) {
-      await prisma.media
-        .update({
-          where: { id: mediaId },
-          data: {
-            aiAnalyzedAt: new Date(),
-            aiAnalysisNote: "skipped: rate-limited",
-          },
-        })
-        .catch((err) =>
-          console.error("vision-tag persist failed (rate-limit)", mediaId, err),
-        );
-      return;
-    }
-    throw e;
-  }
-
-  const result = await analyzeMedia(input);
-
-  if (!result.ok) {
-    await prisma.media
-      .update({
-        where: { id: mediaId },
-        data: {
-          aiAnalyzedAt: result.analyzedAt,
-          aiAnalysisNote: result.note,
-        },
-      })
-      .catch((err) =>
-        console.error("vision-tag persist failed (fail-note)", mediaId, err),
-      );
-    return;
-  }
-
-  // Merge AI tags into the primary `tags` array so the existing FTS
-  // functional index picks them up and the agent `gallery_search` tool
-  // can find named entities. `aiTags` stays in its own column as the
-  // audit trail — admin tooling can diff them out to "un-AI-tag" a row.
-  const existing = await prisma.media.findUnique({
-    where: { id: mediaId },
-    select: { tags: true },
-  });
-  if (!existing) return;
-  const merged = Array.from(new Set([...existing.tags, ...result.tags]));
-
-  await prisma.media
-    .update({
-      where: { id: mediaId },
-      data: {
-        tags: merged,
-        aiTags: result.tags,
-        aiAnalyzedAt: result.analyzedAt,
-        aiAnalysisNote: null,
-      },
-    })
-    .catch((err) =>
-      console.error("vision-tag persist failed (success)", mediaId, err),
-    );
 }
 
 // ---------------------------------------------------------------------------

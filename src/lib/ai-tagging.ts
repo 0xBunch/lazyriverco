@@ -6,6 +6,7 @@ import {
   MAX_CAPTION_CHARS,
   MAX_ORIGIN_TEXT_CHARS,
 } from "@/lib/sanitize";
+import { buildTaxonomyHint } from "@/lib/ai-taxonomy";
 
 // Gallery v1.3 — Gemini 2.5 Flash vision pipeline. Called inline from
 // the ingest + upload-meta actions; returns a small structured result
@@ -82,7 +83,10 @@ export async function analyzeMedia(
       client().models.generateContent({
         model: MODEL_ID,
         config: {
-          systemInstruction: SYSTEM_INSTRUCTION,
+          // Appended at call time (not module load) so edits to
+          // ai-taxonomy.ts take effect on the next dev-server request
+          // without needing an HMR-breaking restart.
+          systemInstruction: SYSTEM_INSTRUCTION + buildTaxonomyHint(),
           responseMimeType: "application/json",
           responseSchema: TAGS_RESPONSE_SCHEMA,
           // Gallery content includes red-carpet / beach / fashion — the

@@ -10,6 +10,7 @@ import {
   bulkDeleteAction,
   bulkHideAction,
   bulkHoFAction,
+  bulkReanalyzeAction,
   bulkTagAction,
   type AdminGalleryState,
 } from "@/app/(portal)/admin/gallery/actions";
@@ -234,11 +235,16 @@ function BulkActionBar({
   const [hideState, hideAction] = useFormState(bulkHideAction, null);
   const [hofState, hofAction] = useFormState(bulkHoFAction, null);
   const [tagState, tagAction] = useFormState(bulkTagAction, null);
+  const [reanalyzeState, reanalyzeAction] = useFormState(
+    bulkReanalyzeAction,
+    null,
+  );
 
   // Most-recent result wins the status row. If multiple actions fire in a
   // session, the last one is what the user cares about.
   const latest: AdminGalleryState =
-    pickLatest([deleteState, hideState, hofState, tagState]) ?? null;
+    pickLatest([deleteState, hideState, hofState, tagState, reanalyzeState]) ??
+    null;
 
   return (
     <div className="sticky top-4 z-10 space-y-3 rounded-xl border border-bone-800 bg-bone-900/80 p-4 backdrop-blur">
@@ -253,6 +259,7 @@ function BulkActionBar({
         <HiddenIds ids={ids} formId="bulk-unhide" />
         <HiddenIds ids={ids} formId="bulk-delete" />
         <HiddenIds ids={ids} formId="bulk-tag" />
+        <HiddenIds ids={ids} formId="bulk-reanalyze" />
 
         <form id="bulk-hof-star" action={hofAction} className="contents">
           <input type="hidden" name="star" value="true" />
@@ -269,6 +276,11 @@ function BulkActionBar({
         <form id="bulk-unhide" action={hideAction} className="contents">
           <input type="hidden" name="hide" value="false" />
           <SubmitButton disabled={disabled} kind="secondary">Unhide</SubmitButton>
+        </form>
+        <form id="bulk-reanalyze" action={reanalyzeAction} className="contents">
+          <SubmitButton disabled={disabled} kind="secondary">
+            Re-analyze (AI)
+          </SubmitButton>
         </form>
         <form id="bulk-delete" action={deleteAction} className="contents">
           <SubmitButton disabled={disabled} kind="danger">Delete</SubmitButton>
