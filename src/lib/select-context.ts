@@ -133,44 +133,38 @@ export async function selectContext(
 
     const toc = buildTableOfContents(loreEntries, mediaEntries);
 
-    // 2. Call Haiku with a timeout. Using Promise.race rather than the
-    //    SDK's AbortSignal option because trackedMessagesCreate's
-    //    signature doesn't carry RequestOptions through — the race
-    //    preserves the 2s ceiling, and a stray fulfilled response after
-    //    timeout is harmless (tracked once, then discarded here).
-    let timer: ReturnType<typeof setTimeout> | undefined;
+    // 2. Call Haiku with a real HTTP-level timeout. The tracked wrapper
+    //    forwards RequestOptions to the SDK, so an AbortSignal aborts
+    //    the actual fetch — we stop billing for tokens we're not going
+    //    to consume. The outer catch still handles `err.name === "AbortError"`
+    //    the same way as before.
+    const abort = new AbortController();
+    const timer = setTimeout(() => abort.abort(), SELECTION_TIMEOUT_MS);
     let response: Anthropic.Message;
     try {
-      response = await Promise.race([
-        trackedMessagesCreate(
-          getSelectionClient(),
-          {
-            userId: opts.userId ?? null,
-            operation: "context.select",
-            conversationId: opts.conversationId ?? null,
-          },
-          {
-            model: SELECTION_MODEL,
-            max_tokens: SELECTION_MAX_TOKENS,
-            temperature: 0,
-            system: SELECTION_SYSTEM_PROMPT,
-            messages: [
-              {
-                role: "user",
-                content: `User message: "${userMessage}"\n\nTable of contents:\n${toc}`,
-              },
-            ],
-          },
-        ),
-        new Promise<never>((_, reject) => {
-          timer = setTimeout(
-            () => reject(new DOMException("Timed out", "AbortError")),
-            SELECTION_TIMEOUT_MS,
-          );
-        }),
-      ]);
+      response = await trackedMessagesCreate(
+        getSelectionClient(),
+        {
+          userId: opts.userId ?? null,
+          operation: "context.select",
+          conversationId: opts.conversationId ?? null,
+        },
+        {
+          model: SELECTION_MODEL,
+          max_tokens: SELECTION_MAX_TOKENS,
+          temperature: 0,
+          system: SELECTION_SYSTEM_PROMPT,
+          messages: [
+            {
+              role: "user",
+              content: `User message: "${userMessage}"\n\nTable of contents:\n${toc}`,
+            },
+          ],
+        },
+        { signal: abort.signal },
+      );
     } finally {
-      if (timer) clearTimeout(timer);
+      clearTimeout(timer);
     }
 
     // 3. Parse the JSON response
