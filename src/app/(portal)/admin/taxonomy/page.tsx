@@ -48,7 +48,7 @@ export default async function AdminTaxonomyPage() {
       <p className="text-xs italic text-bone-400">
         After editing, trigger a re-analyze on existing items via the bulk
         button on /admin/gallery or `pnpm backfill:ai-tags` — new hints
-        don't retroactively re-tag.
+        don&apos;t retroactively re-tag.
       </p>
     </div>
   );
