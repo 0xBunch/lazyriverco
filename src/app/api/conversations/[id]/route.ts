@@ -121,3 +121,99 @@ export async function DELETE(
 
   return NextResponse.json({ ok: true }, { status: 200 });
 }
+
+const TITLE_MAX_CHARS = 200;
+
+type PatchBody = { title?: unknown; archived?: unknown };
+
+type PatchParsed =
+  | { title?: string; unarchive?: true }
+  | { error: string };
+
+function parsePatchBody(body: unknown): PatchParsed {
+  if (typeof body !== "object" || body === null) {
+    return { error: "Expected a JSON object" };
+  }
+  const { title: rawTitle, archived: rawArchived } = body as PatchBody;
+
+  const out: { title?: string; unarchive?: true } = {};
+
+  if (rawTitle !== undefined) {
+    if (typeof rawTitle !== "string") {
+      return { error: "title must be a string" };
+    }
+    const trimmed = rawTitle.trim();
+    if (trimmed.length === 0) {
+      return { error: "title must not be empty" };
+    }
+    if (trimmed.length > TITLE_MAX_CHARS) {
+      return { error: `title must be ${TITLE_MAX_CHARS} chars or fewer` };
+    }
+    out.title = trimmed;
+  }
+
+  if (rawArchived !== undefined) {
+    if (rawArchived !== false) {
+      return { error: "archived must be false (use DELETE to archive)" };
+    }
+    out.unarchive = true;
+  }
+
+  if (out.title === undefined && !out.unarchive) {
+    return { error: "At least one of title or archived is required" };
+  }
+
+  return out;
+}
+
+/**
+ * PATCH /api/conversations/[id] — rename and/or unarchive. Body shape:
+ *   { title?: string, archived?: false }
+ * Both fields are optional but at least one is required. `archived: true`
+ * is rejected — that's what DELETE is for. Title is trimmed and
+ * length-capped to match Conversation.title's @db.VarChar(200).
+ *
+ * Ownership baked into the updateMany where clause; non-owner → 404.
+ * Unlike DELETE, this handler does NOT filter by `archivedAt: null` —
+ * unarchive needs to target archived rows, and rename should work on
+ * either state.
+ */
+export async function PATCH(
+  req: Request,
+  { params }: { params: { id: string } },
+): Promise<NextResponse<{ ok: true } | { error: string }>> {
+  const user = await getCurrentUser();
+  if (!user) {
+    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  }
+
+  let body: unknown;
+  try {
+    body = await req.json();
+  } catch {
+    return NextResponse.json({ error: "Invalid JSON" }, { status: 400 });
+  }
+
+  const parsed = parsePatchBody(body);
+  if ("error" in parsed) {
+    return NextResponse.json({ error: parsed.error }, { status: 400 });
+  }
+
+  const data: { title?: string; archivedAt?: null } = {};
+  if (parsed.title !== undefined) data.title = parsed.title;
+  if (parsed.unarchive) data.archivedAt = null;
+
+  const result = await prisma.conversation.updateMany({
+    where: {
+      id: params.id,
+      ownerId: user.id,
+    },
+    data,
+  });
+
+  if (result.count === 0) {
+    return NextResponse.json({ error: "Not found" }, { status: 404 });
+  }
+
+  return NextResponse.json({ ok: true }, { status: 200 });
+}

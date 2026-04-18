@@ -4,11 +4,13 @@ export type NavItem = {
   label: string;
 };
 
-// Always visible to every signed-in user. Chat is accessed via the
-// "+ New chat" button and the logo link — no dedicated nav item needed.
+// Always visible to every signed-in user. The Chats tab is the
+// management surface (search, star, archive, rename); the "+ New chat"
+// button and the logo link still start a new conversation.
 export const MAIN_NAV_ITEMS = [
   { href: "/calendar", icon: "📅", label: "Calendar" },
   { href: "/gallery", icon: "📸", label: "Gallery" },
+  { href: "/chats", icon: "💬", label: "Chats" },
 ] as const satisfies readonly NavItem[];
 
 // Collapsible "Apps" section — mini-apps built over time. Visible to
