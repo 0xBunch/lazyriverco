@@ -29,6 +29,12 @@ export const metadata: Metadata = {
     capable: true,
     statusBarStyle: "black-translucent",
   },
+  // Chromium deprecated `apple-mobile-web-app-capable`; emit the
+  // standards-based equivalent alongside it. iOS Safari still needs the
+  // Apple-prefixed tag, so we keep both.
+  other: {
+    "mobile-web-app-capable": "yes",
+  },
 };
 
 // Next 14.2 requires viewport/themeColor to live in a dedicated export, not
