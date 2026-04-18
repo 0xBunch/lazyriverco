@@ -27,13 +27,16 @@ export function buildLibraryHref(
   state: LibraryUrlState,
   opts: LibraryUrlOptions = {},
 ): string {
+  // Tag lives in the path (/library/t/{tag}) so tag pages are
+  // shareable and namespaced away from the /library/[id] detail
+  // route. Every other filter stays in the query string.
+  const tagSegment = state.tag ? `/t/${encodeURIComponent(state.tag)}` : "";
   const sp = new URLSearchParams();
   if (state.q) sp.set("q", state.q);
-  if (state.tag) sp.set("tag", state.tag);
   if (state.origin) sp.set("origin", state.origin);
   if (state.byUserId) sp.set("by", "me");
   if (opts.openFilter) sp.set("filter", "1");
   if (opts.openAdd) sp.set("add", "1");
   const qs = sp.toString();
-  return qs ? `/library?${qs}` : "/library";
+  return `/library${tagSegment}${qs ? `?${qs}` : ""}`;
 }
