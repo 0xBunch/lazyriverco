@@ -4,7 +4,6 @@ import { LazyRiverLogo } from "@/components/LazyRiverLogo";
 import { SidebarNav } from "@/components/SidebarNav";
 import { ConversationSidebarList } from "@/components/ConversationSidebarList";
 import { StarredSidebarList } from "@/components/StarredSidebarList";
-import { ADMIN_NAV_ITEM, MAIN_NAV_ITEMS, type NavItem } from "@/lib/nav";
 
 function initials(displayName: string): string {
   const [first, second] = displayName.trim().split(/\s+/).filter(Boolean);
@@ -16,10 +15,6 @@ function initials(displayName: string): string {
 export async function Sidebar() {
   const user = await getCurrentUser();
   const isAdmin = user?.role === "ADMIN";
-
-  const mainNav: readonly NavItem[] = isAdmin
-    ? [...MAIN_NAV_ITEMS, ADMIN_NAV_ITEM]
-    : MAIN_NAV_ITEMS;
 
   return (
     <div className="flex h-full flex-col">
@@ -62,7 +57,7 @@ export async function Sidebar() {
       ) : null}
 
       {/* Main nav */}
-      <SidebarNav items={mainNav} />
+      <SidebarNav isAdmin={isAdmin} />
 
       {/* Starred + Recents — both sections scroll together inside a single
           lane so the total footprint adapts to how many pins the user has.

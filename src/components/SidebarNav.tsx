@@ -3,14 +3,20 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { cn } from "@/lib/utils";
-import type { NavItem } from "@/lib/nav";
+import { ADMIN_NAV_ITEM, MAIN_NAV_ITEMS, type NavItem } from "@/lib/nav";
 
 type SidebarNavProps = {
-  items: readonly NavItem[];
+  isAdmin: boolean;
 };
 
-export function SidebarNav({ items }: SidebarNavProps) {
+export function SidebarNav({ isAdmin }: SidebarNavProps) {
   const pathname = usePathname();
+  // Compose the list on the client so the icon components (function
+  // references) never cross the RSC server→client boundary, which would
+  // fail serialization.
+  const items: readonly NavItem[] = isAdmin
+    ? [...MAIN_NAV_ITEMS, ADMIN_NAV_ITEM]
+    : MAIN_NAV_ITEMS;
 
   return (
     <nav aria-label="Portal navigation" className="space-y-0.5 px-3 py-2 group-data-[collapsed]:px-1">
