@@ -2,8 +2,9 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
+import { LazyRiverLogo } from "@/components/LazyRiverLogo";
 
-export default function SignInPage() {
+export default function StartPage() {
   const router = useRouter();
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
@@ -43,14 +44,9 @@ export default function SignInPage() {
   return (
     <main className="flex min-h-screen items-center justify-center bg-bone-950 px-4">
       <div className="w-full max-w-sm rounded-2xl border border-bone-700 bg-bone-900 p-8 shadow-2xl">
-        <div className="mb-6 text-center">
-          <h1 className="font-display text-2xl font-semibold tracking-tight text-bone-50">
-            The Lazy River Co.
-          </h1>
-          <p className="mt-2 text-sm italic text-bone-300">
-            Float in, MLF.
-          </p>
-        </div>
+        <h1 className="mb-8 flex justify-center">
+          <LazyRiverLogo className="w-48 text-bone-50" />
+        </h1>
 
         <form onSubmit={handleSubmit} className="space-y-4" noValidate>
           <div>

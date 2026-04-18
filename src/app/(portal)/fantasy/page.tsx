@@ -4,6 +4,6 @@ import { DraftBoard } from "@/components/DraftBoard";
 
 export default async function FantasyPage() {
   const user = await getCurrentUser();
-  if (!user) redirect("/sign-in");
+  if (!user) redirect("/start");
   return <DraftBoard isAdmin={user.role === "ADMIN"} />;
 }
