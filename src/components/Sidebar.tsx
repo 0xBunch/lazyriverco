@@ -66,16 +66,13 @@ export async function Sidebar() {
 
       {/* Starred + Recents — both sections scroll together inside a single
           lane so the total footprint adapts to how many pins the user has.
-          Starred renders nothing when empty (no orphaned header). The
-          Recents label is always present as long as the user has any
-          conversations. Collapsed-sidebar hides the whole stack. */}
+          Each list owns its own section header and renders nothing when
+          empty (no orphaned headers). Collapsed-sidebar hides the whole
+          stack. */}
       {user ? (
         <div className="flex min-h-0 flex-1 flex-col group-data-[collapsed]:hidden">
           <div className="min-h-0 flex-1 overflow-y-auto sidebar-scroll">
             <StarredSidebarList />
-            <p className="px-5 pb-1 pt-4 text-[0.65rem] font-semibold uppercase tracking-wide text-bone-400">
-              Recents
-            </p>
             <ConversationSidebarList />
           </div>
         </div>

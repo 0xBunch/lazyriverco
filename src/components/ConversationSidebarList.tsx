@@ -31,6 +31,9 @@ export async function ConversationSidebarList() {
 
   return (
     <nav aria-label="Recent conversations" className="py-1">
+      <p className="px-5 pb-1 pt-4 text-[0.65rem] font-semibold uppercase tracking-wide text-bone-400">
+        Recents
+      </p>
       <ul>
         {conversations.map((c) => (
           <li key={c.id}>
