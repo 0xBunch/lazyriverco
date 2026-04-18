@@ -8,10 +8,10 @@ import { cn } from "@/lib/utils";
 // XHR so we get progress, then calls onChange(publicUrl). onChange(null)
 // clears.
 //
-// Why not reuse MediaUploader: that component is multi-file, gallery-
+// Why not reuse MediaUploader: that component is multi-file, library-
 // specific, and ~400 lines. The avatar case is narrow — one file, a
 // square preview, no caption, a tighter 2 MB cap. Short-term duplication
-// is cheaper than perturbing the gallery component. A future follow-up
+// is cheaper than perturbing the library component. A future follow-up
 // can extract a shared useDirectUpload() hook if a third uploader shows up.
 //
 // Allowlist mirrors src/lib/r2.ts (server enforces authoritatively).

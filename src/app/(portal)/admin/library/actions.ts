@@ -8,7 +8,7 @@ import { getBannedSlugs } from "@/lib/ai-taxonomy";
 import { parseTag } from "@/lib/tag-shape";
 import { upsertTagRegistry } from "@/lib/tag-registry";
 
-// Commissioner-side bulk operations for the gallery. Each action is
+// Commissioner-side bulk operations for the library. Each action is
 // useFormState-compatible: signature is (prevState, formData) => State
 // so client forms can bind via `useFormState(action, null)` and surface
 // validation / error messages inline instead of through Next's
@@ -17,7 +17,7 @@ import { upsertTagRegistry } from "@/lib/tag-registry";
 // rationale, short version: throws become digests in prod, returns
 // become real messages.
 
-export type AdminGalleryState =
+export type AdminLibraryState =
   | { ok: true; message: string }
   | { ok: false; error: string }
   | null;
@@ -35,17 +35,17 @@ function parseIds(fd: FormData): string[] {
   return Array.from(unique).slice(0, MAX_IDS_PER_ACTION);
 }
 
-function revalidateGallerySurfaces() {
-  revalidatePath("/admin/gallery");
-  revalidatePath("/gallery");
+function revalidateLibrarySurfaces() {
+  revalidatePath("/admin/library");
+  revalidatePath("/library");
 }
 
 // --- bulk delete ----------------------------------------------------------
 
 export async function bulkDeleteAction(
-  _prev: AdminGalleryState,
+  _prev: AdminLibraryState,
   fd: FormData,
-): Promise<AdminGalleryState> {
+): Promise<AdminLibraryState> {
   try {
     await requireAdmin();
     const ids = parseIds(fd);
@@ -55,7 +55,7 @@ export async function bulkDeleteAction(
       where: { id: { in: ids } },
       data: { status: "DELETED" },
     });
-    revalidateGallerySurfaces();
+    revalidateLibrarySurfaces();
     return {
       ok: true,
       message: `Deleted ${result.count} item${result.count === 1 ? "" : "s"} (soft-delete; restore by flipping status in DB).`,
@@ -71,9 +71,9 @@ export async function bulkDeleteAction(
 // --- bulk hide / unhide ---------------------------------------------------
 
 export async function bulkHideAction(
-  _prev: AdminGalleryState,
+  _prev: AdminLibraryState,
   fd: FormData,
-): Promise<AdminGalleryState> {
+): Promise<AdminLibraryState> {
   try {
     await requireAdmin();
     const ids = parseIds(fd);
@@ -84,7 +84,7 @@ export async function bulkHideAction(
       where: { id: { in: ids } },
       data: { hiddenFromGrid: hide },
     });
-    revalidateGallerySurfaces();
+    revalidateLibrarySurfaces();
     return {
       ok: true,
       message: `${hide ? "Hid" : "Unhid"} ${result.count} item${result.count === 1 ? "" : "s"}.`,
@@ -100,9 +100,9 @@ export async function bulkHideAction(
 // --- bulk hall of fame ----------------------------------------------------
 
 export async function bulkHoFAction(
-  _prev: AdminGalleryState,
+  _prev: AdminLibraryState,
   fd: FormData,
-): Promise<AdminGalleryState> {
+): Promise<AdminLibraryState> {
   try {
     await requireAdmin();
     const ids = parseIds(fd);
@@ -113,7 +113,7 @@ export async function bulkHoFAction(
       where: { id: { in: ids } },
       data: { hallOfFame: star },
     });
-    revalidateGallerySurfaces();
+    revalidateLibrarySurfaces();
     return {
       ok: true,
       message: `${star ? "Starred" : "Unstarred"} ${result.count} item${result.count === 1 ? "" : "s"}.`,
@@ -132,9 +132,9 @@ export async function bulkHoFAction(
 // the table caps at MAX_IDS_PER_ACTION so worst case is 200 updates.
 
 export async function bulkTagAction(
-  _prev: AdminGalleryState,
+  _prev: AdminLibraryState,
   fd: FormData,
-): Promise<AdminGalleryState> {
+): Promise<AdminLibraryState> {
   try {
     await requireAdmin();
     const ids = parseIds(fd);
@@ -189,7 +189,7 @@ export async function bulkTagAction(
     // the taxonomy admin.
     if (mode === "add") await upsertTagRegistry([tag]);
 
-    revalidateGallerySurfaces();
+    revalidateLibrarySurfaces();
     return {
       ok: true,
       message: `${mode === "add" ? "Added" : "Removed"} tag "${tag}" ${mode === "add" ? "to" : "from"} ${rows.length} item${rows.length === 1 ? "" : "s"}.`,
@@ -212,9 +212,9 @@ const MAX_REANALYZE_PER_ACTION = 30;
 const REANALYZE_CONCURRENCY = 3;
 
 export async function bulkReanalyzeAction(
-  _prev: AdminGalleryState,
+  _prev: AdminLibraryState,
   fd: FormData,
-): Promise<AdminGalleryState> {
+): Promise<AdminLibraryState> {
   try {
     const admin = await requireAdmin();
     const ids = parseIds(fd);
@@ -273,7 +273,7 @@ export async function bulkReanalyzeAction(
       })),
     ).catch((err) => console.error("reanalyze pool failed", err));
 
-    revalidateGallerySurfaces();
+    revalidateLibrarySurfaces();
     return {
       ok: true,
       message: `Re-analyzing ${eligible.length} item${eligible.length === 1 ? "" : "s"} in the background. Refresh in ~30s to see updated tags.`,
@@ -323,9 +323,9 @@ async function runReanalyzePool(
 // --- single reanalyze (detail page) ---------------------------------------
 
 export async function reanalyzeOneAction(
-  _prev: AdminGalleryState,
+  _prev: AdminLibraryState,
   fd: FormData,
-): Promise<AdminGalleryState> {
+): Promise<AdminLibraryState> {
   try {
     const admin = await requireAdmin();
     const mediaId = fd.get("mediaId");
@@ -367,8 +367,8 @@ export async function reanalyzeOneAction(
       console.error("reanalyze one bg failed", row.id, err),
     );
 
-    revalidateGallerySurfaces();
-    revalidatePath(`/gallery/${mediaId}`);
+    revalidateLibrarySurfaces();
+    revalidatePath(`/library/${mediaId}`);
     return {
       ok: true,
       message: "Re-analyzing in the background. Refresh in ~15s.",

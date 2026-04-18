@@ -1,9 +1,9 @@
 "use client";
 
 import { useFormState, useFormStatus } from "react-dom";
-import { reanalyzeOneAction } from "@/app/(portal)/admin/gallery/actions";
+import { reanalyzeOneAction } from "@/app/(portal)/admin/library/actions";
 
-// Admin-only "Re-analyze tags" button on the gallery detail page. Kicks off
+// Admin-only "Re-analyze tags" button on the library detail page. Kicks off
 // a background Gemini vision run on the item (bypasses the aiAnalyzedAt
 // idempotence guard — that guard only exists on the member upload path to
 // prevent re-charging on edit). Soft-fails surface as the inline message.

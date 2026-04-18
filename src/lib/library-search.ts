@@ -6,10 +6,10 @@ import {
   MAX_ORIGIN_TEXT_CHARS,
 } from "@/lib/sanitize";
 
-// Shared gallery full-text search. Two callers:
-//   1. /gallery page (server component, ranks ids then hydrates with
+// Shared library full-text search. Two callers:
+//   1. /library page (server component, ranks ids then hydrates with
 //      additional filters on top — origin / tag / by).
-//   2. gallery_search agent tool (no additional filters; returns a
+//   2. library_search agent tool (no additional filters; returns a
 //      pre-formatted sanitized text blob for a tool_result block).
 //
 // Both hit the same media_search_tsv(...) IMMUTABLE wrapper in Postgres,
@@ -22,7 +22,7 @@ import {
 // every string that flows out of it must pass through sanitizeLLMText.
 // Test this invariant in the prompt-injection eval (todo #14).
 
-export type GallerySearchHit = {
+export type LibrarySearchHit = {
   id: string;
   url: string;
   sourceUrl: string | null;
@@ -40,9 +40,9 @@ export type GallerySearchHit = {
  * Callers that need extra WHERE predicates (origin/tag/uploader) should
  * hydrate via a separate prisma.findMany where-clause and re-sort by
  * the returned rank. Callers that just want results end-to-end should
- * use `searchGallery` or `searchGalleryForAgent` below.
+ * use `searchLibrary` or `searchLibraryForAgent` below.
  */
-export async function searchGalleryIds(
+export async function searchLibraryIds(
   query: string,
   limit: number,
 ): Promise<string[]> {
@@ -66,11 +66,11 @@ export async function searchGalleryIds(
  * Returns hits in rank order, already sanitized at the fields that
  * flow into LLM prompts (caption / originTitle / originAuthor).
  */
-export async function searchGallery(
+export async function searchLibrary(
   query: string,
   limit = 6,
-): Promise<GallerySearchHit[]> {
-  const ids = await searchGalleryIds(query, limit);
+): Promise<LibrarySearchHit[]> {
+  const ids = await searchLibraryIds(query, limit);
   if (ids.length === 0) return [];
 
   const rows = await prisma.media.findMany({
@@ -115,18 +115,18 @@ export async function searchGallery(
  * descriptive message rather than an empty string so the model doesn't
  * silently hallucinate fallback behavior.
  */
-export async function searchGalleryForAgent(
+export async function searchLibraryForAgent(
   query: string,
   limit = 6,
 ): Promise<string> {
   const trimmed = query.trim();
   if (!trimmed) {
-    return "gallery_search: empty query — ask the user what they're looking for.";
+    return "library_search: empty query — ask the user what they're looking for.";
   }
 
-  const hits = await searchGallery(trimmed, limit);
+  const hits = await searchLibrary(trimmed, limit);
   if (hits.length === 0) {
-    return `gallery_search("${truncateForLog(trimmed, 80)}"): no matches.`;
+    return `library_search("${truncateForLog(trimmed, 80)}"): no matches.`;
   }
 
   // Every string that lands in the tool_result runs through the sanitizer —
@@ -151,7 +151,7 @@ export async function searchGalleryForAgent(
   });
 
   return [
-    `gallery_search("${truncateForLog(trimmed, 80)}") — ${hits.length} result${hits.length === 1 ? "" : "s"}:`,
+    `library_search("${truncateForLog(trimmed, 80)}") — ${hits.length} result${hits.length === 1 ? "" : "s"}:`,
     ...lines,
   ].join("\n");
 }

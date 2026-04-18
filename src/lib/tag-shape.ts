@@ -1,4 +1,4 @@
-// Shared slug/tag shape for the gallery. Every surface that accepts a
+// Shared slug/tag shape for the library. Every surface that accepts a
 // tag from a user or emits one from the model agrees on this regex +
 // length cap so the FTS index, the tag cloud, and the Gemini prompt
 // hints all behave identically. Keeping this in one place stops the
@@ -18,7 +18,7 @@ export const MAX_TAG_CHARS = 40;
  * Returns the normalized slug on success, or null on any rejection.
  *
  * Single-value validator. Callers that need per-entry error messages
- * (e.g. the paste-a-comma-list flow in gallery/actions.ts) should keep
+ * (e.g. the paste-a-comma-list flow in library/actions.ts) should keep
  * their own loop but use `TAG_SHAPE` + `MAX_TAG_CHARS` directly.
  */
 export function parseTag(

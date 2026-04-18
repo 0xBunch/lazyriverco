@@ -8,16 +8,16 @@ import { MediaUploader, type UploadedMedia } from "@/components/MediaUploader";
 import {
   ingestAndSaveUrlAction,
   updateMediaMetaAction,
-} from "@/app/(portal)/gallery/actions";
+} from "@/app/(portal)/library/actions";
 
-// Gallery add modal. Opened via the URL param ?add=1 (server parses,
+// Library add modal. Opened via the URL param ?add=1 (server parses,
 // client renders). Two tabs:
 //   - Paste link  → ingestAndSaveUrlAction → redirect to new item
 //   - Upload file → MediaUploader + updateMediaMetaAction → redirect
 //
 // The caption + tags inputs are shared across tabs so switching between
 // them preserves what the user has typed. Closing the modal (backdrop
-// click, Escape, or × button) navigates back to /gallery without the
+// click, Escape, or × button) navigates back to /library without the
 // add param — that's the "state lives in the URL" discipline the grid
 // page already uses.
 //
@@ -34,7 +34,7 @@ type Props = {
   open: boolean;
 };
 
-export function GalleryAddModal({ open }: Props) {
+export function LibraryAddModal({ open }: Props) {
   const router = useRouter();
   const [tab, setTab] = useState<Tab>("paste");
   const [url, setUrl] = useState("");
@@ -47,7 +47,7 @@ export function GalleryAddModal({ open }: Props) {
   const titleId = useId();
 
   const close = useCallback(() => {
-    router.push("/gallery");
+    router.push("/library");
   }, [router]);
 
   // onUploaded needs to live ABOVE the `if (!open) return null` early
@@ -84,7 +84,7 @@ export function GalleryAddModal({ open }: Props) {
         setError(res.error);
         return;
       }
-      router.push(`/gallery/${res.mediaId}`);
+      router.push(`/library/${res.mediaId}`);
     });
   };
 
@@ -104,7 +104,7 @@ export function GalleryAddModal({ open }: Props) {
         setError(res.error);
         return;
       }
-      router.push(`/gallery/${uploaded.mediaId}`);
+      router.push(`/library/${uploaded.mediaId}`);
     });
   };
 
@@ -127,7 +127,7 @@ export function GalleryAddModal({ open }: Props) {
         <header className="mb-4 flex items-start justify-between gap-4">
           <div>
             <p className="text-xs uppercase tracking-[0.2em] text-claude-300">
-              Gallery
+              Library
             </p>
             <h2
               id={titleId}
@@ -192,7 +192,7 @@ export function GalleryAddModal({ open }: Props) {
                 Cancel
               </button>
               <button type="submit" disabled={isPending} className={BTN_PRIMARY}>
-                {isPending ? "Fetching…" : "Add to gallery"}
+                {isPending ? "Fetching…" : "Add to library"}
               </button>
             </div>
           </form>
@@ -220,7 +220,7 @@ export function GalleryAddModal({ open }: Props) {
                 disabled={!uploaded || isPending}
                 className={BTN_PRIMARY}
               >
-                {isPending ? "Saving…" : uploaded ? "Save to gallery" : "Upload a photo first"}
+                {isPending ? "Saving…" : uploaded ? "Save to library" : "Upload a photo first"}
               </button>
             </div>
           </div>

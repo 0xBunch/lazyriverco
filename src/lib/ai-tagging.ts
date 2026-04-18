@@ -9,7 +9,7 @@ import {
 import { buildTaxonomyHint, getBannedSlugs } from "@/lib/ai-taxonomy";
 import { parseTag } from "@/lib/tag-shape";
 
-// Gallery v1.3 — Gemini 2.5 Flash vision pipeline. Called inline from
+// Library v1.3 — Gemini 2.5 Flash vision pipeline. Called inline from
 // the ingest + upload-meta actions; returns a small structured result
 // callers merge into the Media row. Failures are soft — we never throw
 // out of this module, because a vision hiccup shouldn't block the save
@@ -36,7 +36,7 @@ const GEMINI_CALL_TIMEOUT_MS = 20_000;
 const IMAGE_FETCH_MAX_BYTES = 10 * 1024 * 1024;
 const MAX_TAGS_RETURNED = 10;
 const USER_AGENT =
-  "LazyRiverBot/1.0 (gallery-ai-tagging; +https://lazyriver.co)";
+  "LazyRiverBot/1.0 (library-ai-tagging; +https://lazyriver.co)";
 
 let _client: GoogleGenAI | null = null;
 function client(): GoogleGenAI {
@@ -95,7 +95,7 @@ export async function analyzeMedia(
           systemInstruction: SYSTEM_INSTRUCTION + taxonomyHint,
           responseMimeType: "application/json",
           responseSchema: TAGS_RESPONSE_SCHEMA,
-          // Gallery content includes red-carpet / beach / fashion — the
+          // Library content includes red-carpet / beach / fashion — the
           // moderate defaults block more than we want. Lower only the
           // categories that affect public-figure + everyday social-media
           // imagery. We don't need to block at the model layer — the app
@@ -166,7 +166,7 @@ function categorizeError(e: unknown): string {
 // ---------------------------------------------------------------------------
 // Prompt + schema
 
-const SYSTEM_INSTRUCTION = `You are tagging images for a private members' gallery.
+const SYSTEM_INSTRUCTION = `You are tagging images for a private members' library.
 
 Return 5-10 short lowercase tags in slug form (letters, digits, dashes, underscores only; no spaces). Required coverage:
 - If notable public figures are visible, include each as a name-slug tag (example: "sidney-sweeney", "barack-obama"). Use the full name with a dash between first and last.

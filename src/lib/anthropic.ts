@@ -1,6 +1,6 @@
 import "server-only";
 import Anthropic from "@anthropic-ai/sdk";
-import { searchGalleryForAgent } from "@/lib/gallery-search";
+import { searchLibraryForAgent } from "@/lib/library-search";
 import {
   type AgentModelId,
   DEFAULT_AGENT_MODEL,
@@ -23,14 +23,14 @@ export function resolveAgentModel(id: string | null | undefined): AgentModelId {
 const MAX_TOKENS = 1500;
 
 // Cap on client-managed tool-use iterations in a single reply. 3 is
-// deliberately tight: enough for one gallery_search + one follow-up,
+// deliberately tight: enough for one library_search + one follow-up,
 // but will abort if the model goes into a pathological search loop.
 const MAX_TOOL_ITERATIONS = 3;
 
 // Cap on TOTAL client-managed tool calls per turn across ALL iterations.
 // The iteration bound above caps round trips, but each iteration can emit
 // multiple tool_use blocks in parallel — a single compromised cookie could
-// get Sonnet to fire 10 `gallery_search` calls on one message, bypassing
+// get Sonnet to fire 10 `library_search` calls on one message, bypassing
 // the per-user rate limit. Tools past this cap get an is_error=true
 // tool_result so the model can keep composing without further searches.
 const MAX_TOOL_CALLS_PER_TURN = 4;
@@ -75,10 +75,10 @@ const WEB_SEARCH_TOOL = {
 // than abstract capability ("search tool"). Tested triggers like "what
 // do we have on X" / "any pictures of X" / references to specific
 // in-group topics.
-const GALLERY_SEARCH_TOOL: Anthropic.Messages.Tool = {
-  name: "gallery_search",
+const LIBRARY_SEARCH_TOOL: Anthropic.Messages.Tool = {
+  name: "library_search",
   description:
-    "Search the Lazy River gallery — photos, videos, and links the Mens League crew has shared over time. Returns up to 6 ranked results with short descriptions and URLs. Use when the user asks about something the crew might have previously shared (e.g. 'what do we have on the Dodgers', 'any pictures of Blackie's trip', 'pull up that Sydney Sweeney thing KB posted'). Prefer this over web_search for anything that sounds like it lives in the group's own archive.",
+    "Search the Lazy River library — photos, videos, and links the Mens League crew has shared over time. Returns up to 6 ranked results with short descriptions and URLs. Use when the user asks about something the crew might have previously shared (e.g. 'what do we have on the Dodgers', 'any pictures of Blackie's trip', 'pull up that Sydney Sweeney thing KB posted'). Prefer this over web_search for anything that sounds like it lives in the group's own archive.",
   input_schema: {
     type: "object",
     properties: {
@@ -94,13 +94,13 @@ const GALLERY_SEARCH_TOOL: Anthropic.Messages.Tool = {
 
 const TOOLS: Anthropic.Messages.ToolUnion[] = [
   WEB_SEARCH_TOOL,
-  GALLERY_SEARCH_TOOL,
+  LIBRARY_SEARCH_TOOL,
 ];
 
 /**
  * Gate: when AGENT_MEDIA_VIA_TOOL=true, character-context.ts skips the
  * pre-computed "# Relevant media" block in the system prompt, because
- * Sonnet will pull fresh hits via gallery_search when the conversation
+ * Sonnet will pull fresh hits via library_search when the conversation
  * calls for them. One source of truth per turn avoids double-surfacing
  * the same items through both channels. Exposed as a function (not a
  * const) so tests can flip the env mid-suite.
@@ -118,22 +118,22 @@ export function isAgentMediaViaToolEnabled(): boolean {
 async function dispatchClientTool(
   block: Anthropic.Messages.ToolUseBlock,
 ): Promise<Anthropic.Messages.ToolResultBlockParam> {
-  if (block.name === "gallery_search") {
+  if (block.name === "library_search") {
     const input = block.input as { query?: unknown };
     const query = typeof input.query === "string" ? input.query : "";
     try {
-      const result = await searchGalleryForAgent(query);
+      const result = await searchLibraryForAgent(query);
       return {
         type: "tool_result",
         tool_use_id: block.id,
         content: result,
       };
     } catch (e) {
-      console.error("[gallery_search] dispatch failed", e);
+      console.error("[library_search] dispatch failed", e);
       return {
         type: "tool_result",
         tool_use_id: block.id,
-        content: "gallery_search hit an error. Skip the gallery for this turn.",
+        content: "library_search hit an error. Skip the library for this turn.",
         is_error: true,
       };
     }
@@ -388,7 +388,7 @@ export type ChatGenerateOptions = {
  *   - generateDraftCommentary
  *
  * Implements a client-managed tool-use loop so the model can call
- * gallery_search during a reply. web_search_20250305 is handled by
+ * library_search during a reply. web_search_20250305 is handled by
  * Anthropic server-side and doesn't trigger the loop; only our own
  * tools do. Loop caps at MAX_TOOL_ITERATIONS; text from each iteration
  * is concatenated so nothing gets dropped if the model speaks before

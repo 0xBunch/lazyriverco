@@ -1,7 +1,7 @@
 import type { Components } from "react-markdown";
 
 // Shared react-markdown component overrides for user-generated prose
-// (gallery captions, comments, anywhere an uploader's or member's words
+// (library captions, comments, anywhere an uploader's or member's words
 // get rendered as markdown). react-markdown v10 already neutralizes
 // `javascript:` / `data:` URL schemes in its default urlTransform — this
 // adds the two anchor attrs the default doesn't touch:

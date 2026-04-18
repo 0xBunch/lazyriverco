@@ -5,7 +5,7 @@ import { useFormState, useFormStatus } from "react-dom";
 import {
   postCommentAction,
   deleteCommentAction,
-  type GalleryCommentState,
+  type LibraryCommentState,
 } from "./actions";
 
 // Composer — used once per detail page at the top of the comment
@@ -13,7 +13,7 @@ import {
 // typing state is local and the posted row renders via revalidatePath.
 
 export function CommentComposer({ mediaId }: { mediaId: string }) {
-  const [state, formAction] = useFormState<GalleryCommentState, FormData>(
+  const [state, formAction] = useFormState<LibraryCommentState, FormData>(
     postCommentAction,
     null,
   );
@@ -83,7 +83,7 @@ export function DeleteCommentForm({
   commentId: string;
   mediaId: string;
 }) {
-  const [state, formAction] = useFormState<GalleryCommentState, FormData>(
+  const [state, formAction] = useFormState<LibraryCommentState, FormData>(
     deleteCommentAction,
     null,
   );

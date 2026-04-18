@@ -5,13 +5,13 @@ import { prisma } from "@/lib/prisma";
 import { requireUser } from "@/lib/auth";
 import { assertWithinLimit, RateLimitError } from "@/lib/rate-limit";
 
-// useFormState-compatible state shape. Matches AdminGalleryState / the
+// useFormState-compatible state shape. Matches AdminLibraryState / the
 // admin/agents forms so client code using useFormState/useFormStatus
 // reads the same way. `message` is empty on ok=true for postComment
 // because the UI just clears the textarea and lets the new row render
 // via revalidatePath.
 
-export type GalleryCommentState =
+export type LibraryCommentState =
   | { ok: true; message: string }
   | { ok: false; error: string }
   | null;
@@ -19,9 +19,9 @@ export type GalleryCommentState =
 const MAX_BODY_CHARS = 2000;
 
 export async function postCommentAction(
-  _prev: GalleryCommentState,
+  _prev: LibraryCommentState,
   fd: FormData,
-): Promise<GalleryCommentState> {
+): Promise<LibraryCommentState> {
   try {
     const user = await requireUser();
 
@@ -44,7 +44,7 @@ export async function postCommentAction(
       };
     }
 
-    await assertWithinLimit(user.id, "gallery.comment", {
+    await assertWithinLimit(user.id, "library.comment", {
       maxPerMinute: 10,
       maxPerDay: 300,
     });
@@ -67,7 +67,7 @@ export async function postCommentAction(
       },
     });
 
-    revalidatePath(`/gallery/${mediaId}`);
+    revalidatePath(`/library/${mediaId}`);
     return { ok: true, message: "" };
   } catch (e) {
     if (e instanceof RateLimitError) {
@@ -84,9 +84,9 @@ export async function postCommentAction(
 }
 
 export async function deleteCommentAction(
-  _prev: GalleryCommentState,
+  _prev: LibraryCommentState,
   fd: FormData,
-): Promise<GalleryCommentState> {
+): Promise<LibraryCommentState> {
   try {
     const viewer = await requireUser();
 
@@ -121,7 +121,7 @@ export async function deleteCommentAction(
       data: { deletedAt: new Date() },
     });
 
-    revalidatePath(`/gallery/${mediaId}`);
+    revalidatePath(`/library/${mediaId}`);
     return { ok: true, message: "Comment removed." };
   } catch (e) {
     return {

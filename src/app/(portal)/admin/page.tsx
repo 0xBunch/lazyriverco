@@ -32,10 +32,10 @@ const CARDS = [
       "Topic-tagged knowledge chunks. Fantasy draft history, trip stories, roast archives — selectively injected when relevant to the conversation via a two-pass Haiku call.",
   },
   {
-    href: "/admin/gallery",
-    title: "Gallery",
+    href: "/admin/library",
+    title: "Library",
     body:
-      "Bulk tools for the shared visual bank. Select rows to delete, hide, star for Hall of Fame, or add/remove tags in one shot. Drop photos directly to upload. Agents reach the same data via the gallery_search tool.",
+      "Bulk tools for the shared visual bank. Select rows to delete, hide, star for Hall of Fame, or add/remove tags in one shot. Drop photos directly to upload. Agents reach the same data via the library_search tool.",
   },
   {
     href: "/admin/taxonomy",
@@ -64,7 +64,7 @@ export default function AdminLanding() {
         Ten things you can curate. Canon, members, and relationships are
         always injected. Lore and media are selectively pulled in based on
         conversation topic. Calendar entries auto-appear near their dates.
-        Taxonomy shapes how Gemini tags new gallery uploads. Prompts
+        Taxonomy shapes how Gemini tags new library uploads. Prompts
         drives the homepage dropdown suggestions.
       </p>
       <ul className="grid gap-3 sm:grid-cols-2">

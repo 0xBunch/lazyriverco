@@ -203,7 +203,7 @@ export async function buildRichContext(
   // hall-of-fame + recent (backward compatible).
   //
   // When AGENT_MEDIA_VIA_TOOL=true, skip this section entirely — Sonnet
-  // will reach for the gallery_search tool when the conversation calls
+  // will reach for the library_search tool when the conversation calls
   // for it, and we want one source of truth per turn (no double-
   // surfacing through pre-compute AND tool).
   if (includeMedia && !isAgentMediaViaToolEnabled()) {

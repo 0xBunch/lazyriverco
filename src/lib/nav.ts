@@ -20,7 +20,7 @@ export type NavItem = {
 export const MAIN_NAV_ITEMS = [
   { href: "/chats", icon: IconMessageCircle, label: "Chats" },
   { href: "/calendar", icon: IconCalendar, label: "Calendar" },
-  { href: "/gallery", icon: IconBook2, label: "Gallery" },
+  { href: "/library", icon: IconBook2, label: "Library" },
 ] as const satisfies readonly NavItem[];
 
 // Collapsible "Apps" section — mini-apps built over time. Visible to

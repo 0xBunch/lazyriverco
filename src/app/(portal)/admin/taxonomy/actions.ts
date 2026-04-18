@@ -33,9 +33,9 @@ function revalidateSurfaces(): void {
   revalidatePath("/admin/taxonomy");
 }
 
-function revalidateGallerySurfaces(): void {
-  revalidatePath("/gallery");
-  revalidatePath("/admin/gallery");
+function revalidateLibrarySurfaces(): void {
+  revalidatePath("/library");
+  revalidatePath("/admin/library");
 }
 
 async function resolveBannedBucketId(): Promise<string | null> {
@@ -138,15 +138,15 @@ export async function assignTagBucketAction(
         `;
       });
       revalidateSurfaces();
-      revalidateGallerySurfaces();
-      return { ok: true, message: `Banned "${slug}" and swept it from gallery items.` };
+      revalidateLibrarySurfaces();
+      return { ok: true, message: `Banned "${slug}" and swept it from library items.` };
     }
 
     // Non-banned move (including unban). Just flip bucketId — no Media
     // sweep. Intentional asymmetry with the banned branch above:
     // leaving `banned` means "future AI can emit this again" but does
     // NOT restore the slug to items that had it stripped during the
-    // ban. That's the "ban is a one-way write to the gallery" contract
+    // ban. That's the "ban is a one-way write to the library" contract
     // — any admin who wants a formerly-banned tag back on specific
     // items re-adds manually. A future "restore" flow would be a new
     // action, not a side effect of unban.
@@ -276,7 +276,7 @@ export async function bulkImportTagsAction(
           WHERE "tags" && ${slugs}::text[]
              OR "aiTags" && ${slugs}::text[]
         `;
-        revalidateGallerySurfaces();
+        revalidateLibrarySurfaces();
       }
     }
 
@@ -326,8 +326,8 @@ export async function deleteTagAction(
     });
 
     revalidateSurfaces();
-    revalidateGallerySurfaces();
-    return { ok: true, message: `Deleted "${slug}" and swept it from gallery items.` };
+    revalidateLibrarySurfaces();
+    return { ok: true, message: `Deleted "${slug}" and swept it from library items.` };
   } catch (e) {
     console.error("deleteTagAction failed", e);
     return { ok: false, error: "Delete failed — try again." };

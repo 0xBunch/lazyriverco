@@ -7,7 +7,7 @@ import { TagRegistry, type BucketOption, type TagRow } from "./TagRegistry";
 // Every slug that appears in Media.tags, Media.aiTags, or was curated
 // via this page has a row in the Tag table. The page shows EVERY tag
 // with its use count and bucket, so the admin never has to hunt on
-// individual gallery items to find what needs cleaning up.
+// individual library items to find what needs cleaning up.
 //
 // Usage counts are computed on demand via one UNNEST aggregation query
 // — not denormalized. At this scale (< 1k Media rows), the query is
@@ -111,7 +111,7 @@ export default async function AdminTaxonomyPage() {
           Tag registry
         </h1>
         <p className="mt-1 max-w-2xl text-sm text-bone-300 text-pretty">
-          Every tag that exists anywhere in the gallery. {rows.length} tag
+          Every tag that exists anywhere in the library. {rows.length} tag
           {rows.length === 1 ? "" : "s"} across {buckets.length} bucket
           {buckets.length === 1 ? "" : "s"}, {totalUses} total uses,{" "}
           {uncategorized} uncategorized. Edit a tag to add a description,
@@ -125,10 +125,10 @@ export default async function AdminTaxonomyPage() {
       <p className="text-xs italic text-bone-400">
         Bucket reassignments take effect on the next Gemini call
         (~instant on this server, ≤60 s cluster-wide via cache TTL).
-        Reassigning into banned also strips the slug from every gallery
+        Reassigning into banned also strips the slug from every library
         item. Existing items aren&apos;t retroactively re-tagged when a
         tag joins a preferred bucket — trigger a re-analyze from
-        /admin/gallery or <code>pnpm backfill:ai-tags</code> for that.
+        /admin/library or <code>pnpm backfill:ai-tags</code> for that.
       </p>
     </div>
   );
