@@ -172,10 +172,17 @@ export async function trackedMessagesCreate(
   client: Anthropic,
   ctx: TrackedCreateContext,
   params: Anthropic.Messages.MessageCreateParamsNonStreaming,
+  // Derived from the SDK's own method signature (instead of naming
+  // Anthropic.RequestOptions directly) so we stay attached to the
+  // public surface. Lets callers forward an AbortSignal for real
+  // HTTP-level request cancellation — see select-context.ts's 2s
+  // Haiku budget, which uses this to actually abort the fetch rather
+  // than just abandon it client-side.
+  options?: Parameters<Anthropic["messages"]["create"]>[1],
 ): Promise<Anthropic.Messages.Message> {
   const started = Date.now();
   try {
-    const response = await client.messages.create(params);
+    const response = await client.messages.create(params, options);
     // recordUsage never throws, but belt-and-suspenders: if something
     // in the promise chain ever changes, a stray rejection here would
     // silently bubble back to the caller as an unhandled reject.
@@ -238,13 +245,17 @@ export function trackedMessagesStream(
   client: Anthropic,
   ctx: TrackedCreateContext,
   params: Anthropic.Messages.MessageStreamParams,
+  // Forwarded verbatim to client.messages.stream — lets a caller
+  // attach an AbortSignal for real request cancellation (e.g. user
+  // hits "stop" on a streaming reply).
+  options?: Parameters<Anthropic["messages"]["stream"]>[1],
 ): ReturnType<Anthropic["messages"]["stream"]> {
   const started = Date.now();
   // Anthropic.messages.stream returns a generic MessageStream<Parsed>.
   // We use ReturnType on the declared method (rather than importing
   // the MessageStream class directly from the SDK's /lib path) so the
   // type stays attached to the SDK's public surface.
-  const stream = client.messages.stream(params);
+  const stream = client.messages.stream(params, options);
 
   // Background recording — deliberately not awaited. .catch on the
   // outer chain so a recordUsage rejection (shouldn't happen, it's
