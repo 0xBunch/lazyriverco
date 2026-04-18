@@ -19,6 +19,7 @@ export function SidebarNav({ items }: SidebarNavProps) {
           item.href === "/"
             ? pathname === "/"
             : pathname === item.href || pathname.startsWith(`${item.href}/`);
+        const Icon = item.icon;
         return (
           <Link
             key={item.href}
@@ -40,9 +41,7 @@ export function SidebarNav({ items }: SidebarNavProps) {
                 className="absolute inset-y-1.5 left-0 w-0.5 rounded-r bg-claude-400 group-data-[collapsed]:inset-y-auto group-data-[collapsed]:inset-x-1.5 group-data-[collapsed]:bottom-0 group-data-[collapsed]:h-0.5 group-data-[collapsed]:w-auto group-data-[collapsed]:rounded-t group-data-[collapsed]:rounded-r-none"
               />
             ) : null}
-            <span aria-hidden="true" className="text-base leading-none">
-              {item.icon}
-            </span>
+            <Icon aria-hidden="true" className="h-5 w-5 shrink-0" />
             <span className="flex-1 group-data-[collapsed]:hidden">
               {item.label}
             </span>
