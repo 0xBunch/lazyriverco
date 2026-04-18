@@ -12,6 +12,9 @@ import {
   parseInstagramShortcode,
   instagramEmbedUrl,
 } from "@/lib/instagram-embed";
+import { USER_MARKDOWN_COMPONENTS } from "@/lib/safe-markdown";
+import { CommentComposer } from "./CommentComposer";
+import { CommentList } from "./CommentList";
 
 // /gallery/[id] — gallery item detail. Media leads; metadata renders
 // below as caption-voice. Instagram uses its own /embed/captioned/
@@ -201,7 +204,12 @@ export default async function GalleryItemPage({
 
       {item.caption ? (
         <div className="prose prose-invert prose-sm mb-8 max-w-none prose-p:text-bone-200 prose-a:text-claude-300 prose-strong:text-bone-50">
-          <ReactMarkdown remarkPlugins={[remarkGfm]}>{item.caption}</ReactMarkdown>
+          <ReactMarkdown
+            remarkPlugins={[remarkGfm]}
+            components={USER_MARKDOWN_COMPONENTS}
+          >
+            {item.caption}
+          </ReactMarkdown>
         </div>
       ) : null}
 
@@ -218,6 +226,20 @@ export default async function GalleryItemPage({
           ))}
         </div>
       ) : null}
+
+      <section className="mt-12 border-t border-bone-800 pt-6">
+        <h2 className="mb-4 text-xs font-semibold uppercase tracking-[0.2em] text-claude-300">
+          Comments
+        </h2>
+        <div className="mb-6">
+          <CommentComposer mediaId={item.id} />
+        </div>
+        <CommentList
+          mediaId={item.id}
+          viewerId={viewer.id}
+          viewerIsAdmin={viewer.role === "ADMIN"}
+        />
+      </section>
 
       <ThreadSection rows={threadRows} />
 
@@ -283,23 +305,15 @@ function ThreadSection({
       | null;
   }>;
 }) {
-  if (rows.length === 0) {
-    return (
-      <section className="mt-12 border-t border-bone-800 pt-6">
-        <h2 className="mb-2 text-xs font-semibold uppercase tracking-[0.2em] text-claude-300">
-          Thread
-        </h2>
-        <p className="text-sm italic text-bone-300">
-          Nobody’s chimed in about this one yet.
-        </p>
-      </section>
-    );
-  }
+  // Hide the section entirely when nothing's been referenced in chats —
+  // real comments above cover the primary surface; empty chat-mention
+  // block is visual debt.
+  if (rows.length === 0) return null;
 
   return (
-    <section className="mt-12 border-t border-bone-800 pt-6">
-      <h2 className="mb-4 text-xs font-semibold uppercase tracking-[0.2em] text-claude-300">
-        Thread
+    <section className="mt-10 border-t border-bone-800/60 pt-5">
+      <h2 className="mb-3 text-[11px] uppercase tracking-[0.2em] text-bone-400">
+        Mentioned in chats
       </h2>
       <ul className="flex flex-col gap-4">
         {rows.map((m) => {

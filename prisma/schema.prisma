@@ -34,6 +34,7 @@ model User {
   conversations       Conversation[]
   rateLimitHits       RateLimitHit[]
   pins                Pin[]
+  comments            Comment[]
 }
 
 enum Role {
@@ -366,6 +367,7 @@ model Media {
 
   uploadedBy      User                 @relation(fields: [uploadedById], references: [id])
   calendarEntries CalendarEntryMedia[]
+  comments        Comment[]
 
   // Media retrieval path for buildRichContext: filter to READY, hall-of-
   // fame first, then most recent. Composite matches the ORDER BY so
@@ -445,6 +447,27 @@ model ScheduledContent {
   timeOfDay String?
   lastFired DateTime?
   active    Boolean   @default(true)
+}
+
+/// Human-authored comment on a gallery item. Distinct from Message
+/// (which belongs to a Conversation) so we don't need a synthetic
+/// conversation-per-media or nullable-conversationId pattern.
+/// Soft-delete via deletedAt; tombstone renders as "[comment removed]"
+/// in the UI. Replies are deferred to a follow-up — no parentId yet.
+model Comment {
+  id        String    @id @default(uuid())
+  mediaId   String
+  userId    String
+  body      String    @db.Text
+  deletedAt DateTime?
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+
+  media Media @relation(fields: [mediaId], references: [id], onDelete: Cascade)
+  user  User  @relation(fields: [userId], references: [id])
+
+  // Primary read path: "all comments for this media, chronological".
+  @@index([mediaId, createdAt])
 }
 
 /// Per-user sliding-window rate-limit tracking. One row per successful

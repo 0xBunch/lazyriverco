@@ -21,7 +21,10 @@ export type RateLimitBucket =
   // loops); ingest guards outbound fetch against arbitrary URLs. Both
   // apply to every signed-in member, not just admin.
   | "media.presign"
-  | "gallery.ingest";
+  | "gallery.ingest"
+  // Gallery v1.2 — comments. Generous cap for a 7-user clubhouse; the
+  // point is to catch an accidental submit-loop, not to police speech.
+  | "gallery.comment";
 
 export type RateLimitOptions = {
   maxPerMinute: number;
