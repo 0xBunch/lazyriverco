@@ -7,6 +7,7 @@ import {
   MAX_ORIGIN_TEXT_CHARS,
 } from "@/lib/sanitize";
 import { buildTaxonomyHint } from "@/lib/ai-taxonomy";
+import { parseTag } from "@/lib/tag-shape";
 
 // Gallery v1.3 — Gemini 2.5 Flash vision pipeline. Called inline from
 // the ingest + upload-meta actions; returns a small structured result
@@ -33,8 +34,6 @@ const MODEL_ID = "gemini-2.5-flash";
 const IMAGE_FETCH_TIMEOUT_MS = 5_000;
 const GEMINI_CALL_TIMEOUT_MS = 20_000;
 const IMAGE_FETCH_MAX_BYTES = 10 * 1024 * 1024;
-const TAG_SHAPE = /^[a-z0-9][a-z0-9\-_]*$/;
-const MAX_TAG_CHARS = 40;
 const MAX_TAGS_RETURNED = 10;
 const USER_AGENT =
   "LazyRiverBot/1.0 (gallery-ai-tagging; +https://lazyriver.co)";
@@ -249,10 +248,8 @@ function parseAndCleanTags(text: string): string[] {
   const seen = new Set<string>();
   const out: string[] = [];
   for (const raw of maybeTags) {
-    if (typeof raw !== "string") continue;
-    const slug = raw.trim().toLowerCase();
-    if (!slug || slug.length > MAX_TAG_CHARS) continue;
-    if (!TAG_SHAPE.test(slug)) continue;
+    const slug = parseTag(raw);
+    if (!slug) continue;
     if (seen.has(slug)) continue;
     seen.add(slug);
     out.push(slug);

@@ -4,6 +4,7 @@ import { revalidatePath } from "next/cache";
 import { prisma } from "@/lib/prisma";
 import { requireAdmin } from "@/lib/auth";
 import { runVisionTagging } from "@/lib/ai-tagging-run";
+import { parseTag } from "@/lib/tag-shape";
 
 // Commissioner-side bulk operations for the gallery. Each action is
 // useFormState-compatible: signature is (prevState, formData) => State
@@ -20,8 +21,6 @@ export type AdminGalleryState =
   | null;
 
 const MAX_IDS_PER_ACTION = 200;
-const TAG_SHAPE = /^[a-z0-9][a-z0-9\-_]*$/;
-const MAX_TAG_CHARS = 40;
 
 function parseIds(fd: FormData): string[] {
   // Dedupe before the cap so 30 copies of one id don't eat the whole slot
@@ -32,13 +31,6 @@ function parseIds(fd: FormData): string[] {
       .filter((v): v is string => typeof v === "string" && v.length > 0),
   );
   return Array.from(unique).slice(0, MAX_IDS_PER_ACTION);
-}
-
-function parseTag(raw: FormDataEntryValue | null): string | null {
-  if (typeof raw !== "string") return null;
-  const t = raw.trim().toLowerCase();
-  if (!t || t.length > MAX_TAG_CHARS || !TAG_SHAPE.test(t)) return null;
-  return t;
 }
 
 function revalidateGallerySurfaces() {

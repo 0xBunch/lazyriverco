@@ -6,6 +6,7 @@ import { requireUser } from "@/lib/auth";
 import { assertWithinLimit, RateLimitError } from "@/lib/rate-limit";
 import { ingestUrl, IngestError } from "@/lib/ingest";
 import { runVisionTagging } from "@/lib/ai-tagging-run";
+import { TAG_SHAPE, MAX_TAG_CHARS } from "@/lib/tag-shape";
 
 // Gallery server actions. Invoked from the add modal + anywhere a member
 // can edit their own item's metadata. All actions:
@@ -22,8 +23,6 @@ import { runVisionTagging } from "@/lib/ai-tagging-run";
 const INGEST_LIMIT = { maxPerMinute: 10, maxPerDay: 200 };
 const MAX_CAPTION_CHARS = 500;
 const MAX_TAGS = 8;
-const MAX_TAG_CHARS = 40;
-const TAG_SHAPE = /^[a-z0-9][a-z0-9\-_]*$/;
 
 export type SaveResult =
   | { ok: true; mediaId: string }
