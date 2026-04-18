@@ -58,8 +58,11 @@ model Character {
   /// (Moises, seeded by the phase-1 migration). Enforced as a partial unique
   /// index in the migration (`CREATE UNIQUE INDEX "Character_isDefault_key"
   /// ON "Character"("isDefault") WHERE "isDefault" = true`) because Prisma
-  /// can't model partial predicates in @@unique. Mirror constant lives in
-  /// src/lib/characters.ts as DEFAULT_CHARACTER_ID and MUST stay in sync.
+  /// can't model partial predicates in @@unique. Flipped at runtime via
+  /// `setDefaultAgent` in src/app/(portal)/admin/agents/actions.ts. The
+  /// legacy `DEFAULT_CHARACTER_ID` constant in src/lib/characters.ts is the
+  /// migration seed value — runtime callers should rely on this DB flag,
+  /// not the constant.
   isDefault           Boolean  @default(false)
   /// When true, the agent may give longer, proportional replies and may
   /// optionally emit <followups>…</followups> tags at the end of a reply
@@ -71,6 +74,11 @@ model Character {
   /// against the allowlist in src/lib/anthropic.ts (AGENT_MODELS). Default
   /// mirrors CHAT_MODEL so pre-existing agents keep their current model.
   model               String   @default("claude-sonnet-4-6")
+  /// Admin-curated display order for agent pickers (homepage card, chats
+  /// filter, relationships matrix, admin list). Lower sorts first; ties
+  /// broken by displayName. Backfilled by the migration from the prior
+  /// alphabetical order so the UX is unchanged on first load.
+  displayOrder        Int      @default(0)
   createdAt           DateTime @default(now())
 
   messages            Message[]
@@ -80,6 +88,8 @@ model Character {
   agentRelationships  AgentRelationship[]
   conversations       Conversation[]
   pins                Pin[]
+
+  @@index([displayOrder])
 }
 
 /// A conversational lane inside the Mens League clubhouse. v1 ships exactly
