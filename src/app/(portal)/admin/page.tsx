@@ -49,16 +49,23 @@ const CARDS = [
     body:
       "Birthdays, cultural moments, trip dates. Auto-injected into agent prompts when the date is within a week. Recurrence support for annual events.",
   },
+  {
+    href: "/admin/prompts",
+    title: "Prompts",
+    body:
+      "Homepage dropdown groups — the claude.ai-style row beneath the prompt box. Each group (\u201CWrite\u201D, \u201CRoast\u201D) is a button; each item pastes its full prompt text into the input on click.",
+  },
 ];
 
 export default function AdminLanding() {
   return (
     <div className="space-y-4">
       <p className="text-sm text-bone-300">
-        Nine things you can curate. Canon, members, and relationships are
+        Ten things you can curate. Canon, members, and relationships are
         always injected. Lore and media are selectively pulled in based on
         conversation topic. Calendar entries auto-appear near their dates.
-        Taxonomy shapes how Gemini tags new gallery uploads.
+        Taxonomy shapes how Gemini tags new gallery uploads. Prompts
+        drives the homepage dropdown suggestions.
       </p>
       <ul className="grid gap-3 sm:grid-cols-2">
         {CARDS.map((card) => (

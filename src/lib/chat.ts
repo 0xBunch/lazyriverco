@@ -128,6 +128,27 @@ export type CreateConversationResponse =
     }
   | { error: string };
 
+// -------------------------------------------------------------------
+// Prompt chip DTOs — homepage dropdown suggestion groups.
+// -------------------------------------------------------------------
+
+/** One selectable suggestion inside a PromptGroupDTO. `label` is the
+ * short CTA shown in the dropdown; `prompt` is the full text pasted
+ * into the homepage input on click. */
+export type PromptSuggestionDTO = {
+  id: string;
+  label: string;
+  prompt: string;
+};
+
+/** Admin-curated dropdown group rendered beneath the homepage prompt
+ * box. Empty-items groups are filtered out server-side. */
+export type PromptGroupDTO = {
+  id: string;
+  label: string;
+  items: readonly PromptSuggestionDTO[];
+};
+
 export function toDTO(
   m: MessageWithAuthors,
   characterAllowlist: readonly string[] = [],

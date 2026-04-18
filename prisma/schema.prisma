@@ -645,3 +645,44 @@ model Pin {
   // Sidebar read path: "give me every pin for this user."
   @@index([userId, createdAt(sort: Desc)])
 }
+
+/// Admin-curated dropdown group shown beneath the homepage prompt box.
+/// Each group renders as a button (e.g. "Write", "Roast", "Learn") that
+/// opens a menu of its active PromptSuggestion items. Picking an item
+/// pastes its full `prompt` text into the input. Managed via
+/// /admin/prompts. Inactive groups and groups with zero active items are
+/// hidden from the homepage.
+model PromptGroup {
+  id        String   @id @default(uuid())
+  label     String
+  sortOrder Int      @default(0)
+  isActive  Boolean  @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  items PromptSuggestion[]
+
+  // Homepage read path: active groups ordered by sortOrder.
+  @@index([isActive, sortOrder])
+}
+
+/// One selectable suggestion inside a PromptGroup. `label` is the short
+/// CTA shown in the dropdown ("SportsCenter intro"); `prompt` is the
+/// full text pasted into the homepage input on click ("Write a
+/// SportsCenter intro for Mike's fantasy team"). Cascade-delete with the
+/// parent group so deleting a group cleans up its items.
+model PromptSuggestion {
+  id        String   @id @default(uuid())
+  groupId   String
+  label     String
+  prompt    String   @db.Text
+  sortOrder Int      @default(0)
+  isActive  Boolean  @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  group PromptGroup @relation(fields: [groupId], references: [id], onDelete: Cascade)
+
+  @@index([groupId, sortOrder])
+  @@index([groupId, isActive, sortOrder])
+}

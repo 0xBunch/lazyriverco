@@ -6,7 +6,9 @@ import { cn } from "@/lib/utils";
 import type {
   ConversationCharacterDTO,
   CreateConversationResponse,
+  PromptGroupDTO,
 } from "@/lib/chat";
+import { PromptGroupMenu } from "@/components/PromptGroupMenu";
 
 // Inlined user shape — keeps this client component free of any
 // runtime dep on src/lib/auth (which is server-only).
@@ -19,14 +21,8 @@ type ConversationLandingProps = {
   user: LandingUser;
   characters: readonly ConversationCharacterDTO[];
   defaultCharacterId: string;
+  promptGroups: readonly PromptGroupDTO[];
 };
-
-const SUGGESTION_CHIPS = [
-  "Write a SportsCenter intro for Mike's fantasy team",
-  "Roast Joey's last draft pick",
-  "Make a fake ESPN headline about trip weekend",
-  "Give me a power ranking of the crew",
-];
 
 function timeBasedGreeting(): string {
   const h = new Date().getHours();
@@ -39,6 +35,7 @@ export function ConversationLanding({
   user,
   characters,
   defaultCharacterId,
+  promptGroups,
 }: ConversationLandingProps) {
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -220,29 +217,26 @@ export function ConversationLanding({
         ) : null}
       </form>
 
-      {/* Suggestion chips — horizontal scroll on a single line. Wrap+center
-          reads as "rigid grid of options"; scroll reads as "there are more
-          where these came from" and preserves Claude's one-line rhythm. */}
-      <div className="-mx-4 overflow-x-auto px-4 no-scrollbar">
-        <div className="flex w-max flex-nowrap gap-2">
-          {SUGGESTION_CHIPS.map((chip) => (
-            <button
-              key={chip}
-              type="button"
-              disabled={submitting}
-              onClick={() => setContent(chip)}
-              className={cn(
-                "shrink-0 whitespace-nowrap rounded-full border border-bone-700 bg-bone-900/60 px-4 py-2 text-sm text-bone-200 transition-colors",
-                "hover:border-claude-500/60 hover:text-claude-100",
-                "disabled:cursor-not-allowed disabled:opacity-60",
-                "focus:outline-none focus-visible:ring-2 focus-visible:ring-claude-500 focus-visible:ring-offset-2 focus-visible:ring-offset-bone-950",
-              )}
-            >
-              {chip}
-            </button>
-          ))}
+      {/* Suggestion dropdowns — each PromptGroup is a button that opens a
+          menu of short-labeled items. Picking an item pastes the item's
+          full prompt text into the textarea above. Horizontal scroll
+          preserves Claude's one-line rhythm when there are many groups.
+          Row is hidden entirely if no active groups exist (admin-curated
+          via /admin/prompts). */}
+      {promptGroups.length > 0 ? (
+        <div className="-mx-4 overflow-x-auto px-4 no-scrollbar">
+          <div className="flex w-max flex-nowrap gap-2">
+            {promptGroups.map((group) => (
+              <PromptGroupMenu
+                key={group.id}
+                group={group}
+                onPick={(prompt) => setContent(prompt)}
+                disabled={submitting}
+              />
+            ))}
+          </div>
         </div>
-      </div>
+      ) : null}
     </div>
   );
 }
