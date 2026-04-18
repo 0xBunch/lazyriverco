@@ -1,20 +1,36 @@
 import "server-only";
 import { randomUUID } from "crypto";
-import { PutObjectCommand, S3Client } from "@aws-sdk/client-s3";
-import { createPresignedPost } from "@aws-sdk/s3-presigned-post";
+import {
+  DeleteObjectCommand,
+  HeadObjectCommand,
+  PutObjectCommand,
+  S3Client,
+} from "@aws-sdk/client-s3";
+import { getSignedUrl } from "@aws-sdk/s3-request-presigner";
 import { safeFetch, UnsafeUrlError } from "@/lib/safe-fetch";
 
 // R2 presigned-upload helpers. Browser uploads go DIRECT to R2 — server
 // never handles file bytes. The server's only role is (1) auth-gate the
 // presign request, (2) pick an unguessable object key, (3) sign a short-
-// lived POST with content-type + content-length constraints baked in.
+// lived PUT URL that the client streams the file body to.
+//
+// Why PUT, not POST: R2 does not support presigned POST (multipart form
+// uploads via HTML forms) — only GET/HEAD/PUT/DELETE. See
+// https://developers.cloudflare.com/r2/api/s3/presigned-urls/.
 //
 // Security hardening:
 //   - Content-type allowlist enforced server-side before signing. Clients
 //     cannot upload executables, HTML, or anything else.
-//   - Content-length capped at 25 MB via POST policy Conditions (enforced
-//     at R2 ingest — bypasses client-side JS and body limits).
-//   - Presigned URL expires in 5 minutes (not the SDK default of 15).
+//   - Content-Type is signed into the URL as a SigV4 signed header, so the
+//     client MUST send the exact value — mismatched Content-Type yields
+//     403 SignatureDoesNotMatch at R2.
+//   - Size cap is enforced in two places:
+//       1. Client-side JS rejects oversized files before uploading.
+//       2. `assertObjectWithinSize` runs a HEAD against R2 AFTER upload
+//          (called from /api/media/commit) and rejects if the stored size
+//          exceeds the cap. PUT presigns can't embed a size condition the
+//          way POST policies can, so a post-facto check is required.
+//   - Presigned URL expires in 5 minutes.
 //   - Object keys are generated server-side via crypto.randomUUID().
 //     Client-supplied filenames are ignored so enumeration risk is ~122
 //     bits and the client can't forge a key to overwrite another object.
@@ -77,13 +93,11 @@ export type PresignUploadInput = {
 export type PresignUploadResult = {
   mediaId: string;
   key: string;
-  /** Direct URL the client POSTs the FormData to. */
+  /** Direct URL the client PUTs the raw file body to. */
   uploadUrl: string;
-  /** Fields the client must include in the FormData BEFORE the `file` field. */
-  fields: Record<string, string>;
   /** Stable public URL where the committed object will be readable. */
   publicUrl: string;
-  /** The mime type captured at signing — persisted to Media.mimeType. */
+  /** The mime type captured at signing — client MUST send this as Content-Type. */
   contentType: string;
   expiresIn: number;
   maxBytes: number;
@@ -118,18 +132,15 @@ function getS3Client(): S3Client {
     region: "auto",
     endpoint: `https://${accountId}.r2.cloudflarestorage.com`,
     credentials: { accessKeyId, secretAccessKey },
-    // Force path-style because R2's presigned POSTs work against the
-    // bucket endpoint, and signature v4 for POST policies is what
-    // createPresignedPost emits — leave SDK defaults otherwise.
   });
   return s3Singleton;
 }
 
 /**
- * Presign a direct-to-R2 upload. Validates content-type, generates a
- * server-side key, and returns the POST URL + fields the client should
- * use. The returned URL is short-lived; re-request if the user takes
- * longer than PRESIGN_EXPIRY_SECONDS to start the upload.
+ * Presign a direct-to-R2 PUT upload. Validates content-type, generates a
+ * server-side key, and returns a signed URL the client can PUT the raw
+ * file body to with Content-Type matching `input.mimeType`. Short-lived —
+ * re-request if the user takes longer than PRESIGN_EXPIRY_SECONDS to start.
  */
 export async function presignUpload(
   input: PresignUploadInput,
@@ -151,18 +162,15 @@ export async function presignUpload(
   const { mediaId, key } = newMediaKey(input.mimeType);
   const s3 = getS3Client();
 
-  const { url, fields } = await createPresignedPost(s3, {
-    Bucket: bucketName,
-    Key: key,
-    Expires: PRESIGN_EXPIRY_SECONDS,
-    Conditions: [
-      ["content-length-range", 0, MAX_UPLOAD_BYTES],
-      ["eq", "$Content-Type", input.mimeType],
-    ],
-    Fields: {
-      "Content-Type": input.mimeType,
-    },
-  });
+  const uploadUrl = await getSignedUrl(
+    s3,
+    new PutObjectCommand({
+      Bucket: bucketName,
+      Key: key,
+      ContentType: input.mimeType,
+    }),
+    { expiresIn: PRESIGN_EXPIRY_SECONDS },
+  );
 
   // Public base has no trailing slash by convention; normalize defensively.
   const base = publicBase.replace(/\/+$/, "");
@@ -170,8 +178,7 @@ export async function presignUpload(
   return {
     mediaId,
     key,
-    uploadUrl: url,
-    fields,
+    uploadUrl,
     publicUrl: `${base}/${key}`,
     contentType: input.mimeType,
     expiresIn: PRESIGN_EXPIRY_SECONDS,
@@ -180,18 +187,17 @@ export async function presignUpload(
 }
 
 // ---------------------------------------------------------------------------
-// Avatars: same presign pattern as media but (a) smaller 2 MB cap, (b)
-// `avatars/` key prefix so images are routable on the public CDN under a
-// distinct path, (c) no Media row — caller persists the URL directly into
-// Character.avatarUrl. Uploads that never get persisted leave orphan R2
-// objects; acceptable trade-off since keys are UUID-guessed and capped at
-// 2 MB, and the route is admin-only.
+// Avatars: same PUT-presign pattern as media but (a) smaller 2 MB client
+// cap, (b) `avatars/` key prefix so images are routable on the public CDN
+// under a distinct path, (c) no Media row — caller persists the URL
+// directly into Character.avatarUrl. Uploads that never get persisted
+// leave orphan R2 objects; acceptable trade-off since keys are UUID-
+// guessed and the route is admin-only.
 
 export type PresignAvatarUploadResult = {
   avatarId: string;
   key: string;
   uploadUrl: string;
-  fields: Record<string, string>;
   publicUrl: string;
   contentType: string;
   expiresIn: number;
@@ -218,31 +224,70 @@ export async function presignAvatarUpload(
   const { avatarId, key } = newAvatarKey(input.mimeType);
   const s3 = getS3Client();
 
-  const { url, fields } = await createPresignedPost(s3, {
-    Bucket: bucketName,
-    Key: key,
-    Expires: PRESIGN_EXPIRY_SECONDS,
-    Conditions: [
-      ["content-length-range", 0, MAX_AVATAR_BYTES],
-      ["eq", "$Content-Type", input.mimeType],
-    ],
-    Fields: {
-      "Content-Type": input.mimeType,
-    },
-  });
+  const uploadUrl = await getSignedUrl(
+    s3,
+    new PutObjectCommand({
+      Bucket: bucketName,
+      Key: key,
+      ContentType: input.mimeType,
+    }),
+    { expiresIn: PRESIGN_EXPIRY_SECONDS },
+  );
 
   const base = publicBase.replace(/\/+$/, "");
 
   return {
     avatarId,
     key,
-    uploadUrl: url,
-    fields,
+    uploadUrl,
     publicUrl: `${base}/${key}`,
     contentType: input.mimeType,
     expiresIn: PRESIGN_EXPIRY_SECONDS,
     maxBytes: MAX_AVATAR_BYTES,
   };
+}
+
+// ---------------------------------------------------------------------------
+// Post-upload size guard. Called from /api/media/commit after the client
+// reports the PUT succeeded. Runs a HEAD against the R2 object and throws
+// R2UploadError if ContentLength exceeds `maxBytes`. This compensates for
+// PUT presigns' inability to bake a size cap into the signature — without
+// it, an authenticated client with a presigned URL could upload any size
+// up to R2's per-object limit.
+//
+// The HEAD is a Class B op (cheap) and runs once per commit. If R2 returns
+// no ContentLength (shouldn't happen for PUTs), treat that as failure.
+
+export async function assertObjectWithinSize(
+  key: string,
+  maxBytes: number,
+): Promise<void> {
+  const bucketName = process.env.R2_BUCKET_NAME;
+  if (!bucketName) {
+    throw new R2UploadError("R2 not configured: set R2_BUCKET_NAME.");
+  }
+  const s3 = getS3Client();
+  const head = await s3.send(
+    new HeadObjectCommand({ Bucket: bucketName, Key: key }),
+  );
+  const size = head.ContentLength;
+  if (typeof size !== "number") {
+    throw new R2UploadError("R2 HEAD response missing ContentLength.");
+  }
+  if (size > maxBytes) {
+    throw new R2UploadError(
+      `Uploaded object is ${size} bytes; exceeds cap of ${maxBytes}.`,
+    );
+  }
+}
+
+export async function deleteObject(key: string): Promise<void> {
+  const bucketName = process.env.R2_BUCKET_NAME;
+  if (!bucketName) {
+    throw new R2UploadError("R2 not configured: set R2_BUCKET_NAME.");
+  }
+  const s3 = getS3Client();
+  await s3.send(new DeleteObjectCommand({ Bucket: bucketName, Key: key }));
 }
 
 // ---------------------------------------------------------------------------

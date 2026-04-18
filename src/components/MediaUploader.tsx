@@ -121,21 +121,17 @@ export function MediaUploader({ onUploaded, maxFiles = null, className }: Props)
         const presign = (await presignRes.json()) as {
           mediaId: string;
           uploadUrl: string;
-          fields: Record<string, string>;
           publicUrl: string;
+          contentType: string;
         };
 
-        // 2. Direct POST to R2 with progress reporting (XHR, not fetch).
+        // 2. Direct PUT to R2 with progress reporting. Raw file body,
+        // Content-Type header MUST match what was signed or R2 returns
+        // 403 SignatureDoesNotMatch.
         await new Promise<void>((resolve, reject) => {
-          const form = new FormData();
-          // Fields must come BEFORE the file field per S3/R2 POST policy.
-          for (const [k, v] of Object.entries(presign.fields)) {
-            form.append(k, v);
-          }
-          form.append("file", entry.file);
-
           const xhr = new XMLHttpRequest();
-          xhr.open("POST", presign.uploadUrl);
+          xhr.open("PUT", presign.uploadUrl);
+          xhr.setRequestHeader("Content-Type", presign.contentType);
           xhr.upload.onprogress = (e) => {
             if (e.lengthComputable) {
               const pct = Math.min(99, Math.round((e.loaded / e.total) * 100));
@@ -145,19 +141,18 @@ export function MediaUploader({ onUploaded, maxFiles = null, className }: Props)
             }
           };
           xhr.onload = () => {
-            // R2 returns 204 No Content on success; treat any 2xx as OK.
+            // R2 returns 200 on successful PUT; treat any 2xx as OK.
             if (xhr.status >= 200 && xhr.status < 300) resolve();
             else reject(new Error(`R2 upload failed (${xhr.status})`));
           };
           xhr.onerror = () =>
             reject(new Error("Network error during upload"));
           xhr.onabort = () => reject(new Error("Upload aborted"));
-          // Cancelling the controller mid-XHR aborts the upload too.
           const onAbortSignal = () => xhr.abort();
           controller.signal.addEventListener("abort", onAbortSignal, {
             once: true,
           });
-          xhr.send(form);
+          xhr.send(entry.file);
         });
 
         // 3. Commit — flip PENDING → READY.
