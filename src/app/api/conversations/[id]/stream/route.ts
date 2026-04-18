@@ -3,7 +3,8 @@ import type { NextRequest } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { getCurrentUser } from "@/lib/auth";
 import { assertWithinLimit, RateLimitError } from "@/lib/rate-limit";
-import { streamCharacterResponse } from "@/lib/anthropic";
+import { streamCharacterResponse, resolveAgentModel } from "@/lib/anthropic";
+import { extractFollowups, FOLLOWUPS_OPEN_TAG } from "@/lib/followups";
 import { buildRichContext } from "@/lib/character-context";
 import { loadMessageContext } from "@/lib/orchestrator";
 import { selectContext } from "@/lib/select-context";
@@ -26,6 +27,13 @@ const CONTEXT_MESSAGES = 15;
  *
  *   event: user_message   — confirmed user message DTO
  *   event: token          — { delta: "text chunk" }
+ *   event: followups      — { messageId, suggestions: string[] }
+ *                           Optional. Only emitted for dialogue-mode
+ *                           agents that chose to include <followups>
+ *                           suggestions at the end of their reply. The
+ *                           <followups> tag is stripped from the token
+ *                           stream and from the persisted message — it
+ *                           reaches the client only through this event.
  *   event: done           — { message: final CHARACTER message DTO }
  *   event: error          — { message: "what went wrong" }
  *
@@ -213,21 +221,75 @@ export async function POST(
       }
 
       try {
-        let charCount = 0;
+        // Token emission with two bits of state:
+        //   - emittedCharCount caps bytes the client ever sees (defense
+        //     against a pathological reply — the cap is independent of
+        //     whatever the model streams).
+        //   - suppressFollowups flips true the moment <followups> starts,
+        //     muting the rest of the stream. The tag body + any content
+        //     after it reaches the client only via the `followups` +
+        //     `done` events with the canonical cleaned DTO.
+        // tokenBuffer holds back the last FOLLOWUPS_OPEN_TAG.length-1
+        // characters so a tag split across two deltas (e.g. `<fol` then
+        // `lowups>`) is still detected before any of it leaks.
+        let emittedCharCount = 0;
+        let suppressFollowups = false;
+        let tokenBuffer = "";
+        const holdBack = FOLLOWUPS_OPEN_TAG.length - 1;
+
+        function sendTokenSafe(text: string) {
+          if (!text) return;
+          emittedCharCount += text.length;
+          if (emittedCharCount <= MAX_REPLY_CHARS) {
+            send("token", { delta: text });
+          }
+        }
+
         const fullReply = await streamCharacterResponse(
           character.systemPrompt,
           contextLines,
           newLine,
           richContext || null,
           (delta) => {
-            charCount += delta.length;
-            if (charCount <= MAX_REPLY_CHARS) {
-              send("token", { delta });
+            if (suppressFollowups) return;
+            tokenBuffer += delta;
+            const tagIdx = tokenBuffer.indexOf(FOLLOWUPS_OPEN_TAG);
+            if (tagIdx >= 0) {
+              sendTokenSafe(tokenBuffer.slice(0, tagIdx));
+              suppressFollowups = true;
+              tokenBuffer = "";
+              return;
             }
+            if (tokenBuffer.length > holdBack) {
+              const flushable = tokenBuffer.slice(
+                0,
+                tokenBuffer.length - holdBack,
+              );
+              tokenBuffer = tokenBuffer.slice(
+                tokenBuffer.length - holdBack,
+              );
+              sendTokenSafe(flushable);
+            }
+          },
+          {
+            model: resolveAgentModel(character.model),
+            dialogueMode: character.dialogueMode,
           },
         );
 
-        const truncated = fullReply.slice(0, MAX_REPLY_CHARS).trim();
+        // Tag never appeared — drain the hold-back residue.
+        if (!suppressFollowups && tokenBuffer) {
+          sendTokenSafe(tokenBuffer);
+          tokenBuffer = "";
+        }
+
+        // Pull the optional <followups> block out of the full reply. The
+        // persisted message and the DTO that reaches the client are the
+        // cleaned version; suggestions flow separately as an SSE event.
+        const { cleaned: cleanedReply, suggestions } =
+          extractFollowups(fullReply);
+
+        const truncated = cleanedReply.slice(0, MAX_REPLY_CHARS).trim();
         if (!truncated) {
           send("error", { message: "Empty reply from model" });
           controller.close();
@@ -247,7 +309,8 @@ export async function POST(
           return;
         }
 
-        // Persist the full reply (raw, with sentinel for DTO re-parsing)
+        // Persist the followups-stripped reply (suggest-agent sentinel
+        // is preserved for DTO re-parsing in toDTO()).
         const replyMessage = await prisma.$transaction(async (tx) => {
           const msg = await tx.message.create({
             data: {
@@ -271,6 +334,12 @@ export async function POST(
 
         const replyDTO = toDTO(replyMessage, allowlist);
         send("done", { message: replyDTO });
+        if (replyDTO && suggestions.length > 0) {
+          send("followups", {
+            messageId: replyDTO.id,
+            suggestions,
+          });
+        }
       } catch (err) {
         console.error("[stream] generation failed:", err);
         send("error", {

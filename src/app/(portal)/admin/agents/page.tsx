@@ -11,11 +11,12 @@ export default async function AdminAgentsPage() {
   return (
     <div className="space-y-6">
       <p className="text-sm text-bone-300">
-        Edit each agent&rsquo;s persona bible and active state. The system
-        prompt is the load-bearing knob — every word the agent says
-        flows from it. The standard &ldquo;respond in character / 1-3
-        sentences / texting in a group chat&rdquo; tail is appended
-        automatically.
+        Edit each agent&rsquo;s persona, model tier, and conversation
+        posture. The persona bible is the load-bearing knob — every word
+        flows from it. Model picks the Anthropic tier (Haiku / Sonnet /
+        Opus) this agent runs on. Dialogue mode lifts the built-in
+        length cap and lets the agent emit clickable follow-up chips
+        when the topic has natural branches.
       </p>
 
       {/* --- Create new agent --- */}
@@ -46,6 +47,8 @@ export default async function AdminAgentsPage() {
                 systemPrompt: agent.systemPrompt,
                 active: agent.active,
                 avatarUrl: agent.avatarUrl,
+                dialogueMode: agent.dialogueMode,
+                model: agent.model,
               }}
             />
           </li>

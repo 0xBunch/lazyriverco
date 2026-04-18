@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
+import { useReducedMotion } from "motion/react";
 import { ChatInput } from "@/components/ChatInput";
 import { MessageList } from "@/components/MessageList";
 import { AgentAvatar } from "@/components/AgentAvatar";
@@ -47,6 +48,19 @@ function parseSSEChunk(buffer: string): { events: SSEEvent[]; rest: string } {
   return { events, rest };
 }
 
+// Streaming smoothing — Anthropic's SSE delivers tokens in uneven bursts.
+// Rather than setState-per-chunk (which drops jerky text into the DOM),
+// we append each delta to an off-React ref buffer and let a single rAF
+// loop flush a small number of characters per frame. At ~60fps this
+// paints a consistent ~2-8 chars/frame cadence — readable, not choppy.
+//
+// Catch-up: when the buffer grows large (backlog > CATCH_UP_THRESHOLD),
+// we flush more per frame to keep up with a very fast stream. Once the
+// final `done` event lands, drainPending flushes everything remaining
+// in one go so the user doesn't see a trailing "typing" slow-down after
+// the real stream has finished.
+const CATCH_UP_THRESHOLD = 40;
+
 // --------------------------------------------------------------------------
 
 export function ConversationView({
@@ -60,12 +74,98 @@ export function ConversationView({
   const { messages, error, appendMessages } = useChatPolling({
     fetchUrl: `/api/conversations/${conversationId}/messages`,
   });
+  const shouldReduceMotion = useReducedMotion();
 
   // Streaming state: null = idle, string = accumulated agent text
   const [streamingContent, setStreamingContent] = useState<string | null>(null);
   const isStreaming = streamingContent !== null;
   const abortRef = useRef<AbortController | null>(null);
   const didAutoStreamRef = useRef(false);
+  // Synchronous guard for the "stream already running" check. `isStreaming`
+  // is derived from `streamingContent` state, so its closure value can be
+  // stale at the start of `runStream` if React hasn't re-rendered yet
+  // (e.g. rapid chip click right after a `done` event set content to null
+  // one microtask ago). The ref is flipped synchronously and trusted by
+  // the guard below.
+  const isStreamingRef = useRef(false);
+
+  // Follow-up chip suggestions from the most recent dialogue-mode agent
+  // turn. Cleared when user types, clicks a chip, or navigates away.
+  const [followups, setFollowups] = useState<string[] | null>(null);
+
+  // Smoothing buffer — sits between raw SSE token events and the React
+  // state that feeds the streaming bubble.
+  const pendingTokensRef = useRef<string>("");
+  const rafIdRef = useRef<number | null>(null);
+
+  const flushPending = useCallback(() => {
+    rafIdRef.current = null;
+    const buf = pendingTokensRef.current;
+    if (!buf) return;
+    // Bigger bites when we're behind, smaller bites when caught up. A
+    // completely stalled stream at the tail still flushes 2 chars/frame
+    // which feels like natural typing without dragging.
+    const backlog = buf.length;
+    const takeN = backlog > CATCH_UP_THRESHOLD ? Math.min(backlog, 8) : backlog > 10 ? 4 : 2;
+    const slice = buf.slice(0, takeN);
+    pendingTokensRef.current = buf.slice(takeN);
+    setStreamingContent((prev) => (prev ?? "") + slice);
+    if (pendingTokensRef.current) {
+      rafIdRef.current = requestAnimationFrame(flushPending);
+    }
+  }, []);
+
+  const enqueueToken = useCallback(
+    (delta: string) => {
+      if (!delta) return;
+      if (shouldReduceMotion) {
+        // Respect reduced motion — no smoothing, append immediately. If
+        // the user flipped the OS setting mid-stream, drain anything the
+        // rAF path had buffered first so we don't lose tail tokens in
+        // the handoff.
+        let carry = "";
+        if (pendingTokensRef.current) {
+          carry = pendingTokensRef.current;
+          pendingTokensRef.current = "";
+          if (rafIdRef.current !== null) {
+            cancelAnimationFrame(rafIdRef.current);
+            rafIdRef.current = null;
+          }
+        }
+        setStreamingContent((prev) => (prev ?? "") + carry + delta);
+        return;
+      }
+      pendingTokensRef.current += delta;
+      if (rafIdRef.current === null) {
+        rafIdRef.current = requestAnimationFrame(flushPending);
+      }
+    },
+    [flushPending, shouldReduceMotion],
+  );
+
+  const drainPending = useCallback(() => {
+    if (rafIdRef.current !== null) {
+      cancelAnimationFrame(rafIdRef.current);
+      rafIdRef.current = null;
+    }
+    if (pendingTokensRef.current) {
+      const rest = pendingTokensRef.current;
+      pendingTokensRef.current = "";
+      setStreamingContent((prev) => (prev ?? "") + rest);
+    }
+  }, []);
+
+  // Clean up any in-flight rAF on unmount. (The stream's own finally
+  // handles the common case; this covers route changes mid-stream.)
+  useEffect(() => {
+    return () => {
+      if (rafIdRef.current !== null) {
+        cancelAnimationFrame(rafIdRef.current);
+        rafIdRef.current = null;
+      }
+      pendingTokensRef.current = "";
+    };
+  }, []);
 
   // Pin state — optimistic toggle with server rollback. No spinner; the
   // write is fast and the visual state flips immediately. If the server
@@ -100,11 +200,27 @@ export function ConversationView({
     }
   }, [conversationId, pinned, pinning, router]);
 
-  // Core streaming function — used by both handleSubmit (user types) and
-  // the auto-trigger effect (initial mount, reply-to-latest mode).
+  // Core streaming function — used by handleSubmit (user types), the
+  // auto-trigger effect (initial mount, reply-to-latest mode), and the
+  // follow-up chip click handler.
   const runStream = useCallback(
     (body: Record<string, unknown>) => {
-      if (isStreaming) return;
+      // Synchronous guard — beats the `isStreaming` closure which can
+      // be stale if React hasn't re-rendered after a `done` event yet.
+      if (isStreamingRef.current) return;
+      isStreamingRef.current = true;
+      // Belt-and-suspenders: abort any controller we still hold a
+      // reference to, and cancel any in-flight rAF. Prevents a slow
+      // prior stream from pushing SSE events into the new turn's UI.
+      abortRef.current?.abort();
+      if (rafIdRef.current !== null) {
+        cancelAnimationFrame(rafIdRef.current);
+        rafIdRef.current = null;
+      }
+      pendingTokensRef.current = "";
+      // Clear any follow-ups from the prior turn — they belong to a
+      // specific message, and we're about to make that message stale.
+      setFollowups(null);
       setStreamingContent("");
       const abort = new AbortController();
       abortRef.current = abort;
@@ -153,18 +269,30 @@ export function ConversationView({
                   appendMessages([data.message as ChatMessageDTO]);
                   break;
                 case "token":
-                  setStreamingContent(
-                    (prev) => (prev ?? "") + (data.delta as string),
-                  );
+                  enqueueToken(data.delta as string);
                   break;
                 case "done":
+                  drainPending();
                   if (data.message) {
                     appendMessages([data.message as ChatMessageDTO]);
                   }
                   setStreamingContent(null);
                   break;
+                case "followups":
+                  if (
+                    Array.isArray(data.suggestions) &&
+                    data.suggestions.length > 0
+                  ) {
+                    setFollowups(
+                      (data.suggestions as unknown[])
+                        .filter((s): s is string => typeof s === "string")
+                        .slice(0, 3),
+                    );
+                  }
+                  break;
                 case "error":
                   console.error("[stream] server:", data.message);
+                  drainPending();
                   setStreamingContent(null);
                   break;
               }
@@ -174,18 +302,35 @@ export function ConversationView({
           if (err instanceof DOMException && err.name === "AbortError") return;
           console.error("[stream] client error:", err);
         } finally {
-          setStreamingContent(null);
-          abortRef.current = null;
+          // Only clear state that belongs to THIS stream. If another
+          // `runStream` has already started and reassigned `abortRef`,
+          // we leave the new stream's state alone.
+          if (abortRef.current === abort) {
+            drainPending();
+            setStreamingContent(null);
+            abortRef.current = null;
+            isStreamingRef.current = false;
+          }
         }
       })();
     },
-    [conversationId, isStreaming, appendMessages],
+    [conversationId, appendMessages, enqueueToken, drainPending],
   );
 
   // User-initiated submit: creates a new USER message + streams the reply.
   const handleSubmit = useCallback(
     (content: string) => {
       runStream({ content });
+    },
+    [runStream],
+  );
+
+  // Follow-up chip click — sends the chip text as a new user turn. The
+  // runStream call above already clears followups state before kicking
+  // off, so we don't need to clear here too.
+  const handleFollowupPick = useCallback(
+    (text: string) => {
+      runStream({ content: text });
     },
     [runStream],
   );
@@ -312,6 +457,8 @@ export function ConversationView({
             !isStreaming ? character.displayName : undefined
           }
           streamingMessage={streamingMessage}
+          followupSuggestions={followups}
+          onFollowupPick={handleFollowupPick}
           emptyState={
             <div className="flex h-full items-center justify-center px-6 text-center">
               <p className="text-sm italic text-bone-300">

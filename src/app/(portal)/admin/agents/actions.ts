@@ -3,11 +3,26 @@
 import { revalidatePath } from "next/cache";
 import { prisma } from "@/lib/prisma";
 import { requireAdmin } from "@/lib/auth";
+import {
+  DEFAULT_AGENT_MODEL,
+  isValidAgentModel,
+  type AgentModelId,
+} from "@/lib/agent-models";
 
 // 16k chars ≈ 4k tokens — plenty of headroom for even the richest
 // persona bible. Character.systemPrompt is @db.Text so the cap is
 // purely editorial; raise further if a future prompt needs it.
 const MAX_PROMPT_LENGTH = 16000;
+
+/** Coerce the `model` form field to a valid AgentModelId, falling back
+ *  to the default. The form always sends a value from the dropdown, but
+ *  defense in depth: a hand-crafted POST with a bogus value lands on
+ *  the default instead of writing a row that the stream route will have
+ *  to resolve back at read time. */
+function parseAgentModel(raw: unknown): AgentModelId {
+  if (typeof raw === "string" && isValidAgentModel(raw)) return raw;
+  return DEFAULT_AGENT_MODEL;
+}
 
 // Defense in depth: even though admins are trusted, clamp avatarUrl to a
 // canonical shape produced by /api/avatars/presign. This rejects any URL
@@ -86,6 +101,9 @@ export async function createAgent(
       return { ok: false, error: avatarParsed.error };
     }
 
+    const dialogueMode = formData.get("dialogueMode") === "on";
+    const model = parseAgentModel(formData.get("model"));
+
     await prisma.character.create({
       data: {
         name,
@@ -95,6 +113,8 @@ export async function createAgent(
         avatarUrl: avatarParsed.value,
         triggerKeywords: [],
         activeModules: ["chat"],
+        dialogueMode,
+        model,
       },
     });
 
@@ -143,6 +163,9 @@ export async function updateAgent(
       return { ok: false, error: avatarParsed.error };
     }
 
+    const dialogueMode = formData.get("dialogueMode") === "on";
+    const model = parseAgentModel(formData.get("model"));
+
     await prisma.character.update({
       where: { id },
       data: {
@@ -150,6 +173,8 @@ export async function updateAgent(
         systemPrompt: systemPrompt.trim(),
         active: active === "on",
         avatarUrl: avatarParsed.value,
+        dialogueMode,
+        model,
       },
     });
 

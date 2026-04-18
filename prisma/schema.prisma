@@ -60,6 +60,16 @@ model Character {
   /// can't model partial predicates in @@unique. Mirror constant lives in
   /// src/lib/characters.ts as DEFAULT_CHARACTER_ID and MUST stay in sync.
   isDefault           Boolean  @default(false)
+  /// When true, the agent may give longer, proportional replies and may
+  /// optionally emit <followups>…</followups> tags at the end of a reply
+  /// for clickable suggestion chips. When false (default), the agent stays
+  /// terse — the "1-3 sentences, group-chat" tail applies. Flipped per
+  /// persona via /admin/agents.
+  dialogueMode        Boolean  @default(false)
+  /// Anthropic model ID used for this agent's chat responses. Validated
+  /// against the allowlist in src/lib/anthropic.ts (AGENT_MODELS). Default
+  /// mirrors CHAT_MODEL so pre-existing agents keep their current model.
+  model               String   @default("claude-sonnet-4-6")
   createdAt           DateTime @default(now())
 
   messages            Message[]

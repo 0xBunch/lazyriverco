@@ -6,6 +6,11 @@ import { cn } from "@/lib/utils";
 import { PromptSuggester } from "@/components/PromptSuggester";
 import { AvatarUploader } from "@/components/AvatarUploader";
 import {
+  AGENT_MODELS,
+  DEFAULT_AGENT_MODEL,
+  type AgentModelId,
+} from "@/lib/agent-models";
+import {
   createAgent,
   updateAgent,
   type AgentFormState,
@@ -24,6 +29,8 @@ type Agent = {
   systemPrompt: string;
   active: boolean;
   avatarUrl: string | null;
+  dialogueMode: boolean;
+  model: string;
 };
 
 type Props =
@@ -67,6 +74,10 @@ function CreateAgentForm() {
           required
         />
       </div>
+
+      <ModelField id="new-model" />
+
+      <DialogueModeField id="new-dialogueMode" />
 
       <PromptField
         id="new-systemPrompt"
@@ -125,6 +136,16 @@ function UpdateAgentForm({ agent }: { agent: Agent }) {
         required
       />
 
+      <ModelField
+        id={`model-${agent.id}`}
+        defaultValue={agent.model}
+      />
+
+      <DialogueModeField
+        id={`dialogueMode-${agent.id}`}
+        defaultChecked={agent.dialogueMode}
+      />
+
       <PromptField
         id={`systemPrompt-${agent.id}`}
         characterName={agent.displayName}
@@ -138,6 +159,83 @@ function UpdateAgentForm({ agent }: { agent: Agent }) {
 
       <StateLine state={state} />
     </form>
+  );
+}
+
+// ---------------------------------------------------------------------------
+
+function ModelField({
+  id,
+  defaultValue,
+}: {
+  id: string;
+  defaultValue?: string;
+}) {
+  // Coerce any stale value back to the default so the select always has
+  // a matching option selected on mount (otherwise React renders with
+  // whatever the first option is, making "save" silently change it).
+  const selected: AgentModelId =
+    defaultValue &&
+    AGENT_MODELS.some((m) => m.id === defaultValue)
+      ? (defaultValue as AgentModelId)
+      : DEFAULT_AGENT_MODEL;
+  const selectedMeta =
+    AGENT_MODELS.find((m) => m.id === selected) ?? AGENT_MODELS[1];
+
+  return (
+    <div className="space-y-1">
+      <label htmlFor={id} className="text-xs font-medium text-bone-200">
+        Model
+      </label>
+      <select
+        id={id}
+        name="model"
+        defaultValue={selected}
+        className="w-full rounded-lg border border-bone-700 bg-bone-950 px-3 py-2 text-sm text-bone-50 focus:border-claude-500 focus:outline-none focus:ring-1 focus:ring-claude-500"
+      >
+        {AGENT_MODELS.map((m) => (
+          <option key={m.id} value={m.id}>
+            {m.label}
+          </option>
+        ))}
+      </select>
+      <p className="text-[0.7rem] text-bone-400">{selectedMeta.description}</p>
+    </div>
+  );
+}
+
+function DialogueModeField({
+  id,
+  defaultChecked = false,
+}: {
+  id: string;
+  defaultChecked?: boolean;
+}) {
+  return (
+    <label
+      htmlFor={id}
+      className="flex items-start gap-3 rounded-lg border border-bone-700 bg-bone-950/60 p-3"
+    >
+      <input
+        id={id}
+        name="dialogueMode"
+        type="checkbox"
+        defaultChecked={defaultChecked}
+        className="mt-0.5 h-4 w-4 rounded border-bone-600 bg-bone-950 text-claude-500 focus:ring-claude-500"
+      />
+      <span className="flex-1">
+        <span className="block text-sm font-medium text-bone-100">
+          Dialogue mode
+        </span>
+        <span className="mt-0.5 block text-xs text-bone-300">
+          Lift the 1-3 sentence cap. Agent replies at the depth the question
+          warrants and MAY end with 2-3 clickable follow-up suggestions when
+          the topic has natural branches. Self-contained answers still stay
+          short — it&rsquo;s the model&rsquo;s judgment, not a forced
+          elaboration.
+        </span>
+      </span>
+    </label>
   );
 }
 
