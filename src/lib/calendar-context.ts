@@ -13,6 +13,8 @@ export type CalendarContextRow = {
   date: Date;
   description: string | null;
   recurrence: string;
+  /** Optional free-form time-of-day ("7:00 PM"). Null = all-day/untimed. */
+  time: string | null;
 };
 
 /**
@@ -39,6 +41,7 @@ export async function getUpcomingCalendarEntries(
       date: true,
       description: true,
       recurrence: true,
+      time: true,
     },
   });
 
@@ -62,6 +65,7 @@ export async function getUpcomingCalendarEntries(
             date: normalized,
             description: entry.description,
             recurrence: entry.recurrence,
+            time: entry.time,
           });
           break; // Only include once
         }
@@ -76,6 +80,7 @@ export async function getUpcomingCalendarEntries(
           date: entryDate,
           description: entry.description,
           recurrence: entry.recurrence,
+          time: entry.time,
         });
       }
     }

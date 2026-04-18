@@ -35,6 +35,13 @@ export type ExpandedEntry = {
 };
 
 /**
+ * A single row in the upcoming-events list view. Same shape as ExpandedEntry
+ * plus the free-form `time` string ("7:00 PM" | "Noon" | null). The list
+ * view is the only consumer of time-of-day; the month grid ignores it.
+ */
+export type UpcomingEntry = ExpandedEntry & { time: string | null };
+
+/**
  * Parse a month query string like "2026-04" into {year, month}. Month is
  * 1-indexed (1 = January). Returns null for invalid input so the caller
  * can fall back to the current month.
@@ -174,6 +181,67 @@ export function expandEntriesForGrid(
   return byDate;
 }
 
+/**
+ * Return the next `limit` upcoming events from `today` (inclusive), sorted
+ * ascending by date. Annual entries roll to next year's MM-DD once this
+ * year's has passed. Today is included.
+ *
+ * TODO: Feb 29 annuals overflow to Mar 1 in non-leap years (no entries hit
+ * this today — normalize to Feb 28 here when that changes).
+ */
+export function getUpcomingEntries(
+  entries: readonly Pick<
+    CalendarEntry,
+    "id" | "title" | "description" | "tags" | "recurrence" | "date" | "time"
+  >[],
+  limit: number,
+  today: Date = new Date(),
+): UpcomingEntry[] {
+  const todayIso = toLocalIsoDate(today);
+  const thisYear = Number(todayIso.slice(0, 4));
+
+  const upcoming: UpcomingEntry[] = [];
+
+  for (const entry of entries) {
+    let iso: string;
+
+    if (entry.recurrence === "annual") {
+      const mm = String(entry.date.getUTCMonth() + 1).padStart(2, "0");
+      const dd = String(entry.date.getUTCDate()).padStart(2, "0");
+      const thisYearIso = `${thisYear}-${mm}-${dd}`;
+      iso =
+        thisYearIso >= todayIso
+          ? thisYearIso
+          : `${thisYear + 1}-${mm}-${dd}`;
+    } else {
+      iso = toUtcIsoDate(entry.date);
+      if (iso < todayIso) continue;
+    }
+
+    upcoming.push({
+      id: entry.id,
+      title: entry.title,
+      description: entry.description,
+      tags: entry.tags,
+      recurrence: entry.recurrence,
+      time: entry.time ?? null,
+      isoDate: iso,
+    });
+  }
+
+  upcoming.sort((a, b) => {
+    if (a.isoDate !== b.isoDate) return a.isoDate.localeCompare(b.isoDate);
+    // Same day: annual (birthdays) above one-time (matches grid ordering),
+    // then alpha by title for determinism.
+    if (a.recurrence !== b.recurrence) {
+      return a.recurrence === "annual" ? -1 : 1;
+    }
+    return a.title.localeCompare(b.title);
+  });
+
+  return upcoming.slice(0, limit);
+}
+
 function toUtcIsoDate(d: Date): string {
   const y = d.getUTCFullYear();
   const m = String(d.getUTCMonth() + 1).padStart(2, "0");
@@ -181,7 +249,13 @@ function toUtcIsoDate(d: Date): string {
   return `${y}-${m}-${day}`;
 }
 
-function toLocalIsoDate(d: Date): string {
+/**
+ * Local "YYYY-MM-DD" for the given Date using the server's local calendar.
+ * Exported because the calendar page reuses it to compute `todayIso` for
+ * the list view's "today" highlight. Uses local time (not UTC) so the
+ * highlight tracks the wall clock the user actually sees.
+ */
+export function toLocalIsoDate(d: Date): string {
   const y = d.getFullYear();
   const m = String(d.getMonth() + 1).padStart(2, "0");
   const day = String(d.getDate()).padStart(2, "0");

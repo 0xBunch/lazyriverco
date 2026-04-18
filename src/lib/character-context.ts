@@ -234,10 +234,11 @@ export async function buildRichContext(
         month: "short",
         day: "numeric",
       });
+      const timeStr = c.time ? ` at ${c.time}` : "";
       const recurrenceNote =
         c.recurrence === "annual" ? " (every year)" : "";
       const desc = c.description ? ` — ${c.description}` : "";
-      return `- ${c.title}: ${dateStr}${recurrenceNote}${desc}`;
+      return `- ${c.title}: ${dateStr}${timeStr}${recurrenceNote}${desc}`;
     });
     sections.push(["# Upcoming dates", ...lines].join("\n"));
   }

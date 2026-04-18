@@ -163,6 +163,27 @@ export default async function AdminCalendarEntryPage({
 
           <div className="space-y-1">
             <label
+              htmlFor="edit-time"
+              className="text-xs font-medium text-bone-200"
+            >
+              Time (optional){" "}
+              <span className="text-bone-500">
+                (free-form — shown in the list view, ignored in the month
+                grid)
+              </span>
+            </label>
+            <input
+              id="edit-time"
+              name="time"
+              type="text"
+              defaultValue={entry.time ?? ""}
+              placeholder="7:00 PM"
+              className="w-full rounded-lg border border-bone-700 bg-bone-950 px-3 py-2 text-sm text-bone-100 placeholder-bone-500 focus:border-claude-500 focus:outline-none focus:ring-1 focus:ring-claude-500"
+            />
+          </div>
+
+          <div className="space-y-1">
+            <label
               htmlFor="edit-tags"
               className="text-xs font-medium text-bone-200"
             >
