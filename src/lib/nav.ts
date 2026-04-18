@@ -1,6 +1,16 @@
+import {
+  IconBallAmericanFootball,
+  IconBook2,
+  IconCalendar,
+  IconMap,
+  IconMessageCircle,
+  IconTools,
+  type Icon as TablerIcon,
+} from "@tabler/icons-react";
+
 export type NavItem = {
   href: string;
-  icon: string;
+  icon: TablerIcon;
   label: string;
 };
 
@@ -8,22 +18,22 @@ export type NavItem = {
 // management surface (search, star, archive, rename); the "+ New chat"
 // button and the logo link still start a new conversation.
 export const MAIN_NAV_ITEMS = [
-  { href: "/chats", icon: "💬", label: "Chats" },
-  { href: "/calendar", icon: "📅", label: "Calendar" },
-  { href: "/gallery", icon: "📸", label: "Gallery" },
+  { href: "/chats", icon: IconMessageCircle, label: "Chats" },
+  { href: "/calendar", icon: IconCalendar, label: "Calendar" },
+  { href: "/gallery", icon: IconBook2, label: "Gallery" },
 ] as const satisfies readonly NavItem[];
 
 // Collapsible "Apps" section — mini-apps built over time. Visible to
 // everyone (the pages themselves handle access gating internally).
 export const APP_NAV_ITEMS = [
-  { href: "/fantasy", icon: "🏈", label: "MLF" },
-  { href: "/trips", icon: "🗺️", label: "World Tour" },
+  { href: "/fantasy", icon: IconBallAmericanFootball, label: "MLF" },
+  { href: "/trips", icon: IconMap, label: "World Tour" },
 ] as const satisfies readonly NavItem[];
 
 // Admin-only — only shown when the user has role=ADMIN.
 export const ADMIN_NAV_ITEM: NavItem = {
   href: "/admin",
-  icon: "🛠️",
+  icon: IconTools,
   label: "Commissioner",
 };
 
