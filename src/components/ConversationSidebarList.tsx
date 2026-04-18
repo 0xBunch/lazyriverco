@@ -13,7 +13,10 @@ export async function ConversationSidebarList() {
   const conversations = await prisma.conversation.findMany({
     where: { ownerId: user.id, archivedAt: null },
     orderBy: { lastMessageAt: "desc" },
-    take: 30,
+    // Capped — the "All chats" link below routes to /chats for the
+    // full management view (search, archive, etc.). Don't bump this
+    // without rethinking that overflow.
+    take: 15,
     select: {
       id: true,
       title: true,
@@ -41,6 +44,12 @@ export async function ConversationSidebarList() {
           </li>
         ))}
       </ul>
+      <a
+        href="/chats"
+        className="mx-1 mt-3 block rounded-md px-3 py-1.5 text-[0.75rem] text-bone-400 transition-colors hover:bg-bone-800/60 hover:text-bone-100"
+      >
+        All chats
+      </a>
     </nav>
   );
 }
