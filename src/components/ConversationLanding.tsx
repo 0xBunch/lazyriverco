@@ -101,11 +101,14 @@ export function ConversationLanding({
 
   const canSend = !submitting && content.trim().length > 0;
 
-  // `pt-16` on mobile clears the fixed hamburger (`top-4`, ~40px tall) so
-  // we don't need horizontal padding to dodge it. Container is `mx-auto`
-  // with `max-w-2xl` — keep the hero optically centered, not shoved right.
+  // Anchor content from the top (not `justify-center`) so opening a
+  // prompt-group panel grows downward into empty space below the chips
+  // instead of re-centering and shoving the greeting + input upward.
+  // `pt-[20dvh]` keeps the greeting roughly where it used to sit at
+  // rest under the old centered layout; `pt-16`-worth of that budget
+  // also clears the fixed hamburger (`top-4`, ~40px tall).
   return (
-    <div className="mx-auto flex min-h-[100dvh] w-full max-w-2xl flex-col justify-center gap-8 px-4 pb-12 pt-16 md:pt-20">
+    <div className="mx-auto flex min-h-[100dvh] w-full max-w-2xl flex-col gap-8 px-4 pb-12 pt-[20dvh] md:pt-[22dvh]">
       {/* Hero — single load-bearing element: time-based greeting. The
           brand wordmark already lives in the sidebar; repeating it here
           would fight the input card for focus. */}
