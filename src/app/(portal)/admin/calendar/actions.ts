@@ -124,6 +124,117 @@ export async function deleteCalendarEntry(formData: FormData): Promise<void> {
   revalidatePath("/calendar");
 }
 
+// ---------- Bulk actions (useFormState-compatible) -----------------------
+//
+// Bulk ops follow the same `(prevState, formData) => State` shape as the
+// library admin so the client can bind via useFormState and surface
+// messages inline (throws become digests in prod, returns become real
+// strings). Selected ids are passed as N `entryId` hidden inputs sharing
+// a `form="..."` association — see AdminLibraryTable for the precedent.
+
+export type AdminCalendarState =
+  | { ok: true; message: string }
+  | { ok: false; error: string }
+  | null;
+
+const MAX_IDS_PER_ACTION = 200;
+const TAG_SHAPE = /^[a-z0-9][a-z0-9_-]{0,39}$/;
+
+function parseBulkIds(fd: FormData): string[] {
+  // Dedupe before the cap; a duplicate id list would otherwise bloat the
+  // transaction and — on tag add/remove — do redundant read-modify-writes.
+  const unique = new Set(
+    fd
+      .getAll("entryId")
+      .filter((v): v is string => typeof v === "string" && v.length > 0),
+  );
+  return Array.from(unique).slice(0, MAX_IDS_PER_ACTION);
+}
+
+function revalidateCalendarSurfaces() {
+  revalidatePath("/admin/calendar");
+  revalidatePath("/calendar");
+}
+
+export async function bulkDeleteCalendarEntriesAction(
+  _prev: AdminCalendarState,
+  fd: FormData,
+): Promise<AdminCalendarState> {
+  try {
+    await requireAdmin();
+    const ids = parseBulkIds(fd);
+    if (ids.length === 0) return { ok: false, error: "No dates selected." };
+
+    const result = await prisma.calendarEntry.deleteMany({
+      where: { id: { in: ids } },
+    });
+    revalidateCalendarSurfaces();
+    return {
+      ok: true,
+      message: `Deleted ${result.count} date${result.count === 1 ? "" : "s"}.`,
+    };
+  } catch (e) {
+    return {
+      ok: false,
+      error: e instanceof Error ? e.message : "Bulk delete failed.",
+    };
+  }
+}
+
+export async function bulkTagCalendarEntriesAction(
+  _prev: AdminCalendarState,
+  fd: FormData,
+): Promise<AdminCalendarState> {
+  try {
+    await requireAdmin();
+    const ids = parseBulkIds(fd);
+    if (ids.length === 0) return { ok: false, error: "No dates selected." };
+
+    const rawTag = fd.get("tag");
+    const tag =
+      typeof rawTag === "string" ? rawTag.trim().toLowerCase() : "";
+    if (!tag || !TAG_SHAPE.test(tag)) {
+      return {
+        ok: false,
+        error:
+          "Tag required — lowercase a–z, 0–9, dash/underscore, up to 40 chars, must start with a letter or digit.",
+      };
+    }
+    const mode = fd.get("mode") === "remove" ? "remove" : "add";
+
+    // No registry/ban discipline for calendar tags (unlike library tags —
+    // those feed an AI taxonomy). Calendar tags are free-form strings that
+    // the admin writes to match their own mental model.
+    const rows = await prisma.calendarEntry.findMany({
+      where: { id: { in: ids } },
+      select: { id: true, tags: true },
+    });
+
+    await prisma.$transaction(
+      rows.map((r) => {
+        const current = new Set(r.tags);
+        if (mode === "add") current.add(tag);
+        else current.delete(tag);
+        return prisma.calendarEntry.update({
+          where: { id: r.id },
+          data: { tags: Array.from(current) },
+        });
+      }),
+    );
+
+    revalidateCalendarSurfaces();
+    return {
+      ok: true,
+      message: `${mode === "add" ? "Added" : "Removed"} tag "${tag}" ${mode === "add" ? "to" : "from"} ${rows.length} date${rows.length === 1 ? "" : "s"}.`,
+    };
+  } catch (e) {
+    return {
+      ok: false,
+      error: e instanceof Error ? e.message : "Bulk tag failed.",
+    };
+  }
+}
+
 // ---------- Media attachment actions ----------
 //
 // These are invoked from the /admin/calendar/[id] page's media manager.

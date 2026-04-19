@@ -1,206 +1,139 @@
-import Link from "next/link";
 import { prisma } from "@/lib/prisma";
 import {
-  createCalendarEntry,
-  updateCalendarEntry,
-  deleteCalendarEntry,
-} from "./actions";
-import { SaveButton } from "@/components/SaveButton";
+  CalendarEntriesTable,
+  type CalendarEntryRow,
+  type CalendarGroups,
+} from "./_components/CalendarEntriesTable";
 
 export const dynamic = "force-dynamic";
 
-function formatDate(d: Date): string {
-  return d.toISOString().split("T")[0] ?? "";
-}
+// Bucket window boundaries. Values here are UX choices, not invariants —
+// tweak freely, the client component just renders what it's handed.
+const UPCOMING_DAYS = 30;
+const PAST_DAYS = 90;
 
 export default async function AdminCalendarPage() {
   const entries = await prisma.calendarEntry.findMany({
+    // `orderBy` doesn't matter for display (the client groups by effective
+    // date and sorts within each bucket); we just need the full set.
     orderBy: { date: "asc" },
+    include: { _count: { select: { media: true } } },
   });
+
+  const todayUtc = startOfTodayUtc();
+  const upcomingEdge = dayOffset(todayUtc, UPCOMING_DAYS);
+  const pastEdge = dayOffset(todayUtc, -PAST_DAYS);
+
+  const decorated: Array<CalendarEntryRow & { effective: Date }> = entries
+    .map((e) => {
+      const effective = effectiveDate(
+        { date: e.date, recurrence: e.recurrence },
+        todayUtc,
+      );
+      return {
+        id: e.id,
+        title: e.title,
+        dateIso: toIsoDate(e.date),
+        effectiveDateIso: toIsoDate(effective),
+        recurrence:
+          e.recurrence === "annual" ? ("annual" as const) : ("none" as const),
+        time: e.time,
+        tags: e.tags,
+        description: e.description,
+        hasBody: !!e.body && e.body.trim().length > 0,
+        hasVideo: !!e.videoEmbedUrl && e.videoEmbedUrl.trim().length > 0,
+        hasMedia: e._count.media > 0,
+        effective,
+      };
+    })
+    .sort((a, b) => a.effective.getTime() - b.effective.getTime());
+
+  const groups: CalendarGroups = {
+    upcoming: [],
+    later: [],
+    past: [],
+    older: [],
+  };
+
+  for (const entry of decorated) {
+    const t = entry.effective.getTime();
+    const { effective: _omit, ...row } = entry;
+    if (t < pastEdge.getTime()) groups.older.push(row);
+    else if (t < todayUtc.getTime()) groups.past.push(row);
+    else if (t <= upcomingEdge.getTime()) groups.upcoming.push(row);
+    else groups.later.push(row);
+  }
+
+  // Past rows read newest-first (most recently past on top) so the admin
+  // scans the last week before the last 90 days. `decorated` is ascending
+  // by effective date, so reverse just the past/older buckets.
+  groups.past.reverse();
+  groups.older.reverse();
+
+  const totals = {
+    total: entries.length,
+    upcoming: groups.upcoming.length,
+    recurring: entries.filter((e) => e.recurrence === "annual").length,
+  };
 
   return (
     <div className="space-y-6">
-      <p className="text-sm text-bone-300">
-        Birthdays, cultural moments, trip dates. Auto-injected into agent
-        prompts when the date is within a week. Annual entries repeat
-        every year (birthdays); one-time entries fire once.
-      </p>
+      <header>
+        <h1 className="font-display text-2xl font-semibold tracking-tight text-bone-50">
+          Calendar
+        </h1>
+        <p className="mt-1 text-sm text-bone-300">
+          Birthdays, cultural moments, trip dates, games. Dates within 7 days
+          are auto-injected into agent prompts; annual entries repeat every
+          year. Members see a read-only view at{" "}
+          <a
+            href="/calendar"
+            className="underline decoration-claude-500/40 underline-offset-2 hover:text-bone-50"
+          >
+            /calendar
+          </a>
+          .
+        </p>
+      </header>
 
-      {/* --- Add new --- */}
-      <div className="rounded-2xl border border-dashed border-bone-600 bg-bone-900/50 p-6">
-        <h2 className="font-display text-lg font-semibold text-bone-50">
-          Add Date
-        </h2>
-        <form action={createCalendarEntry} className="mt-4 space-y-4">
-          <div className="grid gap-4 sm:grid-cols-3">
-            <div className="space-y-1">
-              <label htmlFor="new-title" className="text-xs font-medium text-bone-200">
-                Title
-              </label>
-              <input
-                id="new-title"
-                name="title"
-                type="text"
-                required
-                placeholder="Billy's Birthday"
-                className="w-full rounded-lg border border-bone-700 bg-bone-950 px-3 py-2 text-sm text-bone-50 placeholder-bone-500 focus:border-claude-500 focus:outline-none focus:ring-1 focus:ring-claude-500"
-              />
-            </div>
-            <div className="space-y-1">
-              <label htmlFor="new-date" className="text-xs font-medium text-bone-200">
-                Date
-              </label>
-              <input
-                id="new-date"
-                name="date"
-                type="date"
-                required
-                className="w-full rounded-lg border border-bone-700 bg-bone-950 px-3 py-2 text-sm text-bone-50 focus:border-claude-500 focus:outline-none focus:ring-1 focus:ring-claude-500"
-              />
-            </div>
-            <div className="space-y-1">
-              <label htmlFor="new-recurrence" className="text-xs font-medium text-bone-200">
-                Recurrence
-              </label>
-              <select
-                id="new-recurrence"
-                name="recurrence"
-                className="w-full rounded-lg border border-bone-700 bg-bone-950 px-3 py-2 text-sm text-bone-100 focus:border-claude-500 focus:outline-none focus:ring-1 focus:ring-claude-500"
-              >
-                <option value="none">One-time</option>
-                <option value="annual">Annual (repeats every year)</option>
-              </select>
-            </div>
-          </div>
-
-          <div className="grid gap-4 sm:grid-cols-3">
-            <div className="space-y-1">
-              <label htmlFor="new-time" className="text-xs font-medium text-bone-200">
-                Time (optional)
-              </label>
-              <input
-                id="new-time"
-                name="time"
-                type="text"
-                placeholder="7:00 PM"
-                className="w-full rounded-lg border border-bone-700 bg-bone-950 px-3 py-2 text-sm text-bone-50 placeholder-bone-500 focus:border-claude-500 focus:outline-none focus:ring-1 focus:ring-claude-500"
-              />
-            </div>
-            <div className="space-y-1">
-              <label htmlFor="new-tags" className="text-xs font-medium text-bone-200">
-                Tags (comma-separated)
-              </label>
-              <input
-                id="new-tags"
-                name="tags"
-                type="text"
-                placeholder="billy, birthday"
-                className="w-full rounded-lg border border-bone-700 bg-bone-950 px-3 py-2 text-sm text-bone-50 placeholder-bone-500 focus:border-claude-500 focus:outline-none focus:ring-1 focus:ring-claude-500"
-              />
-            </div>
-            <div className="space-y-1">
-              <label htmlFor="new-description" className="text-xs font-medium text-bone-200">
-                Description (optional)
-              </label>
-              <input
-                id="new-description"
-                name="description"
-                type="text"
-                placeholder="Turning 35, roast-worthy"
-                className="w-full rounded-lg border border-bone-700 bg-bone-950 px-3 py-2 text-sm text-bone-50 placeholder-bone-500 focus:border-claude-500 focus:outline-none focus:ring-1 focus:ring-claude-500"
-              />
-            </div>
-          </div>
-
-          <div className="flex justify-end">
-            <SaveButton label="Add Date" />
-          </div>
-        </form>
-      </div>
-
-      {/* --- Existing entries --- */}
-      {entries.length === 0 ? (
-        <p className="text-sm italic text-bone-500">No dates yet.</p>
-      ) : (
-        <ul className="space-y-3">
-          {entries.map((entry) => (
-            <li
-              key={entry.id}
-              className="rounded-2xl border border-bone-700 bg-bone-900 p-4"
-            >
-              <form action={updateCalendarEntry} className="space-y-3">
-                <input type="hidden" name="id" value={entry.id} />
-                <div className="grid gap-3 sm:grid-cols-4">
-                  <input
-                    name="title"
-                    defaultValue={entry.title}
-                    required
-                    className="rounded-lg border border-bone-700 bg-bone-950 px-3 py-1.5 text-sm font-semibold text-bone-50 focus:border-claude-500 focus:outline-none focus:ring-1 focus:ring-claude-500"
-                  />
-                  <input
-                    name="date"
-                    type="date"
-                    defaultValue={formatDate(entry.date)}
-                    required
-                    className="rounded-lg border border-bone-700 bg-bone-950 px-3 py-1.5 text-sm text-bone-100 focus:border-claude-500 focus:outline-none focus:ring-1 focus:ring-claude-500"
-                  />
-                  <select
-                    name="recurrence"
-                    defaultValue={entry.recurrence}
-                    className="rounded-lg border border-bone-700 bg-bone-950 px-3 py-1.5 text-sm text-bone-100 focus:border-claude-500 focus:outline-none focus:ring-1 focus:ring-claude-500"
-                  >
-                    <option value="none">One-time</option>
-                    <option value="annual">Annual</option>
-                  </select>
-                  <input
-                    name="tags"
-                    defaultValue={entry.tags.join(", ")}
-                    placeholder="tags"
-                    className="rounded-lg border border-bone-700 bg-bone-950 px-3 py-1.5 text-xs text-bone-200 focus:border-claude-500 focus:outline-none focus:ring-1 focus:ring-claude-500"
-                  />
-                </div>
-
-                <input
-                  name="description"
-                  defaultValue={entry.description ?? ""}
-                  placeholder="Description (optional)"
-                  className="w-full rounded-lg border border-bone-700 bg-bone-950 px-3 py-1.5 text-xs text-bone-200 focus:border-claude-500 focus:outline-none focus:ring-1 focus:ring-claude-500"
-                />
-
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-2">
-                    {entry.recurrence === "annual" && (
-                      <span className="rounded-full bg-claude-500/20 px-2 py-0.5 text-[0.6rem] font-semibold uppercase tracking-wide text-claude-200">
-                        Repeats annually
-                      </span>
-                    )}
-                    <Link
-                      href={`/admin/calendar/${entry.id}`}
-                      className="text-[0.65rem] font-semibold uppercase tracking-wide text-claude-300 hover:text-claude-200"
-                    >
-                      Details & photos →
-                    </Link>
-                  </div>
-                  <div className="flex gap-2">
-                    {/* Delete uses formAction to override the parent form's
-                        action. Avoids nested <form>s (invalid HTML — browsers
-                        silently drop the inner form, which was why Delete
-                        appeared to do nothing and instead re-saved the row). */}
-                    <button
-                      type="submit"
-                      formAction={deleteCalendarEntry}
-                      className="rounded-lg border border-bone-700 bg-bone-800 px-3 py-1.5 text-xs font-medium text-red-300 transition-colors hover:border-red-500/60 hover:text-red-200"
-                    >
-                      Delete
-                    </button>
-                    <SaveButton label="Save" />
-                  </div>
-                </div>
-              </form>
-            </li>
-          ))}
-        </ul>
-      )}
+      <CalendarEntriesTable groups={groups} totals={totals} />
     </div>
   );
+}
+
+// ---------------------------------------------------------------------------
+// Date helpers (UTC-only — CalendarEntry.date is @db.Date, no TZ; matching
+// that convention here prevents "Jun 2" from silently becoming "Jun 1" in
+// negative-offset render paths).
+
+function startOfTodayUtc(): Date {
+  const now = new Date();
+  return new Date(
+    Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate()),
+  );
+}
+
+function dayOffset(anchor: Date, days: number): Date {
+  return new Date(anchor.getTime() + days * 24 * 60 * 60 * 1000);
+}
+
+function toIsoDate(d: Date): string {
+  return d.toISOString().slice(0, 10);
+}
+
+function effectiveDate(
+  entry: { date: Date; recurrence: string },
+  todayUtc: Date,
+): Date {
+  if (entry.recurrence !== "annual") return entry.date;
+  // Annual entries are stored with their original year (e.g. 1985 for a
+  // birthday); the "effective" date is the next occurrence — this year if
+  // it's still ahead of today, otherwise next year.
+  const month = entry.date.getUTCMonth();
+  const day = entry.date.getUTCDate();
+  const thisYear = new Date(
+    Date.UTC(todayUtc.getUTCFullYear(), month, day),
+  );
+  if (thisYear.getTime() >= todayUtc.getTime()) return thisYear;
+  return new Date(Date.UTC(todayUtc.getUTCFullYear() + 1, month, day));
 }
