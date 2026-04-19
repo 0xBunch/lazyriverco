@@ -76,6 +76,13 @@ export default async function CalendarPage({
     now.getMonth() + 1,
   );
   const isCurrentMonth = formatMonthParam(year, month) === currentMonthParam;
+  // Match the UTC storage model used by buildMonthGrid so the title
+  // reflects the month the grid is actually rendering.
+  const monthTitle = new Intl.DateTimeFormat("en-US", {
+    month: "long",
+    year: "numeric",
+    timeZone: "UTC",
+  }).format(new Date(Date.UTC(year, month - 1, 1)));
 
   const showCalendar = view === "calendar" || view === null;
   const showList = view === "list" || view === null;
@@ -103,45 +110,52 @@ export default async function CalendarPage({
         <CalendarViewTabs active={view} searchParams={params} />
       </div>
 
-      {/* Month navigation — only shown when calendar is rendering. When
-          no explicit ?v=, calendar is only visible on sm:+, so the nav
-          hides on mobile to avoid a dangling control over the list. */}
+      {/* Month title + navigation — only shown when calendar is rendering.
+          When no explicit ?v=, calendar is only visible on sm:+, so this
+          block hides on mobile to avoid dangling controls over the list. */}
       {showCalendar ? (
-        <nav
-          aria-label="Month navigation"
+        <div
           className={
             view === null
-              ? "mb-4 hidden items-center gap-6 text-xs font-semibold uppercase tracking-[0.2em] sm:flex"
-              : "mb-4 flex items-center gap-6 text-xs font-semibold uppercase tracking-[0.2em]"
+              ? "mb-4 hidden items-baseline justify-between gap-6 sm:flex"
+              : "mb-4 flex items-baseline justify-between gap-6"
           }
         >
-          <Link
-            href={`/calendar?m=${formatMonthParam(prev.year, prev.month)}${view ? `&v=${view}` : ""}`}
-            aria-label={`Previous month (${formatMonthParam(prev.year, prev.month)})`}
-            className="text-bone-300 transition-colors hover:text-bone-50 focus:outline-none focus-visible:text-claude-300"
+          <h2 className="font-display text-2xl font-semibold tracking-tight text-bone-50">
+            {monthTitle}
+          </h2>
+          <nav
+            aria-label="Month navigation"
+            className="flex items-baseline gap-6 text-xs font-semibold uppercase tracking-[0.2em]"
           >
-            ← Prev
-          </Link>
-          {!isCurrentMonth ? (
             <Link
-              href={view ? `/calendar?v=${view}` : "/calendar"}
+              href={`/calendar?m=${formatMonthParam(prev.year, prev.month)}${view ? `&v=${view}` : ""}`}
+              aria-label={`Previous month (${formatMonthParam(prev.year, prev.month)})`}
               className="text-bone-300 transition-colors hover:text-bone-50 focus:outline-none focus-visible:text-claude-300"
             >
-              Today
+              ← Prev
             </Link>
-          ) : (
-            <span aria-current="page" className="text-claude-300">
-              Today
-            </span>
-          )}
-          <Link
-            href={`/calendar?m=${formatMonthParam(next.year, next.month)}${view ? `&v=${view}` : ""}`}
-            aria-label={`Next month (${formatMonthParam(next.year, next.month)})`}
-            className="text-bone-300 transition-colors hover:text-bone-50 focus:outline-none focus-visible:text-claude-300"
-          >
-            Next →
-          </Link>
-        </nav>
+            {!isCurrentMonth ? (
+              <Link
+                href={view ? `/calendar?v=${view}` : "/calendar"}
+                className="text-bone-300 transition-colors hover:text-bone-50 focus:outline-none focus-visible:text-claude-300"
+              >
+                Today
+              </Link>
+            ) : (
+              <span aria-current="page" className="text-claude-300">
+                Today
+              </span>
+            )}
+            <Link
+              href={`/calendar?m=${formatMonthParam(next.year, next.month)}${view ? `&v=${view}` : ""}`}
+              aria-label={`Next month (${formatMonthParam(next.year, next.month)})`}
+              className="text-bone-300 transition-colors hover:text-bone-50 focus:outline-none focus-visible:text-claude-300"
+            >
+              Next →
+            </Link>
+          </nav>
+        </div>
       ) : null}
 
       {/* View bodies. Explicit ?v= renders one; no ?v= renders both
