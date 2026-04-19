@@ -1,11 +1,23 @@
 import { redirect } from "next/navigation";
 
 // Legacy /media route — the feature was renamed to "Library" in the
-// v1 rewrite. 307 redirect (Next default) preserves any search params
-// someone might have bookmarked or linked, so /media?tag=foo survives
-// as /library?tag=foo. Keep this file around rather than deleting so
-// old links from old chat messages don't 404.
+// v1 rewrite. We rebuild the query string by hand because Next's
+// `redirect(url)` passes the path through verbatim and does NOT
+// propagate the incoming request's search params, so a naked
+// `redirect("/library")` would silently drop `/media?tag=foo` to
+// `/library` and break the chain into the new tag-URL redirects.
 
-export default function LegacyMediaPage() {
-  redirect("/library");
+export default async function LegacyMediaPage({
+  searchParams,
+}: {
+  searchParams: Promise<Record<string, string | string[] | undefined>>;
+}) {
+  const params = await searchParams;
+  const sp = new URLSearchParams();
+  for (const [key, value] of Object.entries(params)) {
+    if (typeof value === "string") sp.set(key, value);
+    else if (Array.isArray(value)) value.forEach((v) => sp.append(key, v));
+  }
+  const qs = sp.toString();
+  redirect(qs ? `/library?${qs}` : "/library");
 }
