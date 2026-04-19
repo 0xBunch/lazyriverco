@@ -126,11 +126,8 @@ export default async function ChatsPage({
   return (
     <div className="mx-auto max-w-6xl px-4 py-8 pt-20 md:pt-8">
       <header className="mb-6">
-        <p className="text-xs uppercase tracking-[0.2em] text-claude-300">
-          Chats
-        </p>
         <h1 className="font-display text-3xl font-semibold tracking-tight text-bone-50 text-balance">
-          {viewTitle(view)}
+          Chats
         </h1>
       </header>
 
@@ -200,17 +197,6 @@ export default async function ChatsPage({
       )}
     </div>
   );
-}
-
-function viewTitle(view: ChatsView): string {
-  switch (view) {
-    case "active":
-      return "All chats";
-    case "starred":
-      return "Starred";
-    case "archived":
-      return "Archived";
-  }
 }
 
 function EmptyState({
