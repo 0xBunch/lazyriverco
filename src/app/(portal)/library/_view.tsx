@@ -114,11 +114,8 @@ export async function LibraryView({
     <div className="mx-auto max-w-6xl px-4 py-8 pt-20 md:pt-8">
       <header className="mb-6 flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
         <div>
-          <p className="text-xs uppercase tracking-[0.2em] text-claude-300">
-            Library
-          </p>
           <h1 className="font-display text-3xl font-semibold tracking-tight text-bone-50 text-balance">
-            Latest
+            Library
           </h1>
         </div>
         {/* "+ Add" → opens LibraryAddModal via ?add=1. */}

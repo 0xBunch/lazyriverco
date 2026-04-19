@@ -61,7 +61,7 @@ export default async function CalendarPage({
     },
   });
 
-  const { cells, title } = buildMonthGrid(year, month, now);
+  const { cells } = buildMonthGrid(year, month, now);
   const gridStartIso = cells[0]!.isoDate;
   const gridEndIso = cells[cells.length - 1]!.isoDate;
   const eventsByDate = expandEntriesForGrid(entries, gridStartIso, gridEndIso);
@@ -94,11 +94,8 @@ export default async function CalendarPage({
   return (
     <div className="mx-auto max-w-6xl px-4 py-8 pt-20 md:pt-8">
       <header className="mb-6">
-        <p className="text-xs uppercase tracking-[0.2em] text-claude-300">
-          Calendar
-        </p>
         <h1 className="font-display text-3xl font-semibold tracking-tight text-bone-50">
-          {title}
+          Calendar
         </h1>
       </header>
 
