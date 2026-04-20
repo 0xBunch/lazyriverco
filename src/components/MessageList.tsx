@@ -12,6 +12,11 @@ const NEAR_BOTTOM_THRESHOLD_PX = 120;
 type MessageListProps = {
   messages: ChatMessageDTO[];
   currentUserId: string;
+  /** Parent conversation id — forwarded to ChatMessage so the share-image
+   *  action on character messages can construct its fetch URL. Optional
+   *  so the list can still be rendered outside /chat/[id] if we ever need
+   *  to (e.g. a read-only preview); actions just won't show. */
+  conversationId?: string;
   emptyState?: ReactNode;
   typingCharacterName?: string;
   /** When non-null, renders a streaming agent bubble with a blinking
@@ -84,6 +89,7 @@ function useThinkingSeconds(active: boolean): number {
 export function MessageList({
   messages,
   currentUserId,
+  conversationId,
   emptyState,
   typingCharacterName,
   streamingMessage,
@@ -184,6 +190,7 @@ export function MessageList({
                   message={m}
                   isMe={isMe}
                   showHeader={showHeader}
+                  conversationId={conversationId}
                 />
               </motion.div>
             );

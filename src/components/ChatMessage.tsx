@@ -7,11 +7,16 @@ import { cn } from "@/lib/utils";
 import type { ChatMessageDTO } from "@/lib/chat";
 import { AgentSuggestionButton } from "@/components/AgentSuggestionButton";
 import { AgentAvatar } from "@/components/AgentAvatar";
+import { MessageActions } from "@/components/MessageActions";
 
 type ChatMessageProps = {
   message: ChatMessageDTO;
   isMe: boolean;
   showHeader: boolean;
+  /** Parent conversation id — used by the per-message share-image route.
+   *  Optional so the legacy streaming bubble (id: "streaming") can render
+   *  without it; actions are suppressed for streaming messages anyway. */
+  conversationId?: string;
   /** When true, renders a blinking cursor after the content — used for
    *  the streaming agent bubble while tokens are still arriving. */
   isStreaming?: boolean;
@@ -124,7 +129,7 @@ function AgentMarkdown({ children }: { children: string }) {
 
 // --- ChatMessage component ------------------------------------------------
 
-export function ChatMessage({ message, isMe, showHeader, isStreaming = false }: ChatMessageProps) {
+export function ChatMessage({ message, isMe, showHeader, conversationId, isStreaming = false }: ChatMessageProps) {
   const isCharacter = message.authorType === "CHARACTER";
   const mediaUrls =
     isCharacter && message.content ? extractSafeMediaUrls(message.content) : [];
@@ -209,6 +214,13 @@ export function ChatMessage({ message, isMe, showHeader, isStreaming = false }: 
             </span>
           ) : null}
         </div>
+
+        {/* Share/copy affordances — only for character messages that are
+            fully delivered. The streaming bubble uses id="streaming" and
+            passes no conversationId; both flags suppress the actions. */}
+        {isCharacter && !isStreaming && conversationId ? (
+          <MessageActions message={message} conversationId={conversationId} />
+        ) : null}
 
         {mediaUrls.length > 0 ? (
           <div className="mt-2 flex max-w-[min(42rem,100%)] flex-col gap-2">
