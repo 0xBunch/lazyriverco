@@ -453,6 +453,7 @@ export function ConversationView({
         <MessageList
           messages={messages}
           currentUserId={currentUserId}
+          conversationId={conversationId}
           typingCharacterName={
             !isStreaming ? character.displayName : undefined
           }
