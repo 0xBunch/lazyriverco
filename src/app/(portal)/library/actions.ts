@@ -268,6 +268,76 @@ export async function removeTagFromMediaAction(
 }
 
 // ---------------------------------------------------------------------------
+// Per-tag add on the detail page. Admin + uploader can type a slug into
+// the tag editor; this persists it onto `Media.tags` (not `aiTags` —
+// that column is the AI audit trail and shouldn't reflect human edits).
+// Same validation shape as `parseTags` so a drift doesn't let a banned
+// or malformed slug sneak through the single-value path.
+//
+// useFormState-compatible signature, matching `removeTagFromMediaAction`.
+
+export async function addTagToMediaAction(
+  _prev: MetaResult | null,
+  fd: FormData,
+): Promise<MetaResult> {
+  try {
+    const user = await requireUser();
+    const mediaId = fd.get("mediaId");
+    if (typeof mediaId !== "string" || !mediaId) {
+      return { ok: false, error: "Missing media id." };
+    }
+    const tag = parseTag(fd.get("tag"));
+    if (!tag) {
+      return {
+        ok: false,
+        error: "Use a-z, 0-9, dash or underscore only.",
+      };
+    }
+
+    const banned = await getBannedSlugs();
+    if (banned.has(tag)) {
+      return {
+        ok: false,
+        error: `Tag "${tag}" is banned by the commissioner.`,
+      };
+    }
+
+    const where =
+      user.role === "ADMIN"
+        ? { id: mediaId }
+        : { id: mediaId, uploadedById: user.id };
+
+    const row = await prisma.media.findFirst({
+      where,
+      select: { tags: true },
+    });
+    if (!row) {
+      return { ok: false, error: "Media not found or not yours." };
+    }
+    if (row.tags.includes(tag)) {
+      return { ok: false, error: `Tag "${tag}" is already on this item.` };
+    }
+    if (row.tags.length >= MAX_TAGS) {
+      return { ok: false, error: `Max ${MAX_TAGS} tags per item.` };
+    }
+
+    await prisma.media.update({
+      where: { id: mediaId },
+      data: { tags: [...row.tags, tag] },
+    });
+
+    await upsertTagRegistry([tag]);
+
+    revalidatePath("/library");
+    revalidatePath(`/library/${mediaId}`);
+    return { ok: true };
+  } catch (e) {
+    console.error("addTagToMediaAction failed", e);
+    return { ok: false, error: "Add failed — try again." };
+  }
+}
+
+// ---------------------------------------------------------------------------
 // Input normalization
 
 function sanitizeCaption(raw: string): string | null {
