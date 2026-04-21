@@ -1,3 +1,4 @@
+import { Suspense } from "react";
 import { notFound, redirect } from "next/navigation";
 import { prisma } from "@/lib/prisma";
 import { getCurrentUser } from "@/lib/auth";
@@ -59,13 +60,19 @@ export default async function ConversationPage({ params }: PageProps) {
     notFound();
   }
 
+  // Suspense wrap is required because ConversationView calls
+  // useSearchParams() (to read the `?image=1` handoff from the landing
+  // page). Without the boundary, `next build` fails with
+  // "useSearchParams() should be wrapped in a suspense boundary".
   return (
-    <ConversationView
-      conversationId={conversation.id}
-      character={conversation.character}
-      title={conversation.title}
-      currentUserId={user.id}
-      initialPinned={pin !== null}
-    />
+    <Suspense fallback={null}>
+      <ConversationView
+        conversationId={conversation.id}
+        character={conversation.character}
+        title={conversation.title}
+        currentUserId={user.id}
+        initialPinned={pin !== null}
+      />
+    </Suspense>
   );
 }

@@ -252,31 +252,27 @@ export async function POST(
       );
     }
     // Enforce the image-mode prompt cap against the resolved message.
-    // In reply-to-latest the message is already persisted, so we error
-    // through the SSE stream (not a JSON 400) to let the UI surface it
-    // inline. In hasContent mode the same cap was checked pre-persist
-    // above, so this is only load-bearing for reply-to-latest.
+    // Same JSON 400 shape as the hasContent pre-persist check so both
+    // error paths look identical to the caller.
     const trimmedPrompt = persistedUserMessage.content.trim();
     if (trimmedPrompt.length > MAX_IMAGE_PROMPT_LENGTH) {
-      const encoder = new TextEncoder();
-      const errStream = new ReadableStream({
-        start(controller) {
-          controller.enqueue(
-            encoder.encode(
-              `event: error\ndata: ${JSON.stringify({ message: `Image prompt too long (max ${MAX_IMAGE_PROMPT_LENGTH})` })}\n\n`,
-            ),
-          );
-          controller.close();
-        },
-      });
-      return new Response(errStream, {
-        headers: {
-          "Content-Type": "text/event-stream",
-          "Cache-Control": "no-cache, no-transform",
-          Connection: "keep-alive",
-          "X-Accel-Buffering": "no",
-        },
-      });
+      return NextResponse.json(
+        { error: `Image prompt too long (max ${MAX_IMAGE_PROMPT_LENGTH})` },
+        { status: 400 },
+      );
+    }
+    // Reply-to-latest + imageMode guard: only auto-generate for recent
+    // user messages. Matches the 30s client-side recency check in
+    // ConversationView's auto-trigger so a stale bookmark with ?image=1
+    // can't kick off a Replicate call against an old message.
+    if (!hasContent) {
+      const ageMs = Date.now() - persistedUserMessage.createdAt.getTime();
+      if (ageMs > 30_000) {
+        return NextResponse.json(
+          { error: "User message is too old to auto-generate an image" },
+          { status: 400 },
+        );
+      }
     }
     const encoder = new TextEncoder();
     const imageCharacter = conversation.character;

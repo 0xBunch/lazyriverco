@@ -173,6 +173,19 @@ export function ConversationView({
     };
   }, []);
 
+  // Strip the `?image=1` handoff flag from the URL after we've captured
+  // it into state. Leaving it in the address bar is a footgun: a user
+  // hitting Back, or bookmarking and returning, would silently re-enter
+  // image mode and route every subsequent send to Replicate. One-shot
+  // on mount, using replace so the pop-history stays clean.
+  useEffect(() => {
+    if (!initialImageModeFromQuery) return;
+    router.replace(`/chat/${conversationId}`);
+    // initialImageModeFromQuery + conversationId are stable for this
+    // component instance, so this runs exactly once.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
   // Image-generation mode. When true, the next user-submitted message is
   // treated as an image prompt: we bypass Claude and hit the image-gen
   // provider (see /api/conversations/[id]/stream route). The toggle is
