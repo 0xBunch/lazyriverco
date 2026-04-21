@@ -4,6 +4,12 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { IconCheck, IconCopy, IconPhoto, IconShare3 } from "@tabler/icons-react";
 import { cn } from "@/lib/utils";
 import type { ChatMessageDTO } from "@/lib/chat";
+import {
+  extensionForImageMime,
+  extractSafeMediaUrls,
+  isImageOnlyMessage,
+  normalizeImageContentType,
+} from "@/lib/safe-media";
 
 type MessageActionsProps = {
   message: ChatMessageDTO;
@@ -37,6 +43,20 @@ function safeNameSlug(raw: string): string {
 function buildCopyText(message: ChatMessageDTO): string {
   const name = message.author.displayName;
   return `${message.content}\n\n— ${name} via lazyriver.co`;
+}
+
+// Variant used as the `text` param on `navigator.share({ text })` when
+// the OG card is the share payload. Strips any inline safe-media URLs
+// so mixed text+image messages (rare today, possible once agent tool
+// calls start embedding images inline) don't dump the raw R2 URL into
+// the iMessage / Slack compose box alongside the rendered card.
+function buildShareText(message: ChatMessageDTO): string {
+  const attribution = `— ${message.author.displayName} via lazyriver.co`;
+  const urls = extractSafeMediaUrls(message.content);
+  let cleaned = message.content;
+  for (const u of urls) cleaned = cleaned.split(u).join("");
+  cleaned = cleaned.replace(/\s+/g, " ").trim();
+  return cleaned ? `${cleaned}\n\n${attribution}` : attribution;
 }
 
 /**
@@ -117,17 +137,64 @@ export function MessageActions({ message, conversationId }: MessageActionsProps)
     currentShareAbort = abort;
     abortRef.current = abort;
 
+    // Two share paths:
+    //   1. Message content IS a generated/media image URL → fetch the
+    //      raw bytes from R2 and share the actual image. What the user
+    //      wants when tapping Share on a generated-image bubble.
+    //   2. Anything else → fetch the server-rendered OG quote card PNG.
+    //      What the user wants for text agent replies.
+    // Direct-path errors (R2 CORS regression, network flap) fall back
+    // to the OG route rather than surfacing "Share failed" — the worst
+    // case is a quote card showing the URL, which is still useful.
+    const directImageUrl = isImageOnlyMessage(message.content);
+    const ogRouteUrl = `/api/conversations/${conversationId}/messages/${message.id}/share-image`;
+
     try {
-      const res = await fetch(
-        `/api/conversations/${conversationId}/messages/${message.id}/share-image`,
-        { signal: abort.signal },
-      );
-      if (!res.ok) {
-        throw new Error(`Image request failed (${res.status})`);
+      let blob: Blob | null = null;
+      let usedDirectPath = false;
+
+      if (directImageUrl) {
+        try {
+          const res = await fetch(directImageUrl, {
+            mode: "cors",
+            signal: abort.signal,
+          });
+          if (res.ok) {
+            blob = await res.blob();
+            usedDirectPath = true;
+          } else {
+            console.warn(
+              "[MessageActions] direct-image fetch non-OK, falling back to OG",
+              res.status,
+            );
+          }
+        } catch (err) {
+          if (err instanceof DOMException && err.name === "AbortError") throw err;
+          // Network / CORS / TypeError — keep `blob` null so we fall
+          // through to the OG route below.
+          console.warn(
+            "[MessageActions] direct-image fetch failed, falling back to OG",
+            err,
+          );
+        }
       }
-      const blob = await res.blob();
-      const filename = `lazyriver-${safeNameSlug(message.author.name)}-${message.id.slice(0, 8)}.png`;
-      const file = new File([blob], filename, { type: "image/png" });
+
+      if (!blob) {
+        const res = await fetch(ogRouteUrl, { signal: abort.signal });
+        if (!res.ok) {
+          throw new Error(`Image request failed (${res.status})`);
+        }
+        blob = await res.blob();
+      }
+
+      // MIME + extension only differ when the direct path succeeded.
+      // Fallback OG route always returns PNG.
+      const mime = usedDirectPath
+        ? normalizeImageContentType(blob.type)
+        : "image/png";
+      const ext = usedDirectPath ? extensionForImageMime(mime) : "png";
+      const filename = `lazyriver-${safeNameSlug(message.author.name)}-${message.id.slice(0, 8)}.${ext}`;
+      const file = new File([blob], filename, { type: mime });
 
       // Prefer the native share sheet with a real file attachment. Only
       // offer it when the UA actually supports file-sharing (iOS Safari,
@@ -144,7 +211,10 @@ export function MessageActions({ message, conversationId }: MessageActionsProps)
           await navigator.share({
             files: [file],
             title: `${message.author.displayName} on lazyriver.co`,
-            text: buildCopyText(message),
+            // Image-only direct path: no caption (nothing to attribute).
+            // OG-card path: strip inline media URLs from the attribution
+            // so a future mixed-content message doesn't leak URLs.
+            text: usedDirectPath ? undefined : buildShareText(message),
           });
           return;
         } catch (err) {

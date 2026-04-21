@@ -5,6 +5,7 @@ import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import { cn } from "@/lib/utils";
 import type { ChatMessageDTO } from "@/lib/chat";
+import { extractSafeMediaUrls, isVideoUrl } from "@/lib/safe-media";
 import { AgentSuggestionButton } from "@/components/AgentSuggestionButton";
 import { AgentAvatar } from "@/components/AgentAvatar";
 import { MessageActions } from "@/components/MessageActions";
@@ -27,51 +28,6 @@ function initials(name: string): string {
   if (!first) return "?";
   if (!second) return first.slice(0, 2).toUpperCase();
   return (first.charAt(0) + second.charAt(0)).toUpperCase();
-}
-
-// --- Safe media URL rendering ---------------------------------------------
-
-const MEDIA_ORIGIN: string | null = (() => {
-  const base = process.env.NEXT_PUBLIC_R2_PUBLIC_BASE_URL;
-  if (!base) return null;
-  try {
-    return new URL(base).origin;
-  } catch {
-    return null;
-  }
-})();
-
-// Paths we render inline: user uploads under /media/ and AI-generated images
-// under /generated/. Both are server-assigned UUID keys with extension in the
-// upload allowlist, so the regex is the same shape for both prefixes.
-const MEDIA_KEY_REGEX =
-  /^\/(media|generated)\/[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}\.(jpg|jpeg|png|webp|gif|mp4)$/i;
-
-function isSafeMediaUrl(raw: string): boolean {
-  if (!MEDIA_ORIGIN) return false;
-  try {
-    const u = new URL(raw);
-    return u.origin === MEDIA_ORIGIN && MEDIA_KEY_REGEX.test(u.pathname);
-  } catch {
-    return false;
-  }
-}
-
-function extractSafeMediaUrls(content: string): string[] {
-  const matches = content.match(/https?:\/\/[^\s<>)]+/g) ?? [];
-  const seen = new Set<string>();
-  const safe: string[] = [];
-  for (const m of matches) {
-    const cleaned = m.replace(/[.,;:!?)]+$/, "");
-    if (seen.has(cleaned)) continue;
-    seen.add(cleaned);
-    if (isSafeMediaUrl(cleaned)) safe.push(cleaned);
-  }
-  return safe;
-}
-
-function isVideoUrl(url: string): boolean {
-  return url.toLowerCase().endsWith(".mp4");
 }
 
 // --- Markdown for agent replies -------------------------------------------
