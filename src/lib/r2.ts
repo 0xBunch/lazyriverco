@@ -86,6 +86,11 @@ export function newAvatarKey(contentType: string): { avatarId: string; key: stri
   return { avatarId, key: `avatars/${avatarId}.${extensionFor(contentType)}` };
 }
 
+export function newGeneratedImageKey(contentType: string): { generatedId: string; key: string } {
+  const generatedId = randomUUID();
+  return { generatedId, key: `generated/${generatedId}.${extensionFor(contentType)}` };
+}
+
 export type PresignUploadInput = {
   mimeType: string;
 };
@@ -279,6 +284,72 @@ export async function assertObjectWithinSize(
       `Uploaded object is ${size} bytes; exceeds cap of ${maxBytes}.`,
     );
   }
+}
+
+// ---------------------------------------------------------------------------
+// Server-side PUT for AI-generated images. The server holds bytes produced
+// by an external image-gen provider (e.g. Replicate) and writes them to R2
+// under the `generated/` prefix. No presign flow — the server already has
+// the bytes in-process. Content type is validated against the upload
+// allowlist so we can't smuggle anything unexpected in from a compromised
+// provider response.
+
+export type PutGeneratedImageResult = {
+  generatedId: string;
+  key: string;
+  publicUrl: string;
+  contentType: string;
+  bytes: number;
+};
+
+const MAX_GENERATED_IMAGE_BYTES = 10 * 1024 * 1024; // 10 MB
+
+export async function putGeneratedImageBytes(
+  bytes: ArrayBuffer | Uint8Array,
+  contentType: string,
+): Promise<PutGeneratedImageResult> {
+  if (!isAllowedContentType(contentType)) {
+    throw new R2UploadError(
+      `Generated image content-type "${contentType}" not in allowlist.`,
+    );
+  }
+  const byteLength = bytes.byteLength;
+  if (byteLength > MAX_GENERATED_IMAGE_BYTES) {
+    throw new R2UploadError(
+      `Generated image is ${byteLength} bytes; exceeds cap of ${MAX_GENERATED_IMAGE_BYTES}.`,
+    );
+  }
+
+  const bucketName = process.env.R2_BUCKET_NAME;
+  const publicBase = process.env.NEXT_PUBLIC_R2_PUBLIC_BASE_URL;
+  if (!bucketName || !publicBase) {
+    throw new R2UploadError(
+      "R2 not configured: set R2_BUCKET_NAME and NEXT_PUBLIC_R2_PUBLIC_BASE_URL before calling putGeneratedImageBytes.",
+    );
+  }
+
+  const { generatedId, key } = newGeneratedImageKey(contentType);
+  const body = bytes instanceof Uint8Array ? bytes : new Uint8Array(bytes);
+  const s3 = getS3Client();
+
+  await s3.send(
+    new PutObjectCommand({
+      Bucket: bucketName,
+      Key: key,
+      Body: body,
+      ContentType: contentType,
+      CacheControl: "public, max-age=604800, immutable",
+    }),
+  );
+
+  const base = publicBase.replace(/\/+$/, "");
+  return {
+    generatedId,
+    key,
+    publicUrl: `${base}/${key}`,
+    contentType,
+    bytes: byteLength,
+  };
 }
 
 export async function deleteObject(key: string): Promise<void> {

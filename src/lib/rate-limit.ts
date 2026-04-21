@@ -32,7 +32,11 @@ export type RateLimitBucket =
   // Admin avatar uploads. Tight cap — agents are ~a dozen entities
   // total; a legitimate admin should never trip this. Firing = stolen
   // cookie burning R2 egress.
-  | "avatars.presign";
+  | "avatars.presign"
+  // Chat image generation (Replicate + R2). Much more expensive per call
+  // than a text message, so gets its own tighter bucket on top of the
+  // conversation.message limit.
+  | "image.generate";
 
 export type RateLimitOptions = {
   maxPerMinute: number;

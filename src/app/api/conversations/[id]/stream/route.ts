@@ -11,11 +11,20 @@ import { selectContext } from "@/lib/select-context";
 import { getUpcomingCalendarEntries } from "@/lib/calendar-context";
 import { parseSentinel } from "@/lib/agent-sentinels";
 import { AUTHOR_SELECT, toDTO } from "@/lib/chat";
+import {
+  generateImage,
+  isImageGenerationEnabled,
+  ImageGenerationError,
+} from "@/lib/imageGen";
 
 export const runtime = "nodejs";
 export const maxDuration = 60;
 
 const MAX_CONTENT_LENGTH = 4000;
+// Image models (Flux schnell today) have much tighter prompt limits than
+// chat turns — ~256 tokens for CLIP text encoders. Cap at 1000 chars to
+// avoid silent truncation or weird Replicate errors on a pasted wall.
+const MAX_IMAGE_PROMPT_LENGTH = 1000;
 const MAX_REPLY_CHARS = 8_000;
 const CONTEXT_MESSAGES = 15;
 
@@ -104,6 +113,60 @@ export async function POST(
     "content" in body &&
     typeof (body as { content: unknown }).content === "string";
 
+  // Optional image-generation mode flag. When true and enabled, the reply
+  // is a generated image instead of a Claude text reply. Requires content
+  // (no reply-to-latest mode for image gen).
+  const imageMode =
+    typeof body === "object" &&
+    body !== null &&
+    "imageGenerationMode" in body &&
+    (body as { imageGenerationMode: unknown }).imageGenerationMode === true;
+
+  if (imageMode) {
+    if (!hasContent) {
+      return NextResponse.json(
+        { error: "Image generation requires a prompt" },
+        { status: 400 },
+      );
+    }
+    if (!isImageGenerationEnabled()) {
+      return NextResponse.json(
+        { error: "Image generation is currently disabled." },
+        { status: 503 },
+      );
+    }
+    // Tighter prompt cap than chat. Enforced before the message is
+    // persisted so we don't store a too-long prompt only to fail at
+    // Replicate.
+    const promptLength = ((body as { content: string }).content ?? "").trim().length;
+    if (promptLength > MAX_IMAGE_PROMPT_LENGTH) {
+      return NextResponse.json(
+        { error: `Image prompt too long (max ${MAX_IMAGE_PROMPT_LENGTH})` },
+        { status: 400 },
+      );
+    }
+    // Image generation is ~100x more expensive per call than a Claude
+    // message (Replicate GPU time + R2 storage), so it gets its own
+    // tighter bucket on top of the conversation-level limit above.
+    try {
+      await assertWithinLimit(user.id, "image.generate", {
+        maxPerMinute: 5,
+        maxPerDay: 50,
+      });
+    } catch (err) {
+      if (err instanceof RateLimitError) {
+        return NextResponse.json(
+          { error: err.message },
+          {
+            status: 429,
+            headers: { "Retry-After": String(err.retryAfterSeconds) },
+          },
+        );
+      }
+      throw err;
+    }
+  }
+
   let userMessage;
   let userDTO;
 
@@ -167,6 +230,102 @@ export async function POST(
       );
     }
     userDTO = null; // client already has this message via poll
+  }
+
+  // --- Image-generation mode: short-circuit the Claude pipeline -------------
+  // When imageMode is on, we bypass context loading + Claude entirely.
+  // The user message is already persisted; we generate an image, persist
+  // a CHARACTER reply whose content is the public R2 URL (rendered inline
+  // by ChatMessage.extractSafeMediaUrls), and close the stream.
+
+  if (imageMode) {
+    // Narrow: image mode always takes the hasContent branch (enforced above),
+    // so userMessage is assigned. Capturing into a const lets TS drop the
+    // `undefined` from the outer `let` declaration inside this closure.
+    const persistedUserMessage = userMessage;
+    if (!persistedUserMessage) {
+      return NextResponse.json(
+        { error: "Internal error: missing user message" },
+        { status: 500 },
+      );
+    }
+    const encoder = new TextEncoder();
+    const imageCharacter = conversation.character;
+
+    const sseStream = new ReadableStream({
+      async start(controller) {
+        function send(event: string, data: unknown) {
+          controller.enqueue(
+            encoder.encode(
+              `event: ${event}\ndata: ${JSON.stringify(data)}\n\n`,
+            ),
+          );
+        }
+
+        if (userDTO) {
+          send("user_message", { message: userDTO });
+        }
+
+        try {
+          const result = await generateImage({
+            prompt: persistedUserMessage.content,
+          });
+
+          // Content stored on the message is just the public URL. The chat
+          // message component recognises /generated/<uuid>.<ext> under the
+          // R2 public origin and renders it as an inline <img>.
+          const replyMessage = await prisma.$transaction(async (tx) => {
+            const msg = await tx.message.create({
+              data: {
+                content: result.publicUrl,
+                authorType: "CHARACTER",
+                characterId: imageCharacter.id,
+                module: "chat",
+                conversationId: conversation.id,
+              },
+              include: {
+                user: { select: AUTHOR_SELECT },
+                character: { select: AUTHOR_SELECT },
+              },
+            });
+            await tx.conversation.update({
+              where: { id: conversation.id },
+              data: { lastMessageAt: new Date() },
+            });
+            return msg;
+          });
+
+          const replyDTO = toDTO(replyMessage);
+          if (!replyDTO) {
+            send("error", {
+              message: "Failed to serialize generated image message",
+            });
+          } else {
+            send("done", { message: replyDTO });
+          }
+        } catch (err) {
+          console.error("[stream] image generation failed:", err);
+          const message =
+            err instanceof ImageGenerationError
+              ? err.message
+              : err instanceof Error
+                ? err.message
+                : "Image generation failed";
+          send("error", { message });
+        } finally {
+          controller.close();
+        }
+      },
+    });
+
+    return new Response(sseStream, {
+      headers: {
+        "Content-Type": "text/event-stream",
+        "Cache-Control": "no-cache, no-transform",
+        Connection: "keep-alive",
+        "X-Accel-Buffering": "no",
+      },
+    });
   }
 
   // --- Build context for the agent -----------------------------------------
