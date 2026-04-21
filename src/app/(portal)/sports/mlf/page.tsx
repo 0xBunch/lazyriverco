@@ -1,6 +1,12 @@
 import { redirect } from "next/navigation";
 import { getCurrentUser } from "@/lib/auth";
-import { getLeagueOverview, isSleeperEnabled, SleeperError } from "@/lib/sleeper";
+import {
+  ensurePlayerUniverseFresh,
+  getLeagueOverview,
+  isSleeperEnabled,
+  SleeperError,
+} from "@/lib/sleeper";
+import { generateSeasonNarrative } from "@/lib/sleeper-ai";
 import { SleeperOverview } from "./SleeperOverview";
 import { ModulePlaceholder } from "@/components/ModulePlaceholder";
 
@@ -22,9 +28,32 @@ export default async function FantasyPage() {
 
   try {
     const overview = await getLeagueOverview();
+
+    // Fire-and-forget player-universe freshness on every page view. Each
+    // sync has its own TTL-gated skip so this only does work when the DB
+    // is genuinely stale; the first /fantasy hit after deploy is what
+    // populates player names and stats for the entire app. Not awaited —
+    // the page renders with whatever's in the DB right now, then a future
+    // navigation will see the richer data.
+    const statsSeason =
+      overview.mode === "recap" ? overview.season : overview.nflSeason;
+    const projectionsSeason = overview.nflSeason;
+    void ensurePlayerUniverseFresh({
+      statsSeason,
+      projectionsSeason,
+      includeWeeklyStats: true,
+    });
+
+    // Season narrative is a single Claude one-shot cached by (leagueId,
+    // season). Only generated in recap mode; returns null in live mode.
+    // Awaited on first-ever view (one-time ~3s cost) so the demo doesn't
+    // pop into view mid-read — after that it's an indexed lookup.
+    const narrative = await generateSeasonNarrative().catch(() => null);
+
     return (
       <SleeperOverview
         initial={overview}
+        narrative={narrative}
         isAdmin={user.role === "ADMIN"}
       />
     );

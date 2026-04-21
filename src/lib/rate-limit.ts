@@ -36,7 +36,13 @@ export type RateLimitBucket =
   // Chat image generation (Replicate + R2). Much more expensive per call
   // than a text message, so gets its own tighter bucket on top of the
   // conversation.message limit.
-  | "image.generate";
+  | "image.generate"
+  // MLF player-profile agent takes. Each cold-cache hit fires up to N
+  // concurrent Claude calls (one per active character). A scripted sweep
+  // of ~11k playerIds would burn ~33k Claude calls if uncapped — tight
+  // per-minute cap + generous per-day cap lets a session casually browse
+  // every roster without tripping, but blocks a script dead.
+  | "player.take";
 
 export type RateLimitOptions = {
   maxPerMinute: number;

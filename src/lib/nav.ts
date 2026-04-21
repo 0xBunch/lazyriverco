@@ -5,6 +5,7 @@ import {
   IconMap,
   IconMessageCircle,
   IconTools,
+  IconTrophy,
   type Icon as TablerIcon,
 } from "@tabler/icons-react";
 
@@ -17,18 +18,25 @@ export type NavItem = {
 // Always visible to every signed-in user. The Chats tab is the
 // management surface (search, star, archive, rename); the "+ New chat"
 // button and the logo link still start a new conversation.
+// `/sports` is a top-level dashboard parent — individual sports apps
+// (MLF fantasy football, future NBA/MLB modules) sit UNDER /sports/*
+// rather than as siblings in the nav so the Apps section stays tight.
 export const MAIN_NAV_ITEMS = [
   { href: "/chats", icon: IconMessageCircle, label: "Chats" },
   { href: "/calendar", icon: IconCalendar, label: "Calendar" },
   { href: "/library", icon: IconBook2, label: "Library" },
+  { href: "/sports", icon: IconTrophy, label: "Sports" },
 ] as const satisfies readonly NavItem[];
 
 // Collapsible "Apps" section — mini-apps built over time. Visible to
 // everyone (the pages themselves handle access gating internally).
 export const APP_NAV_ITEMS = [
-  { href: "/fantasy", icon: IconBallAmericanFootball, label: "MLF" },
   { href: "/trips", icon: IconMap, label: "World Tour" },
 ] as const satisfies readonly NavItem[];
+
+// Icon used on the /sports dashboard card for each sport. Kept next to
+// the nav table so new sport modules get a consistent visual anchor.
+export { IconBallAmericanFootball as IconMLF };
 
 // Admin-only — only shown when the user has role=ADMIN.
 export const ADMIN_NAV_ITEM: NavItem = {
