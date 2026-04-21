@@ -7,7 +7,7 @@ import {
   isValidAgentModel,
 } from "@/lib/agent-models";
 import {
-  getCurrentNflWeek,
+  getSleeperPromptHint,
   isSleeperEnabled,
   runSleeperLookup,
 } from "@/lib/sleeper";
@@ -107,20 +107,25 @@ const LIBRARY_SEARCH_TOOL: Anthropic.Messages.Tool = {
 const LOOKUP_SLEEPER_TOOL: Anthropic.Messages.Tool = {
   name: "lookup_sleeper",
   description:
-    "Look up live Men's League fantasy football data from Sleeper. Use when the user asks about standings, a specific manager's roster, or recent trades/waiver moves in the MLF league. Returns a short pre-formatted text block. Prefer this over web_search for MLF-specific data.",
+    "Look up live Men's League fantasy football data from Sleeper. Use when the user asks about standings, a specific manager's roster, recent trades/waiver moves, or an individual NFL player (bio, 2025 stats, 2026 projection, current MLF ownership). Returns a short pre-formatted text block. Prefer this over web_search for MLF data and for any NFL player we might already have in the fantasy DB.",
   input_schema: {
     type: "object",
     properties: {
       subcommand: {
         type: "string",
-        enum: ["standings", "roster", "transactions"],
+        enum: ["standings", "roster", "transactions", "player"],
         description:
-          "Which slice of league data to fetch: overall standings, a specific manager's roster, or recent transactions.",
+          "Which slice of data: overall standings, a manager's roster, recent transactions, or a single NFL player profile.",
       },
       manager: {
         type: "string",
         description:
           "Manager display name or team name. Required for subcommand=roster; ignored otherwise.",
+      },
+      player: {
+        type: "string",
+        description:
+          "NFL player full name (e.g. 'Patrick Mahomes') or Sleeper playerId. Required for subcommand=player; ignored otherwise.",
       },
       limit: {
         type: "integer",
@@ -275,25 +280,26 @@ function toContentBlockParams(
 // over the bible when they conflict.
 type PromptTailOpts = {
   dialogueMode?: boolean;
-  nflWeek?: number | null;
+  /** One-line hint from getSleeperPromptHint — live week or recap framing.
+   *  Null/undefined omits the MLF line entirely (disabled / unreachable). */
+  sleeperHint?: string | null;
 };
 
 function buildSystemPromptTail(opts: PromptTailOpts = {}): string {
   const dialogueMode = opts.dialogueMode ?? false;
-  const nflWeek = opts.nflWeek ?? null;
+  const sleeperHint = opts.sleeperHint ?? null;
   const today = new Date().toLocaleDateString("en-US", {
     weekday: "long",
     year: "numeric",
     month: "long",
     day: "numeric",
   });
-  // One-int nudge that an MLF live-league lookup is available. No standings
+  // One-line nudge from sleeper.ts covering both live ("NFL Week N") and
+  // recap ("2025 season complete, 2026 hasn't started") cases. No standings
   // or transactions in the prompt — the lookup_sleeper tool returns those
-  // on demand (see LOOKUP_SLEEPER_TOOL). Omitted entirely in offseason so
-  // the model doesn't invent a week.
-  const mlfLine = nflWeek
-    ? `The MLF fantasy league is on NFL Week ${nflWeek}. Use lookup_sleeper when the user asks about standings, a specific roster, or recent trades.`
-    : null;
+  // on demand (see LOOKUP_SLEEPER_TOOL). Omitted entirely when Sleeper is
+  // disabled or unreachable so the model doesn't invent a state.
+  const mlfLine = sleeperHint;
   const base = [
     "",
     `Today is ${today}.`,
@@ -495,7 +501,7 @@ export async function generateCharacterResponse(
   const model = resolveAgentModel(opts.model);
   const dialogueMode = opts.dialogueMode ?? false;
   const replyId = crypto.randomUUID();
-  const nflWeek = await getCurrentNflWeek();
+  const sleeperHint = await getSleeperPromptHint();
   const tools = buildTools();
   const messages: Anthropic.Messages.MessageParam[] = [
     {
@@ -521,7 +527,7 @@ export async function generateCharacterResponse(
         model,
         max_tokens: MAX_TOKENS,
         temperature: 0.9,
-        system: composeSystemBlocks(systemPrompt, richContext, { dialogueMode, nflWeek }),
+        system: composeSystemBlocks(systemPrompt, richContext, { dialogueMode, sleeperHint }),
         tools,
         messages,
       },
@@ -605,7 +611,7 @@ export async function streamCharacterResponse(
   const model = resolveAgentModel(opts.model);
   const dialogueMode = opts.dialogueMode ?? false;
   const replyId = crypto.randomUUID();
-  const nflWeek = await getCurrentNflWeek();
+  const sleeperHint = await getSleeperPromptHint();
   const tools = buildTools();
   const messages: Anthropic.Messages.MessageParam[] = [
     {
@@ -631,7 +637,7 @@ export async function streamCharacterResponse(
         model,
         max_tokens: MAX_TOKENS,
         temperature: 0.9,
-        system: composeSystemBlocks(systemPrompt, richContext, { dialogueMode, nflWeek }),
+        system: composeSystemBlocks(systemPrompt, richContext, { dialogueMode, sleeperHint }),
         tools,
         messages,
       },

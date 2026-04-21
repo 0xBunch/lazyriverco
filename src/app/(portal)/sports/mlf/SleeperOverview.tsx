@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useMemo, useState } from "react";
+import Link from "next/link";
 import { cn } from "@/lib/utils";
 import type {
   HydratedPlayer,
@@ -12,22 +13,23 @@ import type {
 // Sleeper overview panel: standings / rosters / transactions tabs with
 // an admin-only "Sync now" button that busts the server cache and
 // refreshes the panel data in place. Client-only — the server page
-// hydrates `initial` via getLeagueOverview() + toLeagueOverview
-// so every Date arrives as an ISO string (what Next would serialize them
-// to across the RSC boundary anyway, now spelled honestly in the type).
+// hydrates `initial` via getLeagueOverview() (Dates already serialized
+// to ISO strings by the type contract).
 
 type Props = {
   initial: LeagueOverview;
+  narrative: string | null;
   isAdmin: boolean;
 };
 
 type Tab = "standings" | "rosters" | "transactions";
 
-export function SleeperOverview({ initial, isAdmin }: Props) {
+export function SleeperOverview({ initial, narrative, isAdmin }: Props) {
   const [data, setData] = useState<LeagueOverview>(initial);
   const [tab, setTab] = useState<Tab>("standings");
   const [syncing, setSyncing] = useState(false);
   const [syncError, setSyncError] = useState<string | null>(null);
+  const isRecap = data.mode === "recap";
 
   const onSync = useCallback(async () => {
     setSyncing(true);
@@ -62,13 +64,14 @@ export function SleeperOverview({ initial, isAdmin }: Props) {
   return (
     <div className="flex flex-col gap-5 px-4 py-6 md:px-6 md:py-8">
       <header className="flex flex-wrap items-end justify-between gap-3">
-        <div>
-          <h1 className="font-display text-2xl font-semibold tracking-tight text-bone-50">
+        <div className="min-w-0">
+          <h1 className="font-display text-2xl font-semibold tracking-tight text-bone-50 text-balance">
             {data.leagueName}
           </h1>
-          <p className="mt-1 text-sm text-bone-300">
-            {data.season} season · NFL Week {data.currentWeek} · synced{" "}
-            {lastSyncedRelative}
+          <p className="mt-1 text-sm text-bone-300 text-pretty">
+            {isRecap
+              ? `${data.season} final standings · ${data.nflSeason} hasn't kicked off yet · synced ${lastSyncedRelative}`
+              : `${data.season} season · NFL Week ${data.currentWeek} · synced ${lastSyncedRelative}`}
           </p>
         </div>
         {isAdmin ? (
@@ -96,6 +99,8 @@ export function SleeperOverview({ initial, isAdmin }: Props) {
         </div>
       ) : null}
 
+      {narrative ? <NarrativeCard body={narrative} season={data.season} /> : null}
+
       <nav className="flex gap-2" aria-label="Fantasy view">
         <TabButton active={tab === "standings"} onClick={() => setTab("standings")}>
           Standings
@@ -121,6 +126,22 @@ export function SleeperOverview({ initial, isAdmin }: Props) {
         )}
       </section>
     </div>
+  );
+}
+
+function NarrativeCard({ body, season }: { body: string; season: string }) {
+  return (
+    <section
+      aria-label={`${season} season narrative`}
+      className="rounded-lg border border-bone-800 bg-gradient-to-br from-bone-900/60 to-bone-900/20 p-4 md:p-5"
+    >
+      <h2 className="mb-2 font-display text-xs font-semibold uppercase tracking-widest text-claude-300">
+        How {season} went
+      </h2>
+      <p className="text-[15px] leading-relaxed text-bone-100 text-pretty">
+        {body}
+      </p>
+    </section>
   );
 }
 
@@ -273,27 +294,40 @@ function RosterSection({
         {title}
       </h3>
       <ul className="space-y-1">
-        {players.map((p) => (
-          <li
-            key={p.playerId}
-            className="flex items-baseline justify-between rounded-md border border-transparent px-2 py-1 text-sm hover:border-bone-800 hover:bg-bone-900/40"
-          >
-            <span className="text-bone-100">
-              <span className="mr-2 inline-block w-8 text-bone-400 tabular-nums">
-                {p.position ?? "??"}
-              </span>
-              {p.name}
-            </span>
-            <span className="text-xs text-bone-400 tabular-nums">
-              {p.team ?? ""}
-              {p.injuryStatus ? (
-                <span className="ml-2 rounded border border-claude-700/60 px-1 text-claude-200">
-                  {p.injuryStatus}
+        {players.map((p) => {
+          const statTail =
+            p.nextSeason && p.nextSeason.ptsPpr > 0
+              ? `${p.nextSeason.ptsPpr.toFixed(0)} proj`
+              : p.lastSeason && p.lastSeason.ptsPpr > 0
+                ? `${p.lastSeason.ptsPpr.toFixed(0)} '${p.lastSeason.season.slice(-2)}`
+                : null;
+          return (
+            <li key={p.playerId}>
+              <Link
+                href={`/sports/mlf/players/${encodeURIComponent(p.playerId)}`}
+                className="flex items-baseline justify-between gap-2 rounded-md border border-transparent px-2 py-1 text-sm transition-colors hover:border-bone-800 hover:bg-bone-900/40 focus:outline-none focus-visible:ring-2 focus-visible:ring-claude-500"
+              >
+                <span className="min-w-0 truncate text-bone-100">
+                  <span className="mr-2 inline-block w-8 text-bone-400 tabular-nums">
+                    {p.position ?? "??"}
+                  </span>
+                  {p.name}
                 </span>
-              ) : null}
-            </span>
-          </li>
-        ))}
+                <span className="flex shrink-0 items-center gap-2 text-xs text-bone-400 tabular-nums">
+                  {statTail ? (
+                    <span className="text-bone-300">{statTail}</span>
+                  ) : null}
+                  {p.team ? <span>{p.team}</span> : null}
+                  {p.injuryStatus ? (
+                    <span className="rounded border border-claude-700/60 px-1 text-claude-200">
+                      {p.injuryStatus}
+                    </span>
+                  ) : null}
+                </span>
+              </Link>
+            </li>
+          );
+        })}
       </ul>
     </div>
   );
@@ -338,7 +372,12 @@ function TransactionsList({
                         {a.managerDisplayName} ←{" "}
                       </span>
                     ) : null}
-                    {a.player.name}
+                    <Link
+                      href={`/sports/mlf/players/${encodeURIComponent(a.player.playerId)}`}
+                      className="underline-offset-2 hover:underline focus:outline-none focus-visible:ring-2 focus-visible:ring-claude-500"
+                    >
+                      {a.player.name}
+                    </Link>
                   </span>
                 ))}
               </div>
@@ -354,7 +393,12 @@ function TransactionsList({
                         {d.managerDisplayName} →{" "}
                       </span>
                     ) : null}
-                    {d.player.name}
+                    <Link
+                      href={`/sports/mlf/players/${encodeURIComponent(d.player.playerId)}`}
+                      className="underline-offset-2 hover:underline focus:outline-none focus-visible:ring-2 focus-visible:ring-claude-500"
+                    >
+                      {d.player.name}
+                    </Link>
                   </span>
                 ))}
               </div>

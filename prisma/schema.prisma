@@ -87,6 +87,7 @@ model Character {
   agentRelationships  AgentRelationship[]
   conversations       Conversation[]
   pins                Pin[]
+  playerTakes         PlayerAgentTake[]
 
   @@index([displayOrder])
 }
@@ -232,8 +233,90 @@ model SleeperPlayer {
   active           Boolean  @default(true)
   updatedAt        DateTime @updatedAt
 
+  stats            PlayerSeasonStats[]
+  projections      PlayerSeasonProjection[]
+  agentTakes       PlayerAgentTake[]
+
   @@index([team])
   @@index([position])
+}
+
+/// Per-player per-season totals from the undocumented
+/// /v1/stats/nfl/regular/{season} endpoint. Also stores the week-by-week
+/// PPR points as a JSON array for sparkline rendering on the player
+/// profile page.
+model PlayerSeasonStats {
+  id           String   @id @default(uuid())
+  playerId     String
+  season       String
+  ptsPpr       Float    @default(0)
+  ptsHalfPpr   Float    @default(0)
+  ptsStd       Float    @default(0)
+  gamesPlayed  Int      @default(0)
+  rankPpr      Int?
+  posRankPpr   Int?
+  /// Week-by-week PPR points: [{week: 1, pts: 20.5}, ...]. Empty when
+  /// per-week endpoint hasn't been synced for this season yet.
+  weeklyPpr    Json     @default("[]")
+  updatedAt    DateTime @updatedAt
+
+  player       SleeperPlayer @relation(fields: [playerId], references: [playerId], onDelete: Cascade)
+
+  @@unique([playerId, season])
+  @@index([season, ptsPpr(sort: Desc)])
+}
+
+/// Per-player per-season projections from /v1/projections/nfl/regular/{season}.
+/// Separate from stats because semantics differ (ADP only meaningful for
+/// projections; projected totals can exist for players who never played).
+model PlayerSeasonProjection {
+  id           String   @id @default(uuid())
+  playerId     String
+  season       String
+  ptsPpr       Float    @default(0)
+  ptsHalfPpr   Float    @default(0)
+  gamesPlayed  Int      @default(0)
+  /// ADP (average draft position) in PPR leagues. 999 = effectively undrafted.
+  adpPpr       Float?
+  adpHalfPpr   Float?
+  updatedAt    DateTime @updatedAt
+
+  player       SleeperPlayer @relation(fields: [playerId], references: [playerId], onDelete: Cascade)
+
+  @@unique([playerId, season])
+  @@index([season, ptsPpr(sort: Desc)])
+}
+
+/// One-liner take on a player from a specific clubhouse character. Generated
+/// lazily on first profile view via a Claude one-shot per active character,
+/// cached so subsequent views are free. Uniqueness is per (player, character)
+/// so we can re-roll later by deleting the row.
+model PlayerAgentTake {
+  id          String    @id @default(uuid())
+  playerId    String
+  characterId String
+  take        String    @db.Text
+  createdAt   DateTime  @default(now())
+
+  player      SleeperPlayer @relation(fields: [playerId], references: [playerId], onDelete: Cascade)
+  character   Character     @relation(fields: [characterId], references: [id], onDelete: Cascade)
+
+  @@unique([playerId, characterId])
+  @@index([playerId])
+}
+
+/// One Claude-generated paragraph summarizing a completed season of an MLF
+/// Sleeper league. Keyed by (leagueId, season) so switching to a different
+/// historical chain hop just fetches/generates fresh. Regenerate by
+/// deleting the row.
+model LeagueSeasonNarrative {
+  id         String   @id @default(uuid())
+  leagueId   String
+  season     String
+  body       String   @db.Text
+  createdAt  DateTime @default(now())
+
+  @@unique([leagueId, season])
 }
 
 model Pick {
