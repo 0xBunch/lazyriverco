@@ -57,6 +57,12 @@ export function ConversationLanding({
     }
     return defaultCharacterId ?? characters[0]?.id ?? "";
   });
+  // Image-generation mode: when on, the user's first message becomes a
+  // txt2img prompt instead of a chat turn. We still create a real
+  // conversation (attached to the selected agent) so the image has a home;
+  // ConversationView reads `?image=1` on the chat route to pick up the flag
+  // when it fires its first reply.
+  const [imageMode, setImageMode] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -90,9 +96,14 @@ export function ConversationLanding({
         setSubmitting(false);
         return;
       }
-      // Navigate into the new thread. Don't clear `submitting` — the
-      // page transition will unmount this component.
-      router.push(`/chat/${data.conversation.id}`);
+      // Navigate into the new thread. When image mode is on, tack on
+      // `?image=1` so ConversationView fires its first reply as an
+      // image generation instead of a Claude turn.
+      // Don't clear `submitting` — the page transition will unmount
+      // this component.
+      router.push(
+        `/chat/${data.conversation.id}${imageMode ? "?image=1" : ""}`,
+      );
     } catch (err) {
       setError(err instanceof Error ? err.message : "Network error");
       setSubmitting(false);
@@ -141,7 +152,11 @@ export function ConversationLanding({
                 void submit();
               }
             }}
-            placeholder={`Ask ${selectedCharacter?.displayName ?? "Moises"} anything…`}
+            placeholder={
+              imageMode
+                ? "Describe an image…"
+                : `Ask ${selectedCharacter?.displayName ?? "Moises"} anything…`
+            }
             rows={3}
             disabled={submitting}
             className={cn(
@@ -175,6 +190,53 @@ export function ConversationLanding({
                 </option>
               ))}
             </select>
+
+            {/* Image-generation toggle — pill button matching the agent
+                chip on the left. When on, the first reply is a txt2img
+                result instead of Claude prose. Stays visible whether
+                it's on or off so the mode is discoverable. */}
+            <div className="ml-auto flex items-center gap-2">
+              <button
+                type="button"
+                onClick={() => setImageMode((v) => !v)}
+                disabled={submitting}
+                aria-label={
+                  imageMode
+                    ? "Turn off image generation"
+                    : "Turn on image generation"
+                }
+                aria-pressed={imageMode}
+                title={
+                  imageMode
+                    ? "Next message will generate an image"
+                    : "Generate image mode"
+                }
+                className={cn(
+                  "flex items-center gap-1.5 rounded-full border px-3 py-1.5 text-xs transition-colors",
+                  imageMode
+                    ? "border-claude-500/60 bg-claude-500/15 text-claude-200 hover:bg-claude-500/25"
+                    : "border-bone-700 bg-bone-800/60 text-bone-300 hover:border-claude-500/60 hover:text-claude-100",
+                  "focus:outline-none focus-visible:ring-2 focus-visible:ring-claude-500 focus-visible:ring-offset-2 focus-visible:ring-offset-bone-950",
+                  "disabled:cursor-not-allowed disabled:opacity-60",
+                )}
+              >
+                <svg
+                  aria-hidden="true"
+                  viewBox="0 0 24 24"
+                  className="h-3.5 w-3.5"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="2"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                >
+                  <rect x="3" y="3" width="18" height="18" rx="2" ry="2" />
+                  <circle cx="8.5" cy="8.5" r="1.5" />
+                  <polyline points="21 15 16 10 5 21" />
+                </svg>
+                <span>Image</span>
+              </button>
+            </div>
 
             <button
               type="submit"

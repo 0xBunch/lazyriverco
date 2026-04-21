@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { useReducedMotion } from "motion/react";
 import { ChatInput } from "@/components/ChatInput";
 import { MessageList } from "@/components/MessageList";
@@ -71,6 +71,12 @@ export function ConversationView({
   initialPinned,
 }: ConversationViewProps) {
   const router = useRouter();
+  const searchParams = useSearchParams();
+  // Landing page forwards `?image=1` when the user kicked off in image
+  // mode. We default the in-conversation toggle to that so the first
+  // auto-triggered reply goes to the image-gen branch instead of Claude.
+  const initialImageModeFromQuery =
+    searchParams?.get("image") === "1";
   const { messages, error, appendMessages } = useChatPolling({
     fetchUrl: `/api/conversations/${conversationId}/messages`,
   });
@@ -173,7 +179,10 @@ export function ConversationView({
   // sticky — flipping it on keeps subsequent sends in image mode until
   // the user turns it off. Server-side, an env-var kill switch can still
   // refuse the request (503); we surface those failures as SSE errors.
-  const [imageMode, setImageMode] = useState(false);
+  //
+  // Initialised from the `?image=1` query param so the landing-page
+  // handoff preserves intent across the navigation.
+  const [imageMode, setImageMode] = useState(initialImageModeFromQuery);
 
   // Pin state — optimistic toggle with server rollback. No spinner; the
   // write is fast and the visual state flips immediately. If the server
@@ -348,7 +357,9 @@ export function ConversationView({
   // Auto-trigger: when the initial poll lands and the last message is USER
   // with no CHARACTER reply, stream the first reply immediately. This
   // covers the landing-page flow where POST /api/conversations creates the
-  // user message but no longer fires the orchestrator.
+  // user message but no longer fires the orchestrator. When imageMode is
+  // true (set by `?image=1` from the landing page), the auto-trigger goes
+  // to the image-gen branch instead of Claude.
   useEffect(() => {
     if (didAutoStreamRef.current) return;
     if (!messages || messages.length === 0) return;
@@ -358,8 +369,8 @@ export function ConversationView({
     // re-streaming an abandoned conversation on revisit.
     if (Date.now() - new Date(last.createdAt).getTime() > 30_000) return;
     didAutoStreamRef.current = true;
-    runStream({}); // empty body = reply-to-latest mode
-  }, [messages, runStream]);
+    runStream(imageMode ? { imageGenerationMode: true } : {});
+  }, [messages, runStream, imageMode]);
 
   // Build a synthetic ChatMessageDTO for the streaming bubble
   const streamingMessage: ChatMessageDTO | null =

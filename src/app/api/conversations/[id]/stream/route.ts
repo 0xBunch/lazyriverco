@@ -114,8 +114,11 @@ export async function POST(
     typeof (body as { content: unknown }).content === "string";
 
   // Optional image-generation mode flag. When true and enabled, the reply
-  // is a generated image instead of a Claude text reply. Requires content
-  // (no reply-to-latest mode for image gen).
+  // is a generated image instead of a Claude text reply. Works in both
+  // modes: with fresh `content` (chat-page toggle sends a prompt as a
+  // new USER message) OR reply-to-latest (landing-page flow where the
+  // USER message was already persisted by POST /api/conversations and
+  // we carry `?image=1` through the navigation).
   const imageMode =
     typeof body === "object" &&
     body !== null &&
@@ -123,27 +126,24 @@ export async function POST(
     (body as { imageGenerationMode: unknown }).imageGenerationMode === true;
 
   if (imageMode) {
-    if (!hasContent) {
-      return NextResponse.json(
-        { error: "Image generation requires a prompt" },
-        { status: 400 },
-      );
-    }
     if (!isImageGenerationEnabled()) {
       return NextResponse.json(
         { error: "Image generation is currently disabled." },
         { status: 503 },
       );
     }
-    // Tighter prompt cap than chat. Enforced before the message is
-    // persisted so we don't store a too-long prompt only to fail at
-    // Replicate.
-    const promptLength = ((body as { content: string }).content ?? "").trim().length;
-    if (promptLength > MAX_IMAGE_PROMPT_LENGTH) {
-      return NextResponse.json(
-        { error: `Image prompt too long (max ${MAX_IMAGE_PROMPT_LENGTH})` },
-        { status: 400 },
-      );
+    // When the prompt is in the body, enforce the tighter image-mode
+    // cap before we even create a user message. In reply-to-latest
+    // mode the equivalent check happens on `persistedUserMessage.content`
+    // inside the image-mode short-circuit block below.
+    if (hasContent) {
+      const promptLength = ((body as { content: string }).content).trim().length;
+      if (promptLength > MAX_IMAGE_PROMPT_LENGTH) {
+        return NextResponse.json(
+          { error: `Image prompt too long (max ${MAX_IMAGE_PROMPT_LENGTH})` },
+          { status: 400 },
+        );
+      }
     }
     // Image generation is ~100x more expensive per call than a Claude
     // message (Replicate GPU time + R2 storage), so it gets its own
@@ -239,15 +239,44 @@ export async function POST(
   // by ChatMessage.extractSafeMediaUrls), and close the stream.
 
   if (imageMode) {
-    // Narrow: image mode always takes the hasContent branch (enforced above),
-    // so userMessage is assigned. Capturing into a const lets TS drop the
-    // `undefined` from the outer `let` declaration inside this closure.
+    // Narrow: image mode works in both hasContent and reply-to-latest
+    // modes. In hasContent we just created the message above; in reply-
+    // to-latest we fetched it. Either way userMessage is assigned.
+    // Capturing into a const lets TS drop the `undefined` from the outer
+    // `let` declaration inside this closure.
     const persistedUserMessage = userMessage;
     if (!persistedUserMessage) {
       return NextResponse.json(
-        { error: "Internal error: missing user message" },
-        { status: 500 },
+        { error: "Image generation requires a prompt" },
+        { status: 400 },
       );
+    }
+    // Enforce the image-mode prompt cap against the resolved message.
+    // In reply-to-latest the message is already persisted, so we error
+    // through the SSE stream (not a JSON 400) to let the UI surface it
+    // inline. In hasContent mode the same cap was checked pre-persist
+    // above, so this is only load-bearing for reply-to-latest.
+    const trimmedPrompt = persistedUserMessage.content.trim();
+    if (trimmedPrompt.length > MAX_IMAGE_PROMPT_LENGTH) {
+      const encoder = new TextEncoder();
+      const errStream = new ReadableStream({
+        start(controller) {
+          controller.enqueue(
+            encoder.encode(
+              `event: error\ndata: ${JSON.stringify({ message: `Image prompt too long (max ${MAX_IMAGE_PROMPT_LENGTH})` })}\n\n`,
+            ),
+          );
+          controller.close();
+        },
+      });
+      return new Response(errStream, {
+        headers: {
+          "Content-Type": "text/event-stream",
+          "Cache-Control": "no-cache, no-transform",
+          Connection: "keep-alive",
+          "X-Accel-Buffering": "no",
+        },
+      });
     }
     const encoder = new TextEncoder();
     const imageCharacter = conversation.character;
@@ -268,7 +297,7 @@ export async function POST(
 
         try {
           const result = await generateImage({
-            prompt: persistedUserMessage.content,
+            prompt: trimmedPrompt,
           });
 
           // Content stored on the message is just the public URL. The chat
