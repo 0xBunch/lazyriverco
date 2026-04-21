@@ -41,8 +41,11 @@ const MEDIA_ORIGIN: string | null = (() => {
   }
 })();
 
+// Paths we render inline: user uploads under /media/ and AI-generated images
+// under /generated/. Both are server-assigned UUID keys with extension in the
+// upload allowlist, so the regex is the same shape for both prefixes.
 const MEDIA_KEY_REGEX =
-  /^\/media\/[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}\.(jpg|jpeg|png|webp|gif|mp4)$/i;
+  /^\/(media|generated)\/[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}\.(jpg|jpeg|png|webp|gif|mp4)$/i;
 
 function isSafeMediaUrl(raw: string): boolean {
   if (!MEDIA_ORIGIN) return false;

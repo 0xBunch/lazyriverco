@@ -9,9 +9,17 @@ type ChatInputProps = {
    *  the agent reply is streaming. Stacks with the internal `sending`
    *  state so both gates must be clear for the input to be active. */
   disabled?: boolean;
+  /** Optional override for the textarea placeholder. Used by the parent
+   *  to reflect a mode change (e.g. "Describe an image…" when image
+   *  generation mode is active). */
+  placeholder?: string;
 };
 
-export function ChatInput({ onSubmit, disabled = false }: ChatInputProps) {
+export function ChatInput({
+  onSubmit,
+  disabled = false,
+  placeholder = "Say something…",
+}: ChatInputProps) {
   const [value, setValue] = useState("");
   const [sending, setSending] = useState(false);
   const ref = useRef<HTMLTextAreaElement | null>(null);
@@ -68,7 +76,7 @@ export function ChatInput({ onSubmit, disabled = false }: ChatInputProps) {
         onKeyDown={handleKey}
         disabled={busy}
         rows={1}
-        placeholder="Say something…"
+        placeholder={placeholder}
         className={cn(
           "min-h-[2.5rem] flex-1 resize-none rounded-2xl border border-bone-700 bg-bone-950 px-4 py-2 text-sm leading-5 text-bone-50 placeholder-bone-400",
           "focus:border-claude-500 focus:outline-none focus:ring-1 focus:ring-claude-500",

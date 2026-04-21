@@ -167,6 +167,14 @@ export function ConversationView({
     };
   }, []);
 
+  // Image-generation mode. When true, the next user-submitted message is
+  // treated as an image prompt: we bypass Claude and hit the image-gen
+  // provider (see /api/conversations/[id]/stream route). The toggle is
+  // sticky — flipping it on keeps subsequent sends in image mode until
+  // the user turns it off. Server-side, an env-var kill switch can still
+  // refuse the request (503); we surface those failures as SSE errors.
+  const [imageMode, setImageMode] = useState(false);
+
   // Pin state — optimistic toggle with server rollback. No spinner; the
   // write is fast and the visual state flips immediately. If the server
   // rejects, we revert and log. Non-blocking: pinning is never critical
@@ -318,16 +326,18 @@ export function ConversationView({
   );
 
   // User-initiated submit: creates a new USER message + streams the reply.
+  // When image mode is on, the server short-circuits Claude and generates
+  // an image instead.
   const handleSubmit = useCallback(
     (content: string) => {
-      runStream({ content });
+      runStream(imageMode ? { content, imageGenerationMode: true } : { content });
     },
-    [runStream],
+    [runStream, imageMode],
   );
 
-  // Follow-up chip click — sends the chip text as a new user turn. The
-  // runStream call above already clears followups state before kicking
-  // off, so we don't need to clear here too.
+  // Follow-up chip click — sends the chip text as a new user turn. Chips
+  // always route to Claude, never to image gen, since they're produced by
+  // the agent to continue the conversation.
   const handleFollowupPick = useCallback(
     (text: string) => {
       runStream({ content: text });
@@ -416,6 +426,50 @@ export function ConversationView({
               </svg>
             </button>
 
+            {/* Image-generation toggle — flips the next send into txt2img
+                mode. Square button matching the pin's dimensions; filled
+                state (bg + border) when active. Disabled during a stream
+                so the placeholder can't drift out of sync with the reply
+                that's already in flight. Server-side env-var kill switch
+                can still refuse; SSE error handling surfaces that. */}
+            <button
+              type="button"
+              onClick={() => setImageMode((v) => !v)}
+              disabled={isStreaming}
+              aria-label={
+                imageMode ? "Turn off image generation" : "Turn on image generation"
+              }
+              aria-pressed={imageMode}
+              title={
+                imageMode
+                  ? "Next message will generate an image"
+                  : "Generate image mode"
+              }
+              className={cn(
+                "flex h-8 w-8 items-center justify-center rounded-lg border transition-colors",
+                imageMode
+                  ? "border-claude-500/60 bg-claude-500/15 text-claude-300 hover:bg-claude-500/25"
+                  : "border-bone-700 bg-bone-800 text-bone-300 hover:border-claude-500/60 hover:text-claude-100",
+                "focus:outline-none focus-visible:ring-2 focus-visible:ring-claude-500 focus-visible:ring-offset-2 focus-visible:ring-offset-bone-950",
+                "disabled:cursor-not-allowed disabled:opacity-60",
+              )}
+            >
+              <svg
+                aria-hidden="true"
+                viewBox="0 0 24 24"
+                className="h-4 w-4"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="2"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+              >
+                <rect x="3" y="3" width="18" height="18" rx="2" ry="2" />
+                <circle cx="8.5" cy="8.5" r="1.5" />
+                <polyline points="21 15 16 10 5 21" />
+              </svg>
+            </button>
+
             <button
               type="button"
               onClick={() => router.push("/")}
@@ -470,7 +524,11 @@ export function ConversationView({
         />
       )}
 
-      <ChatInput onSubmit={handleSubmit} disabled={isStreaming} />
+      <ChatInput
+        onSubmit={handleSubmit}
+        disabled={isStreaming}
+        placeholder={imageMode ? "Describe an image…" : undefined}
+      />
     </div>
   );
 }
