@@ -33,7 +33,6 @@ import { prisma } from "@/lib/prisma";
 export const OPERATIONS = [
   "character.reply", // src/lib/anthropic.ts generateCharacterResponse
   "character.reply.stream", // src/lib/anthropic.ts streamCharacterResponse
-  "draft.commentary", // src/lib/anthropic.ts generateDraftCommentary
   "context.select", // src/lib/select-context.ts Haiku call
   "media.analyze", // src/lib/ai-tagging.ts Gemini vision
   "admin.suggest_prompt", // src/app/api/admin/suggest-prompt/route.ts
