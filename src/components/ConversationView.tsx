@@ -72,11 +72,14 @@ export function ConversationView({
 }: ConversationViewProps) {
   const router = useRouter();
   const searchParams = useSearchParams();
-  // Landing page forwards `?image=1` when the user kicked off in image
-  // mode. We default the in-conversation toggle to that so the first
-  // auto-triggered reply goes to the image-gen branch instead of Claude.
+  // Landing page forwards `?image=1` (and `&nsfw=1` if NSFW too) when
+  // the user kicked off in image mode. We default the in-conversation
+  // toggles to those so the first auto-triggered reply goes to the
+  // right image-gen branch instead of Claude.
   const initialImageModeFromQuery =
     searchParams?.get("image") === "1";
+  const initialNsfwModeFromQuery =
+    initialImageModeFromQuery && searchParams?.get("nsfw") === "1";
   const { messages, error, appendMessages } = useChatPolling({
     fetchUrl: `/api/conversations/${conversationId}/messages`,
   });
@@ -173,16 +176,16 @@ export function ConversationView({
     };
   }, []);
 
-  // Strip the `?image=1` handoff flag from the URL after we've captured
-  // it into state. Leaving it in the address bar is a footgun: a user
-  // hitting Back, or bookmarking and returning, would silently re-enter
-  // image mode and route every subsequent send to Replicate. One-shot
-  // on mount, using replace so the pop-history stays clean.
+  // Strip the handoff flags (`?image=1`, `?nsfw=1`) from the URL after
+  // we've captured them into state. Leaving them in the address bar is
+  // a footgun: a user hitting Back, or bookmarking and returning, would
+  // silently re-enter image (and/or NSFW) mode and route every subsequent
+  // send to Replicate. One-shot on mount, using replace so the pop-
+  // history stays clean.
   useEffect(() => {
-    if (!initialImageModeFromQuery) return;
+    if (!initialImageModeFromQuery && !initialNsfwModeFromQuery) return;
     router.replace(`/chat/${conversationId}`);
-    // initialImageModeFromQuery + conversationId are stable for this
-    // component instance, so this runs exactly once.
+    // Deps are stable for this component instance, so this runs once.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
@@ -196,6 +199,14 @@ export function ConversationView({
   // Initialised from the `?image=1` query param so the landing-page
   // handoff preserves intent across the navigation.
   const [imageMode, setImageMode] = useState(initialImageModeFromQuery);
+  // NSFW sub-mode — only meaningful when imageMode is true. Initialised
+  // from `?nsfw=1` query, which the landing only emits when the user
+  // had both pills on. Turning imageMode off auto-resets so the flag
+  // can't silently persist into a Claude turn.
+  const [nsfwMode, setNsfwMode] = useState(initialNsfwModeFromQuery);
+  useEffect(() => {
+    if (!imageMode && nsfwMode) setNsfwMode(false);
+  }, [imageMode, nsfwMode]);
 
   // Pin state — optimistic toggle with server rollback. No spinner; the
   // write is fast and the visual state flips immediately. If the server
@@ -349,12 +360,21 @@ export function ConversationView({
 
   // User-initiated submit: creates a new USER message + streams the reply.
   // When image mode is on, the server short-circuits Claude and generates
-  // an image instead.
+  // an image instead. When nsfw is also on, the server picks the NSFW
+  // model for that generation.
   const handleSubmit = useCallback(
     (content: string) => {
-      runStream(imageMode ? { content, imageGenerationMode: true } : { content });
+      if (imageMode) {
+        runStream(
+          nsfwMode
+            ? { content, imageGenerationMode: true, nsfwMode: true }
+            : { content, imageGenerationMode: true },
+        );
+      } else {
+        runStream({ content });
+      }
     },
-    [runStream, imageMode],
+    [runStream, imageMode, nsfwMode],
   );
 
   // Follow-up chip click — sends the chip text as a new user turn. Chips
@@ -382,8 +402,16 @@ export function ConversationView({
     // re-streaming an abandoned conversation on revisit.
     if (Date.now() - new Date(last.createdAt).getTime() > 30_000) return;
     didAutoStreamRef.current = true;
-    runStream(imageMode ? { imageGenerationMode: true } : {});
-  }, [messages, runStream, imageMode]);
+    if (imageMode) {
+      runStream(
+        nsfwMode
+          ? { imageGenerationMode: true, nsfwMode: true }
+          : { imageGenerationMode: true },
+      );
+    } else {
+      runStream({});
+    }
+  }, [messages, runStream, imageMode, nsfwMode]);
 
   // Build a synthetic ChatMessageDTO for the streaming bubble
   const streamingMessage: ChatMessageDTO | null =
@@ -492,6 +520,48 @@ export function ConversationView({
                 <circle cx="8.5" cy="8.5" r="1.5" />
                 <polyline points="21 15 16 10 5 21" />
               </svg>
+            </button>
+
+            {/* NSFW sub-toggle. Same 32px square dimensions as the pin /
+                image buttons, with a rose accent to separate it from the
+                Claude-accent for image mode. Clicking while image mode
+                is off auto-flips image mode on so one tap opts into
+                "adult image" rather than requiring two. */}
+            <button
+              type="button"
+              onClick={() => {
+                if (!imageMode) setImageMode(true);
+                setNsfwMode((v) => !v);
+              }}
+              disabled={isStreaming}
+              aria-label={
+                nsfwMode ? "Turn off NSFW image mode" : "Turn on NSFW image mode"
+              }
+              aria-pressed={nsfwMode}
+              title={
+                imageMode
+                  ? nsfwMode
+                    ? "NSFW model (community SDXL, safety checker off)"
+                    : "Switch to NSFW model"
+                  : "NSFW image mode (turns on Image too)"
+              }
+              className={cn(
+                "flex h-8 w-8 items-center justify-center rounded-lg border transition-colors",
+                nsfwMode
+                  ? "border-rose-500/70 bg-rose-500/15 text-rose-200 hover:bg-rose-500/25"
+                  : imageMode
+                    ? "border-bone-700 bg-bone-800 text-bone-300 hover:border-rose-500/60 hover:text-rose-100"
+                    : "border-bone-800 bg-bone-900 text-bone-500 hover:border-bone-700",
+                "focus:outline-none focus-visible:ring-2 focus-visible:ring-rose-500 focus-visible:ring-offset-2 focus-visible:ring-offset-bone-950",
+                "disabled:cursor-not-allowed disabled:opacity-60",
+              )}
+            >
+              <span
+                aria-hidden="true"
+                className="text-[10px] font-semibold leading-none"
+              >
+                18+
+              </span>
             </button>
 
             <button

@@ -21,9 +21,11 @@ export const runtime = "nodejs";
 export const maxDuration = 60;
 
 const MAX_CONTENT_LENGTH = 4000;
-// Image models (Flux schnell today) have much tighter prompt limits than
-// chat turns — ~256 tokens for CLIP text encoders. Cap at 1000 chars to
-// avoid silent truncation or weird Replicate errors on a pasted wall.
+// Image models have much tighter prompt limits than chat turns: SDXL's
+// CLIP encoder accepts ~77 tokens, Flux's T5 encoder ~256. 1000 chars is
+// conservatively above either token budget — longer prompts get silently
+// truncated by the tokenizer, so the cap mostly protects against a
+// pasted wall of text that would waste a Replicate call.
 const MAX_IMAGE_PROMPT_LENGTH = 1000;
 const MAX_REPLY_CHARS = 8_000;
 const CONTEXT_MESSAGES = 15;
@@ -124,6 +126,19 @@ export async function POST(
     body !== null &&
     "imageGenerationMode" in body &&
     (body as { imageGenerationMode: unknown }).imageGenerationMode === true;
+
+  // Optional NSFW flag — ONLY meaningful when imageMode is also true.
+  // Routes the generation to a community SDXL fine-tune with the safety
+  // checker disabled. When imageMode is false we force nsfwMode to false
+  // explicitly — don't ever let nsfwMode survive without imageMode or a
+  // future refactor that reorders flag parsing could route a Claude turn
+  // through the image-gen branch.
+  const nsfwRequested =
+    typeof body === "object" &&
+    body !== null &&
+    "nsfwMode" in body &&
+    (body as { nsfwMode: unknown }).nsfwMode === true;
+  const nsfwMode = imageMode && nsfwRequested;
 
   if (imageMode) {
     if (!isImageGenerationEnabled()) {
@@ -294,11 +309,18 @@ export async function POST(
         try {
           const result = await generateImage({
             prompt: trimmedPrompt,
+            mode: nsfwMode ? "nsfw" : "sfw",
           });
 
           // Content stored on the message is just the public URL. The chat
           // message component recognises /generated/<uuid>.<ext> under the
           // R2 public origin and renders it as an inline <img>.
+          //
+          // TODO(image-gen): persist an `isNsfw` flag on the Message row
+          // when nsfwMode was used, so sidebar previews / admin exports /
+          // future search can filter or gate NSFW thumbnails. Currently
+          // not needed — single-user app, no preview surfaces — but the
+          // flag becomes load-bearing once multi-user or export lands.
           const replyMessage = await prisma.$transaction(async (tx) => {
             const msg = await tx.message.create({
               data: {

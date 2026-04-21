@@ -63,6 +63,14 @@ export function ConversationLanding({
   // ConversationView reads `?image=1` on the chat route to pick up the flag
   // when it fires its first reply.
   const [imageMode, setImageMode] = useState(false);
+  // NSFW sub-mode. Only meaningful when imageMode is true; routes the
+  // generation to a community SDXL fine-tune with the safety checker
+  // disabled. Turning imageMode off auto-resets this so the flag can't
+  // silently persist into a Claude turn.
+  const [nsfwMode, setNsfwMode] = useState(false);
+  useEffect(() => {
+    if (!imageMode && nsfwMode) setNsfwMode(false);
+  }, [imageMode, nsfwMode]);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -97,13 +105,16 @@ export function ConversationLanding({
         return;
       }
       // Navigate into the new thread. When image mode is on, tack on
-      // `?image=1` so ConversationView fires its first reply as an
-      // image generation instead of a Claude turn.
-      // Don't clear `submitting` — the page transition will unmount
-      // this component.
-      router.push(
-        `/chat/${data.conversation.id}${imageMode ? "?image=1" : ""}`,
-      );
+      // `?image=1` (plus `&nsfw=1` if NSFW is also on) so
+      // ConversationView fires its first reply as an image generation
+      // instead of a Claude turn. Don't clear `submitting` — the page
+      // transition will unmount this component.
+      const query = imageMode
+        ? nsfwMode
+          ? "?image=1&nsfw=1"
+          : "?image=1"
+        : "";
+      router.push(`/chat/${data.conversation.id}${query}`);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Network error");
       setSubmitting(false);
@@ -235,6 +246,47 @@ export function ConversationLanding({
                   <polyline points="21 15 16 10 5 21" />
                 </svg>
                 <span>Image</span>
+              </button>
+
+              {/* NSFW sub-toggle. Dimmed + non-interactive when image
+                  mode is off; clicking it auto-flips image mode on so
+                  the common "I want adult output" click does the right
+                  thing without a two-step. */}
+              <button
+                type="button"
+                onClick={() => {
+                  if (!imageMode) setImageMode(true);
+                  setNsfwMode((v) => !v);
+                }}
+                disabled={submitting}
+                aria-label={
+                  nsfwMode
+                    ? "Turn off NSFW image mode"
+                    : "Turn on NSFW image mode"
+                }
+                aria-pressed={nsfwMode}
+                title={
+                  imageMode
+                    ? nsfwMode
+                      ? "NSFW model (community SDXL, safety checker off)"
+                      : "Switch to NSFW model"
+                    : "NSFW image mode (turns on Image too)"
+                }
+                className={cn(
+                  "flex items-center gap-1.5 rounded-full border px-3 py-1.5 text-xs transition-colors",
+                  nsfwMode
+                    ? "border-rose-500/70 bg-rose-500/15 text-rose-200 hover:bg-rose-500/25"
+                    : imageMode
+                      ? "border-bone-700 bg-bone-800/60 text-bone-300 hover:border-rose-500/60 hover:text-rose-100"
+                      : "border-bone-800 bg-bone-900/60 text-bone-500 hover:border-bone-700",
+                  "focus:outline-none focus-visible:ring-2 focus-visible:ring-rose-500 focus-visible:ring-offset-2 focus-visible:ring-offset-bone-950",
+                  "disabled:cursor-not-allowed disabled:opacity-60",
+                )}
+              >
+                <span aria-hidden="true" className="text-[10px] font-semibold">
+                  18+
+                </span>
+                <span>Adult</span>
               </button>
             </div>
 
