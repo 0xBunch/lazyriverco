@@ -83,7 +83,6 @@ model Character {
 
   messages            Message[]
   picks               Pick[]
-  roster              Roster[]
   agentChannels       AgentChannel[]
   agentRelationships  AgentRelationship[]
   conversations       Conversation[]
@@ -215,47 +214,26 @@ enum AuthorType {
   CHARACTER
 }
 
-model PlayerPool {
-  id         String  @id @default(uuid())
-  playerName String
-  position   String
-  team       String
-  tagline    String?
-  drafted    Boolean @default(false)
-  season     Int
+/// Reference dump of the Sleeper player DB (~11k rows). Refreshed at most
+/// daily from https://api.sleeper.app/v1/players/nfl. Used to hydrate the
+/// player IDs that appear in a Sleeper roster (players[] array) and
+/// transaction (adds/drops keyed by playerId) into human-readable names.
+/// Not league-scoped — Sleeper's player IDs are global across leagues.
+model SleeperPlayer {
+  playerId         String   @id
+  firstName        String?
+  lastName         String?
+  fullName         String?
+  position         String?
+  team             String?
+  fantasyPositions String[] @default([])
+  status           String?
+  injuryStatus     String?
+  active           Boolean  @default(true)
+  updatedAt        DateTime @updatedAt
 
-  @@unique([playerName, season])
-}
-
-model Roster {
-  id                   String    @id @default(uuid())
-  characterId          String
-  playerName           String
-  position             String
-  acquiredVia          String
-  active               Boolean   @default(true)
-  season               Int
-  weekAcquired         Int?
-  createdAt            DateTime  @default(now())
-  /// Soft FK to Message.id — the chat message where this pick was announced.
-  /// Nullable because waivers / edits may not have a message. Not a Prisma
-  /// relation on purpose (keeps Message→Roster coupling one-way).
-  commentaryMessageId  String?
-
-  character Character        @relation(fields: [characterId], references: [id], onDelete: Cascade)
-  lineups   LineupDecision[]
-}
-
-model LineupDecision {
-  id         String   @id @default(uuid())
-  rosterId   String
-  week       Int
-  slot       String
-  playerName String
-  commentary String?  @db.Text
-  createdAt  DateTime @default(now())
-
-  roster     Roster   @relation(fields: [rosterId], references: [id], onDelete: Cascade)
+  @@index([team])
+  @@index([position])
 }
 
 model Pick {

@@ -4,15 +4,13 @@
 //   `tsx prisma/seed.ts`          → idempotent upsert path. Safe to re-run any time.
 //                                    `Character.systemPrompt` is write-on-create only,
 //                                    so Task 08's real bibles survive re-runs.
-//   `tsx prisma/seed.ts --reset`  → destructive: wipes Message/PlayerPool/Character/User
-//                                    (Roster + LineupDecision cascade via schema).
+//   `tsx prisma/seed.ts --reset`  → destructive: wipes Message/Character/User.
 //                                    Gated behind RESEED_OK=true env var.
 
 import bcrypt from "bcryptjs";
 import { Prisma, PrismaClient, Role } from "@prisma/client";
 
 const prisma = new PrismaClient();
-const SEASON = Number(process.env.SEED_SEASON ?? 2026);
 const BCRYPT_ROUNDS = 12;
 
 const USER_TEMPLATES = [
@@ -141,31 +139,6 @@ const CHARACTERS: Prisma.CharacterCreateInput[] = [
   },
 ];
 
-type PlayerSeed = Omit<Prisma.PlayerPoolCreateInput, "season">;
-
-const PLAYER_POOL: PlayerSeed[] = [
-  { playerName: "Aaron Rodgers", position: "QB", team: "Free Agent", tagline: "Still thinks ayahuasca is a playbook." },
-  { playerName: "Zach Wilson", position: "QB", team: "Free Agent", tagline: "His mom begged the Jets to start him." },
-  { playerName: "Russell Wilson", position: "QB", team: "Free Agent", tagline: "Let Russ cook (on the bench)." },
-  { playerName: "Baker Mayfield", position: "QB", team: "Buccaneers", tagline: "Progressive spokesman, regressive QB." },
-  { playerName: "Daniel Jones", position: "QB", team: "Free Agent", tagline: "Danny Dimes became Danny Nickels." },
-  { playerName: "Kenny Pickett", position: "QB", team: "Free Agent", tagline: "The small-hands truther." },
-  { playerName: "Mitchell Trubisky", position: "QB", team: "Free Agent", tagline: "Drafted ahead of Mahomes. Never recovered." },
-  { playerName: "Carson Wentz", position: "QB", team: "Free Agent", tagline: "MVP candidate → seven teams in eight years." },
-  { playerName: "Jimmy Garoppolo", position: "QB", team: "Free Agent", tagline: "Handsomest interception machine in football." },
-  { playerName: "Joe Flacco", position: "QB", team: "Free Agent", tagline: "Elite, once, in 2013." },
-  { playerName: "Matt Ryan", position: "QB", team: "Free Agent", tagline: "28-3 is still trending." },
-  { playerName: "Sam Darnold", position: "QB", team: "Free Agent", tagline: "Sees ghosts. Literal ones." },
-  { playerName: "Davis Mills", position: "QB", team: "Free Agent", tagline: "The Texans' plan C, year three." },
-  { playerName: "Gardner Minshew", position: "QB", team: "Free Agent", tagline: "All mustache, no ceiling." },
-  { playerName: "Jameis Winston", position: "QB", team: "Free Agent", tagline: "30 for 30. 30 TDs, 30 INTs." },
-  { playerName: "Zay Jones", position: "WR", team: "Free Agent", tagline: "More drops than catches most weeks." },
-  { playerName: "Dalvin Cook", position: "RB", team: "Free Agent", tagline: "Looked done the second he left Minnesota." },
-  { playerName: "Leonard Fournette", position: "RB", team: "Free Agent", tagline: "Playoff Lenny retired in the regular season." },
-  { playerName: "Cam Akers", position: "RB", team: "Free Agent", tagline: "Tore the same achilles twice." },
-  { playerName: "Allen Robinson", position: "WR", team: "Free Agent", tagline: "Still waiting on a competent QB." },
-];
-
 // Sample chat for TASK 05. Each entry picks its author by name; offsetMin is
 // how many minutes ago the message was "sent". Only planted when the Message
 // table is empty so re-running the seed doesn't dupe.
@@ -217,20 +190,6 @@ async function seedIdempotent() {
           create: c,
         });
       }
-      for (const p of PLAYER_POOL) {
-        await tx.playerPool.upsert({
-          where: {
-            playerName_season: { playerName: p.playerName, season: SEASON },
-          },
-          update: {
-            position: p.position,
-            team: p.team,
-            tagline: p.tagline,
-          },
-          create: { ...p, season: SEASON },
-        });
-      }
-
       // Make sure every active character is summonable in #mensleague.
       // Idempotent — upserts the join rows.
       await linkCharactersToDefaultChannel(tx);
@@ -322,7 +281,7 @@ async function seedMessages(tx: Prisma.TransactionClient) {
 async function seedReset() {
   if (process.env.RESEED_OK !== "true") {
     throw new Error(
-      "db:seed:reset requires RESEED_OK=true. This destroys Message/PlayerPool/Character/User data. Aborting.",
+      "db:seed:reset requires RESEED_OK=true. This destroys Message/Character/User data. Aborting.",
     );
   }
 
@@ -330,9 +289,7 @@ async function seedReset() {
   await prisma.$transaction(
     async (tx) => {
       // Order: children first where cascade doesn't cover them.
-      // Character.onDelete: Cascade handles Roster → LineupDecision automatically.
       await tx.message.deleteMany({});
-      await tx.playerPool.deleteMany({ where: { season: SEASON } });
       await tx.character.deleteMany({});
       await tx.user.deleteMany({});
 
@@ -341,9 +298,6 @@ async function seedReset() {
       }
       for (const c of CHARACTERS) {
         await tx.character.create({ data: c });
-      }
-      for (const p of PLAYER_POOL) {
-        await tx.playerPool.create({ data: { ...p, season: SEASON } });
       }
       await linkCharactersToDefaultChannel(tx);
       await seedMessages(tx);
@@ -362,15 +316,13 @@ async function main() {
     await seedIdempotent();
   }
 
-  const [userCount, characterCount, playerPoolCount, messageCount] =
-    await Promise.all([
-      prisma.user.count(),
-      prisma.character.count(),
-      prisma.playerPool.count({ where: { season: SEASON } }),
-      prisma.message.count(),
-    ]);
+  const [userCount, characterCount, messageCount] = await Promise.all([
+    prisma.user.count(),
+    prisma.character.count(),
+    prisma.message.count(),
+  ]);
   console.log(
-    `Seed complete. users=${userCount} characters=${characterCount} playerPool(season=${SEASON})=${playerPoolCount} messages=${messageCount}`,
+    `Seed complete. users=${userCount} characters=${characterCount} messages=${messageCount}`,
   );
 }
 
