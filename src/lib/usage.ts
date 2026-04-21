@@ -38,6 +38,7 @@ export const OPERATIONS = [
   "media.analyze", // src/lib/ai-tagging.ts Gemini vision
   "admin.suggest_prompt", // src/app/api/admin/suggest-prompt/route.ts
   "admin.suggest_blurb", // src/app/api/admin/suggest-member-blurb/route.ts
+  "image.generate", // src/app/api/conversations/[id]/stream/route.ts Replicate text→image
 ] as const;
 
 export type Operation = (typeof OPERATIONS)[number];
@@ -47,8 +48,9 @@ export type Operation = (typeof OPERATIONS)[number];
 
 export type RecordUsageInput = {
   userId: string | null;
-  provider: "anthropic" | "google";
-  /** Full model ID, e.g. "claude-sonnet-4-6" or "gemini-2.5-flash". */
+  provider: "anthropic" | "google" | "replicate";
+  /** Full model ID, e.g. "claude-sonnet-4-6", "gemini-2.5-flash",
+   *  or a Replicate slug like "black-forest-labs/flux-dev". */
   model: string;
   operation: Operation;
   /** Stitch key for tool-loop iterations that share one user turn. */
