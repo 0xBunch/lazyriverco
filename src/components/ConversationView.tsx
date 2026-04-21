@@ -102,6 +102,12 @@ export function ConversationView({
   // turn. Cleared when user types, clicks a chip, or navigates away.
   const [followups, setFollowups] = useState<string[] | null>(null);
 
+  // Last stream-level error (network, Replicate 4xx/5xx, disabled feature,
+  // model lookup failure, etc.). Rendered inline as a visible banner so
+  // the user isn't left staring at a blank bubble after a failed turn.
+  // Cleared automatically when a new stream starts.
+  const [streamError, setStreamError] = useState<string | null>(null);
+
   // Smoothing buffer — sits between raw SSE token events and the React
   // state that feeds the streaming bubble.
   const pendingTokensRef = useRef<string>("");
@@ -262,6 +268,9 @@ export function ConversationView({
       // Clear any follow-ups from the prior turn — they belong to a
       // specific message, and we're about to make that message stale.
       setFollowups(null);
+      // Clear any error from the prior turn so the banner vanishes as
+      // soon as a retry is in-flight.
+      setStreamError(null);
       setStreamingContent("");
       const abort = new AbortController();
       abortRef.current = abort;
@@ -283,10 +292,16 @@ export function ConversationView({
               .json()
               .catch(() => ({ error: "Stream failed" }));
             console.error("[stream] HTTP error:", errData);
+            setStreamError(
+              typeof errData?.error === "string"
+                ? errData.error
+                : `Request failed (${res.status})`,
+            );
             setStreamingContent(null);
             return;
           }
           if (!res.body) {
+            setStreamError("Stream connection failed.");
             setStreamingContent(null);
             return;
           }
@@ -333,6 +348,11 @@ export function ConversationView({
                   break;
                 case "error":
                   console.error("[stream] server:", data.message);
+                  setStreamError(
+                    typeof data.message === "string"
+                      ? data.message
+                      : "The agent failed to respond.",
+                  );
                   drainPending();
                   setStreamingContent(null);
                   break;
@@ -342,6 +362,9 @@ export function ConversationView({
         } catch (err) {
           if (err instanceof DOMException && err.name === "AbortError") return;
           console.error("[stream] client error:", err);
+          setStreamError(
+            err instanceof Error ? err.message : "Network error.",
+          );
         } finally {
           // Only clear state that belongs to THIS stream. If another
           // `runStream` has already started and reassigned `abortRef`,
@@ -578,6 +601,28 @@ export function ConversationView({
           </div>
         </div>
       </div>
+
+      {/* Stream-level error banner. Distinct from the conversation-load
+          error below (red full-screen) — this is a transient per-turn
+          failure (network, disabled feature, Replicate rejection, etc.)
+          that should stay visible until dismissed or until the user
+          retries. */}
+      {streamError ? (
+        <div
+          role="alert"
+          className="mx-auto mt-2 flex w-full max-w-3xl items-start justify-between gap-3 rounded-lg border border-red-500/40 bg-red-500/10 px-4 py-2 text-xs text-red-200"
+        >
+          <span className="leading-relaxed">{streamError}</span>
+          <button
+            type="button"
+            onClick={() => setStreamError(null)}
+            aria-label="Dismiss error"
+            className="shrink-0 rounded px-1 text-red-300 hover:text-red-100 focus:outline-none focus-visible:ring-2 focus-visible:ring-red-400"
+          >
+            ×
+          </button>
+        </div>
+      ) : null}
 
       {/* Messages */}
       {messages === null ? (

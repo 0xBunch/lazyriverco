@@ -78,6 +78,62 @@ function getReplicate(): Replicate {
   return replicateSingleton;
 }
 
+// Replicate's `run("owner/name")` resolves to the model's "default version"
+// for OFFICIAL models (e.g. black-forest-labs/*) but 404s for community
+// models — those require `owner/name:versionHash`. To spare ops from
+// manually pinning (and re-pinning on every maintainer update), resolve
+// the latest version via the Replicate API and splice it into the
+// identifier. Cache in-process with a short TTL so we don't hit the
+// model-info endpoint on every generation.
+const MODEL_VERSION_TTL_MS = 10 * 60 * 1000;
+const modelVersionCache = new Map<
+  string,
+  { version: string; cachedAt: number }
+>();
+
+async function resolveModelWithVersion(
+  client: Replicate,
+  model: string,
+): Promise<`${string}/${string}` | `${string}/${string}:${string}`> {
+  // Explicit version already provided — use as-is.
+  if (model.includes(":")) {
+    return model as `${string}/${string}:${string}`;
+  }
+
+  const cached = modelVersionCache.get(model);
+  if (cached && Date.now() - cached.cachedAt < MODEL_VERSION_TTL_MS) {
+    return `${model}:${cached.version}` as `${string}/${string}:${string}`;
+  }
+
+  const slash = model.indexOf("/");
+  if (slash <= 0 || slash === model.length - 1) {
+    throw new ImageGenerationError(
+      `Invalid Replicate model identifier: "${model}". Expected "owner/name".`,
+    );
+  }
+  const owner = model.slice(0, slash);
+  const name = model.slice(slash + 1);
+
+  try {
+    const info = await client.models.get(owner, name);
+    const version = info.latest_version?.id;
+    if (!version) {
+      // Model exists but has no exposed latest_version (official models on
+      // some plans). Fall back to the bare identifier — `run` will use the
+      // server-side default version for those.
+      return model as `${string}/${string}`;
+    }
+    modelVersionCache.set(model, { version, cachedAt: Date.now() });
+    return `${model}:${version}` as `${string}/${string}:${string}`;
+  } catch (err) {
+    throw new ImageGenerationError(
+      err instanceof Error
+        ? `Replicate model lookup failed for "${model}": ${err.message}`
+        : `Replicate model lookup failed for "${model}"`,
+    );
+  }
+}
+
 // Model resolution: env overrides win, else mode-defaults apply. An explicit
 // `input.model` (passed by a future tool dispatch) beats everything.
 function resolveModel(mode: GenerateImageMode, override?: string): string {
@@ -237,9 +293,14 @@ export async function generateImage(
   const replicate = getReplicate();
   const modelInput = buildModelInput(model, prompt, mode, aspectRatio);
 
+  // Community models (non-BFL) 404 on `run("owner/name")` — the SDK needs
+  // the version hash. Resolve it up-front so every call lands on a
+  // reachable prediction endpoint.
+  const runnable = await resolveModelWithVersion(replicate, model);
+
   let output: unknown;
   try {
-    output = await replicate.run(model, { input: modelInput });
+    output = await replicate.run(runnable, { input: modelInput });
   } catch (err) {
     throw new ImageGenerationError(
       err instanceof Error ? `Replicate error: ${err.message}` : "Replicate error",
