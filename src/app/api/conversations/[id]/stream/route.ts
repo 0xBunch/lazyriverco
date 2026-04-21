@@ -15,7 +15,9 @@ import {
   generateImage,
   isImageGenerationEnabled,
   ImageGenerationError,
+  resolveModel as resolveImageModel,
 } from "@/lib/imageGen";
+import { recordUsage } from "@/lib/usage";
 
 export const runtime = "nodejs";
 export const maxDuration = 60;
@@ -306,10 +308,20 @@ export async function POST(
           send("user_message", { message: userDTO });
         }
 
+        // Wall-clock from the top of the Replicate call through the DB
+        // write — cost accounting, not TTFB. Matches trackedMessagesCreate
+        // semantics in src/lib/usage.ts.
+        const imageStartedAt = Date.now();
+        // Pre-resolve the model so success AND failure recordUsage calls
+        // attribute to the same slug — no duplicated env-var fallback
+        // logic, no drift with imageGen's own defaults.
+        const imageMode: "sfw" | "nsfw" = nsfwMode ? "nsfw" : "sfw";
+        const imageModel = resolveImageModel(imageMode);
         try {
           const result = await generateImage({
             prompt: trimmedPrompt,
-            mode: nsfwMode ? "nsfw" : "sfw",
+            mode: imageMode,
+            model: imageModel,
           });
 
           // Content stored on the message is just the public URL. The chat
@@ -342,6 +354,24 @@ export async function POST(
             return msg;
           });
 
+          // Fire-and-forget usage record so a tracker DB failure can't
+          // break the stream. recordUsage is internally guarded and never
+          // throws, but .catch keeps lint happy with the floating promise.
+          void recordUsage({
+            userId: user.id,
+            provider: "replicate",
+            model: imageModel,
+            operation: "image.generate",
+            imageCount: 1,
+            conversationId: conversation.id,
+            messageId: replyMessage.id,
+            characterId: imageCharacter.id,
+            requestMs: Date.now() - imageStartedAt,
+            success: true,
+          }).catch((e) => {
+            console.error("[stream] image usage record (success) failed:", e);
+          });
+
           const replyDTO = toDTO(replyMessage);
           if (!replyDTO) {
             send("error", {
@@ -352,6 +382,29 @@ export async function POST(
           }
         } catch (err) {
           console.error("[stream] image generation failed:", err);
+          // Record the failure with zero imageCount — tracks failed
+          // Replicate attempts on /admin/usage without attributing cost.
+          // Uses the same pre-resolved slug as the success path so
+          // success and failure events align on the same model row.
+          void recordUsage({
+            userId: user.id,
+            provider: "replicate",
+            model: imageModel,
+            operation: "image.generate",
+            imageCount: 0,
+            conversationId: conversation.id,
+            characterId: imageCharacter.id,
+            requestMs: Date.now() - imageStartedAt,
+            success: false,
+            errorCode:
+              err instanceof ImageGenerationError
+                ? "ImageGenerationError"
+                : err instanceof Error
+                  ? err.name
+                  : "unknown",
+          }).catch((e) => {
+            console.error("[stream] image usage record (failure) failed:", e);
+          });
           const message =
             err instanceof ImageGenerationError
               ? err.message

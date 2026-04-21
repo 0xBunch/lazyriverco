@@ -135,8 +135,15 @@ async function resolveModelWithVersion(
 }
 
 // Model resolution: env overrides win, else mode-defaults apply. An explicit
-// `input.model` (passed by a future tool dispatch) beats everything.
-function resolveModel(mode: GenerateImageMode, override?: string): string {
+// `input.model` (passed by a future tool dispatch or the stream route's
+// usage-tracking pre-resolution) beats everything. Exported so callers that
+// need to know which model WILL be used — e.g. for usage attribution on a
+// failure that happens before generateImage can return — can get the same
+// answer generateImage itself would compute.
+export function resolveModel(
+  mode: GenerateImageMode,
+  override?: string,
+): string {
   if (override) return override;
   if (mode === "nsfw") {
     return process.env.REPLICATE_NSFW_TXT2IMG_MODEL ?? DEFAULT_NSFW_MODEL;
