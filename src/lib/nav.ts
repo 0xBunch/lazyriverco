@@ -1,11 +1,11 @@
 import {
   IconBallAmericanFootball,
   IconBook2,
+  IconBuildingStadium,
   IconCalendar,
   IconMap,
   IconMessageCircle,
   IconTools,
-  IconTrophy,
   type Icon as TablerIcon,
 } from "@tabler/icons-react";
 
@@ -25,7 +25,7 @@ export const MAIN_NAV_ITEMS = [
   { href: "/chats", icon: IconMessageCircle, label: "Chats" },
   { href: "/calendar", icon: IconCalendar, label: "Calendar" },
   { href: "/library", icon: IconBook2, label: "Library" },
-  { href: "/sports", icon: IconTrophy, label: "Sports" },
+  { href: "/sports", icon: IconBuildingStadium, label: "Sports" },
 ] as const satisfies readonly NavItem[];
 
 // Collapsible "Apps" section — mini-apps built over time. Visible to
