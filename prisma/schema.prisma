@@ -262,6 +262,11 @@ model PlayerPartnerInfo {
   /// was returned or the URL failed validation.
   imageUrl      String?
   sourceUrl     String?
+  /// Instagram username with no leading @. Validated at write time
+  /// against Instagram's handle rules (1-30 chars, alphanumeric +
+  /// underscore + period). Nullable when Gemini couldn't find one.
+  /// UI renders as `@handle` linking to instagram.com/{handle}.
+  instagramHandle String?
   /// 'low' | 'medium' | 'high'. Surfaces on the card when < high so
   /// viewers don't read soft-confidence data as gospel.
   confidence    String   @default("low")

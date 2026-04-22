@@ -733,6 +733,16 @@ function WagResult({
             {partner.notableFact}
           </p>
         ) : null}
+        {partner.instagramHandle ? (
+          <a
+            href={`https://instagram.com/${partner.instagramHandle}`}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="mt-1.5 inline-block text-sm text-claude-300 underline-offset-2 hover:text-claude-200 hover:underline focus:outline-none focus-visible:ring-2 focus-visible:ring-claude-500"
+          >
+            @{partner.instagramHandle}
+          </a>
+        ) : null}
         <div className="mt-2 flex items-center gap-3 text-[11px] text-bone-500">
           {partner.sourceUrl ? (
             <a
