@@ -474,18 +474,19 @@ function PartnerCard({ playerId }: { playerId: string }) {
       ) : (
         <div className="mt-4 flex items-start gap-4">
           {partner.imageUrl && !imageBroken ? (
-            // Hotlinked image from the Wikimedia whitelist (server-side
-            // validator enforces). Native <img> (not next/image) because
-            // we're intentionally not proxying; on load failure fall through
-            // to the initials avatar.
+            // Proxied image — the server-side /partner/image route fetches
+            // partner.imageUrl and streams the bytes back from our origin,
+            // so Instagram/Getty hotlink blockers + CORS + referrer policies
+            // don't apply. On any proxy failure (upstream 403, non-image
+            // response, size cap, whatever) the <img> onError flips to
+            // initials and we move on.
             // eslint-disable-next-line @next/next/no-img-element
             <img
-              src={partner.imageUrl}
+              src={`/api/sleeper/players/${encodeURIComponent(playerId)}/partner/image`}
               alt=""
               width={56}
               height={56}
               loading="lazy"
-              referrerPolicy="no-referrer"
               onError={() => setImageBroken(true)}
               className="h-14 w-14 flex-shrink-0 rounded-full border border-bone-800 bg-bone-900 object-cover"
             />
