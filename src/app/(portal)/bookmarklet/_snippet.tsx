@@ -73,10 +73,14 @@ export function BookmarkletSnippet({ origin }: Props) {
 // obvious from a glance.
 function buildSnippet(origin: string): string {
   const base = `${origin}/library/share`;
+  // popup=1 tells /library/share to render a compact in-popup success
+  // card instead of redirecting to the item detail page (which gets
+  // cropped inside a 560x380 window). PWA share target — same handler,
+  // no popup param — keeps its full-page redirect behavior.
   return [
     "javascript:(()=>{",
-    `var u='${base}?url='+encodeURIComponent(location.href)+'&title='+encodeURIComponent(document.title);`,
-    "window.open(u,'lr_share','width=520,height=320,toolbar=no');",
+    `var u='${base}?popup=1&url='+encodeURIComponent(location.href)+'&title='+encodeURIComponent(document.title);`,
+    "window.open(u,'lr_share','width=560,height=380,toolbar=no');",
     "})();",
   ].join("");
 }
