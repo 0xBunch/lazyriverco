@@ -1,46 +1,48 @@
 import "server-only";
-import type Anthropic from "@anthropic-ai/sdk";
+import { GoogleGenAI } from "@google/genai";
 import { prisma } from "@/lib/prisma";
-import { trackedMessagesCreate } from "@/lib/usage";
+import { trackedGeminiCall } from "@/lib/usage";
 
-// Player partner ("WAG") lookup — Claude + Anthropic's built-in web_search
-// tool. Lazily populates PlayerPartnerInfo on first profile view; subsequent
-// views hit the indexed DB row. The row is always written after the first
-// lookup (including when no partner is found) so we don't re-hit Anthropic
-// on every page load for obscure backups.
+// Player partner ("WAG") lookup — Gemini 2.5 Flash with Google Search
+// grounding. Lazily populates PlayerPartnerInfo on first profile view;
+// subsequent views hit the indexed DB row. The row is always written
+// after the first lookup (including when no partner is found) so we
+// don't re-hit Gemini on every page load for obscure backups.
+//
+// Why Gemini + Google Search over Claude + web_search:
+//   - Google Search grounding returns richer result cards including
+//     image URLs directly (Claude's web_search returns text summaries).
+//   - Cheaper per call at Flash prices.
+//   - Existing repo infra: GOOGLE_GENAI_API_KEY + trackedGeminiCall
+//     wrapper are already wired for the library auto-tagging feature.
+//   - Claude's RLHF is noticeably more reluctant to surface the
+//     romantic partner of a public figure; Gemini is more willing to
+//     name and cite.
 //
 // Design:
 //   - In-flight lock map by playerId (same pattern as sleeper-ai takes)
-//     so a refresh-mid-load double-click can't fan out two Claude calls.
-//   - JSON extraction mirrors the classify-tag-bucket.ts approach:
-//     system prompt commands JSON-only output, post-parse via regex,
-//     defensive narrowing on every field before writing.
-//   - Image URL whitelist at WRITE time — we only store URLs from hosts
-//     whose hotlink policy is either permissive (Wikimedia) or at least
-//     browser-tolerable; unknown hosts are dropped to null so the card
-//     falls back to initials rather than rendering a broken image.
+//     so a refresh-mid-load double-click can't fan out two Gemini calls.
+//   - JSON extraction: Gemini + tools can't co-use responseSchema, so
+//     we command JSON-only output in the system instruction and parse
+//     via the same regex approach classify-tag-bucket.ts uses.
+//   - Image URLs: HTTPS + real image extension gate here; the actual
+//     bytes get re-served via /api/sleeper/players/[id]/partner/image
+//     so cross-origin hotlink blockers don't apply at render time.
 //   - Kill switch via SLEEPER_PARTNERS_ENABLED env — default off so
 //     deploys are safe until ops explicitly flips it.
 
-const PARTNER_MODEL = "claude-haiku-4-5-20251001";
-const PARTNER_MAX_TOKENS = 600;
-// Single timeout; the API route awaits this directly rather than wrapping
-// it in a second Promise.race so we don't end up with two timing mechanisms
-// fighting each other.
-const PARTNER_TIMEOUT_MS = 12_000;
-const MAX_WEB_SEARCHES = 2; // cap the server-side web_search tool
+const PARTNER_MODEL = "gemini-2.5-flash";
+// Single timeout owned by this module; the API route awaits directly
+// rather than wrapping in a second Promise.race.
+const PARTNER_TIMEOUT_MS = 14_000;
 
-// Whitelisted image hosts — Wikimedia only. We considered CDN fallbacks
-// (Instagram scontent.*.cdninstagram.com, Getty media.gettyimages.com)
-// but security-sentinel flagged a real risk: those are open user-content
-// CDNs, so an attacker who seeds a page ranking for a player's name can
-// get Claude to pick an attacker-uploaded image. Wikimedia is moderated +
-// stable + permissively licensed. On players without a Wikipedia partner
-// page the card falls back to initials, which is the correct behavior.
-const IMAGE_HOST_WHITELIST = new Set([
-  "upload.wikimedia.org",
-  "commons.wikimedia.org",
-]);
+// Per KB direction: coverage matters more than origin-whitelist purity
+// for this private 7-user app. We accept image URLs from any HTTPS host,
+// then proxy-fetch them server-side (see /api/sleeper/players/[id]/partner/image)
+// so the browser never makes a cross-origin request. Proxy enforces
+// content-type + size limits at fetch time as the real protection.
+// Extension gate on the URL below catches Claude hallucinating HTML as
+// an image — that's the one check we keep.
 
 // Whitelist of reputable sources we'll render as a clickable "source" link
 // on the card. A plain protocol check isn't enough — Claude pulls live web
@@ -88,24 +90,12 @@ export type PartnerRow = {
   checkedAt: string;
 };
 
-// Anthropic-managed server-side web search. Same shape the main chat path
-// uses in src/lib/anthropic.ts — re-declared here so this module stays
-// import-clean from the chat hot path.
-const WEB_SEARCH_TOOL = {
-  type: "web_search_20250305",
-  name: "web_search",
-  max_uses: MAX_WEB_SEARCHES,
-} as const;
-
-let _client: Anthropic | null = null;
-async function getClient(): Promise<Anthropic> {
+let _client: GoogleGenAI | null = null;
+function getClient(): GoogleGenAI {
   if (_client) return _client;
-  const { default: AnthropicSDK } = await import("@anthropic-ai/sdk");
-  const apiKey = process.env.ANTHROPIC_API_KEY;
-  if (!apiKey || apiKey.startsWith("<")) {
-    throw new Error("ANTHROPIC_API_KEY is not set");
-  }
-  _client = new AnthropicSDK({ apiKey });
+  const apiKey = process.env.GOOGLE_GENAI_API_KEY;
+  if (!apiKey) throw new Error("GOOGLE_GENAI_API_KEY is not set");
+  _client = new GoogleGenAI({ apiKey });
   return _client;
 }
 
@@ -200,49 +190,54 @@ async function runGenerate(playerId: string): Promise<PartnerRow | null> {
     [player.firstName, player.lastName].filter(Boolean).join(" ").trim();
   if (!fullName) return null;
 
-  const systemPrompt = buildSystemPrompt();
+  const systemInstruction = buildSystemPrompt();
   const userPrompt = buildUserPrompt(fullName, player.position, player.team);
 
-  let reply: Anthropic.Messages.Message;
+  let replyText = "";
   try {
-    const client = await getClient();
-    const abort = new AbortController();
-    const timer = setTimeout(() => abort.abort(), PARTNER_TIMEOUT_MS);
-    try {
-      reply = await trackedMessagesCreate(
-        client,
+    const client = getClient();
+    const response = await withTimeout(
+      trackedGeminiCall(
         {
-          // Tagged as context.select so the Claude call attributes to the
-          // narrow "background metadata lookup" usage bucket rather than
-          // the chat path. Keeps /admin/usage honest about what's driving
-          // spend.
           userId: null,
-          operation: "context.select",
-          conversationId: null,
-          characterId: null,
-        },
-        {
+          // Attribute to media.analyze so /admin/usage surfaces this
+          // alongside the other Gemini-backed background lookups.
+          operation: "media.analyze",
           model: PARTNER_MODEL,
-          max_tokens: PARTNER_MAX_TOKENS,
-          temperature: 0.2,
-          system: systemPrompt,
-          tools: [WEB_SEARCH_TOOL],
-          messages: [{ role: "user", content: userPrompt }],
         },
-        { signal: abort.signal },
-      );
-    } finally {
-      clearTimeout(timer);
-    }
+        () =>
+          client.models.generateContent({
+            model: PARTNER_MODEL,
+            config: {
+              systemInstruction,
+              temperature: 0.2,
+              // Google Search grounding — returns search cards + URLs the
+              // model has already chewed on. Can't combine with
+              // responseSchema / responseMimeType:"application/json", so
+              // we parse JSON out of plain text below (same approach as
+              // classify-tag-bucket.ts).
+              tools: [{ googleSearch: {} }],
+            },
+            contents: [
+              {
+                role: "user",
+                parts: [{ text: userPrompt }],
+              },
+            ],
+          }),
+      ),
+      PARTNER_TIMEOUT_MS,
+    );
+    replyText = response.text ?? "";
   } catch (err) {
     console.warn(
-      `[player-partner] Claude call failed for ${playerId}:`,
+      `[player-partner] Gemini call failed for ${playerId}:`,
       err instanceof Error ? err.message : err,
     );
     return null;
   }
 
-  const extracted = extractJson(reply.content);
+  const extracted = extractJsonText(replyText);
   const validated = validate(extracted);
 
   const writeRow = {
@@ -272,16 +267,16 @@ function buildSystemPrompt(): string {
   return [
     "You are a lookup assistant that finds the current, publicly-known romantic partner of an NFL player and returns a strict JSON object. No prose, no markdown fences, no commentary — only JSON.",
     "",
-    "You MAY call the web_search tool up to twice to confirm. Prefer Wikipedia pages when available; fall back to reputable outlets (ESPN, major newspapers, official team sites).",
+    "You MAY call the web_search tool up to twice. Search broadly: Wikipedia, ESPN, People, US Weekly, team sites, Instagram profile mentions, sports news outlets, anything the web surfaces. Whichever source is clearest wins.",
     "",
     "Rules:",
-    "- If the player has a publicly-known wife, fiancée, or long-term girlfriend and you can find a reliable source, fill every field.",
+    "- If the player has a publicly-known wife, fiancée, long-term girlfriend, or partner and you can find a reliable source, fill every field.",
     "- If you cannot find any reliable source, return relationship: \"not_found\" with name: null. Do NOT guess.",
-    "- NEVER invent a partner. NEVER surface rumored, unverified, or tabloid-only relationships.",
-    "- Keep notableFact to one short public-facing fact (career, sport, public profile). No private details, no physical descriptions, no speculation.",
-    "- imageUrl must be a direct-hotlinkable image URL from the partner's Wikipedia page or a reputable outlet. Omit (null) if unsure.",
+    "- NEVER invent a partner. NEVER surface rumored or unverified relationships — only ones that named outlets have reported on.",
+    "- Keep notableFact to one short public-facing fact (career, achievement, public profile). No private details, no speculation.",
+    "- imageUrl: pick the clearest direct-image URL from the web results. Must END IN a real image extension (.jpg, .jpeg, .png, .webp, .gif, .avif — query strings OK after). Photos of the partner alone are best; couple photos are fine as a fallback. Skip it (null) only if you truly can't find a photo.",
     "- sourceUrl must be the web page that verifies the relationship.",
-    "- confidence: \"high\" only when Wikipedia or an official source explicitly states the relationship; \"medium\" for reputable outlets; \"low\" otherwise.",
+    "- confidence: \"high\" when Wikipedia or an official source explicitly states the relationship; \"medium\" for reputable outlets; \"low\" otherwise.",
     "",
     "Output shape (all fields required, nullable where noted):",
     "{",
@@ -312,16 +307,10 @@ function buildUserPrompt(
   return `${context}\n\nLook up this player's current, publicly-known partner and return the JSON object per the system instructions.`;
 }
 
-function extractJson(
-  content: readonly Anthropic.Messages.ContentBlock[],
-): unknown {
-  const text = content
-    .filter((b): b is Anthropic.Messages.TextBlock => b.type === "text")
-    .map((b) => b.text)
-    .join("")
-    .trim();
+function extractJsonText(raw: string): unknown {
+  const text = raw.trim();
   if (!text) return null;
-  // Strip code fences defensively even though we told Claude not to emit them.
+  // Strip code fences defensively even though we told Gemini not to emit them.
   const stripped = text
     .replace(/^```(?:json)?\s*/i, "")
     .replace(/```\s*$/i, "")
@@ -333,6 +322,20 @@ function extractJson(
   } catch {
     return null;
   }
+}
+
+// Generic timeout race for Gemini's generateContent (which doesn't take
+// an AbortSignal the way the Anthropic SDK does). Matches the pattern
+// used by src/lib/ai-tagging.ts.
+function withTimeout<T>(p: Promise<T>, ms: number): Promise<T> {
+  let timer: ReturnType<typeof setTimeout>;
+  const timeout = new Promise<never>((_, reject) => {
+    timer = setTimeout(
+      () => reject(new Error(`gemini-partner timeout after ${ms}ms`)),
+      ms,
+    );
+  });
+  return Promise.race([p, timeout]).finally(() => clearTimeout(timer));
 }
 
 type Validated = {
@@ -418,13 +421,10 @@ function sanitizeImageUrl(raw: string): string | null {
     const u = new URL(raw);
     if (u.protocol !== "https:") return null;
     if (u.username || u.password) return null;
-    if (raw.length > 1024) return null;
-    // Whitelist check — if the host isn't on the list we drop the URL so the
-    // UI falls back to initials rather than rendering attacker-controlled
-    // bytes from an open-CDN host.
-    if (!IMAGE_HOST_WHITELIST.has(u.hostname.toLowerCase())) return null;
-    // Last line of defense: require a real image extension. Stops Claude
-    // from mis-labeling an HTML page as an image URL.
+    if (raw.length > 2048) return null;
+    // Require a real image extension. Stops Claude from mis-labeling an
+    // HTML page URL as an image; also filters out the tracking-pixel
+    // nonsense you sometimes get in wire-service photo pages.
     const path = u.pathname.toLowerCase();
     if (!/\.(jpe?g|png|webp|gif|avif)(\?|$)/.test(path)) return null;
     return u.toString();
