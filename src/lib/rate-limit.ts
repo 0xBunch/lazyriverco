@@ -42,7 +42,11 @@ export type RateLimitBucket =
   // of ~11k playerIds would burn ~33k Claude calls if uncapped — tight
   // per-minute cap + generous per-day cap lets a session casually browse
   // every roster without tripping, but blocks a script dead.
-  | "player.take";
+  | "player.take"
+  // MLF player partner lookup — each cold-cache hit fires a Claude call
+  // with the server-side web_search tool (more expensive per call than
+  // takes). Tighter cap since a scripted sweep would burn search quota.
+  | "player.partner";
 
 export type RateLimitOptions = {
   maxPerMinute: number;

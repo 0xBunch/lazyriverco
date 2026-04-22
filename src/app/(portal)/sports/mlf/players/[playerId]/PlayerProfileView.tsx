@@ -5,6 +5,7 @@ import Image from "next/image";
 import Link from "next/link";
 import { cn } from "@/lib/utils";
 import type { PlayerProfile } from "@/lib/sleeper";
+import type { PartnerRow } from "@/lib/player-partner";
 
 type TakeRow = {
   characterId: string;
@@ -13,7 +14,13 @@ type TakeRow = {
   take: string;
 };
 
-export function PlayerProfileView({ profile }: { profile: PlayerProfile }) {
+export function PlayerProfileView({
+  profile,
+  partnersEnabled,
+}: {
+  profile: PlayerProfile;
+  partnersEnabled: boolean;
+}) {
   if (profile.notFound) {
     return (
       <div className="rounded-lg border border-bone-800 bg-bone-900/40 p-6 text-center">
@@ -40,7 +47,14 @@ export function PlayerProfileView({ profile }: { profile: PlayerProfile }) {
         />
       ) : null}
       <RosterBadges profile={profile} />
-      <AgentTakes playerId={profile.playerId} />
+      {partnersEnabled ? (
+        <div className="grid gap-6 md:grid-cols-2">
+          <AgentTakes playerId={profile.playerId} />
+          <PartnerCard playerId={profile.playerId} />
+        </div>
+      ) : (
+        <AgentTakes playerId={profile.playerId} />
+      )}
     </div>
   );
 }
@@ -396,6 +410,137 @@ function AgentTakes({ playerId }: { playerId: string }) {
       )}
     </section>
   );
+}
+
+const RELATIONSHIP_LABEL: Record<PartnerRow["relationship"], string> = {
+  wife: "Wife",
+  fiancee: "Fiancée",
+  girlfriend: "Girlfriend",
+  partner: "Partner",
+  not_found: "—",
+};
+
+function PartnerCard({ playerId }: { playerId: string }) {
+  const [partner, setPartner] = useState<PartnerRow | null | undefined>(
+    undefined,
+  );
+  const [error, setError] = useState<string | null>(null);
+  const [imageBroken, setImageBroken] = useState(false);
+
+  useEffect(() => {
+    let cancelled = false;
+    setPartner(undefined);
+    setError(null);
+    setImageBroken(false);
+    fetch(`/api/sleeper/players/${encodeURIComponent(playerId)}/partner`)
+      .then((res) => res.json())
+      .then((body: { partner?: PartnerRow | null; error?: string }) => {
+        if (cancelled) return;
+        if (body.error) {
+          setError(body.error);
+          setPartner(null);
+          return;
+        }
+        setPartner(body.partner ?? null);
+      })
+      .catch((err) => {
+        if (cancelled) return;
+        setError(err instanceof Error ? err.message : "Failed to load");
+        setPartner(null);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [playerId]);
+
+  return (
+    <section className="rounded-lg border border-bone-800 bg-bone-900/40 p-4">
+      <h2 className="font-display text-sm font-semibold uppercase tracking-wider text-bone-300">
+        Partner
+      </h2>
+      {partner === undefined ? (
+        <div className="mt-4 flex items-start gap-4">
+          <div className="h-14 w-14 flex-shrink-0 animate-pulse rounded-full bg-bone-800/60" />
+          <div className="flex-1 space-y-2">
+            <div className="h-4 w-2/3 animate-pulse rounded bg-bone-800/60" />
+            <div className="h-3 w-full animate-pulse rounded bg-bone-800/40" />
+            <div className="h-3 w-4/5 animate-pulse rounded bg-bone-800/40" />
+          </div>
+        </div>
+      ) : partner === null || partner.relationship === "not_found" ? (
+        <p className="mt-2 text-sm text-bone-400">
+          {error ?? "No public info found."}
+        </p>
+      ) : (
+        <div className="mt-4 flex items-start gap-4">
+          {partner.imageUrl && !imageBroken ? (
+            // Hotlinked image from the Wikimedia whitelist (server-side
+            // validator enforces). Native <img> (not next/image) because
+            // we're intentionally not proxying; on load failure fall through
+            // to the initials avatar.
+            // eslint-disable-next-line @next/next/no-img-element
+            <img
+              src={partner.imageUrl}
+              alt=""
+              width={56}
+              height={56}
+              loading="lazy"
+              referrerPolicy="no-referrer"
+              onError={() => setImageBroken(true)}
+              className="h-14 w-14 flex-shrink-0 rounded-full border border-bone-800 bg-bone-900 object-cover"
+            />
+          ) : (
+            <div
+              aria-hidden="true"
+              className="flex h-14 w-14 flex-shrink-0 items-center justify-center rounded-full border border-bone-800 bg-bone-900 text-sm text-bone-400"
+            >
+              {partner.name ? initials(partner.name) : "??"}
+            </div>
+          )}
+          <div className="min-w-0 flex-1">
+            <div className="flex items-baseline gap-2">
+              <h3 className="truncate font-display text-base font-semibold text-bone-50 text-balance">
+                {partner.name ?? "Unknown"}
+              </h3>
+              {/* Single claude-accent spot on the card — relationship is
+                  the one semantic signal that earns the dusty-rose. */}
+              <span className="flex-shrink-0 rounded-full border border-claude-700/70 px-2 py-0.5 text-[11px] uppercase tracking-widest text-claude-200">
+                {RELATIONSHIP_LABEL[partner.relationship]}
+              </span>
+            </div>
+            {partner.notableFact ? (
+              <p className="mt-1.5 text-sm text-bone-200 text-pretty">
+                {partner.notableFact}
+              </p>
+            ) : null}
+            <div className="mt-2 flex items-center gap-3 text-[11px] text-bone-500">
+              {partner.sourceUrl ? (
+                <a
+                  href={partner.sourceUrl}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="truncate hover:text-bone-300 focus:outline-none focus-visible:ring-2 focus-visible:ring-claude-500"
+                >
+                  source · {sourceDomain(partner.sourceUrl)}
+                </a>
+              ) : null}
+              {partner.confidence === "low" ? (
+                <span className="italic text-bone-500">low confidence</span>
+              ) : null}
+            </div>
+          </div>
+        </div>
+      )}
+    </section>
+  );
+}
+
+function sourceDomain(url: string): string {
+  try {
+    return new URL(url).hostname.replace(/^www\./, "");
+  } catch {
+    return "source";
+  }
 }
 
 function initials(name: string): string {
