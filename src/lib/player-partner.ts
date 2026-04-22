@@ -32,9 +32,13 @@ import { trackedGeminiCall } from "@/lib/usage";
 //     deploys are safe until ops explicitly flips it.
 
 const PARTNER_MODEL = "gemini-2.5-flash";
-// Single timeout owned by this module; the API route awaits directly
-// rather than wrapping in a second Promise.race.
-const PARTNER_TIMEOUT_MS = 14_000;
+// Manual-trigger pipeline — the UI button explicitly opts into the wait,
+// so we give Gemini real room. 14s was too tight for Google Search
+// grounding; empirically 25-30s covers even the slow-news-day searches.
+const PARTNER_TIMEOUT_MS = 30_000;
+// Wikipedia REST summary API — used as a fallback image source when
+// Gemini returns a name but no usable image URL. No auth, cheap, stable.
+const WIKIPEDIA_TIMEOUT_MS = 5_000;
 
 // Per KB direction: coverage matters more than origin-whitelist purity
 // for this private 7-user app. We accept image URLs from any HTTPS host,
@@ -168,8 +172,17 @@ export function generatePlayerPartner(
 async function runGenerate(playerId: string): Promise<PartnerRow | null> {
   if (!isPartnersEnabled()) return null;
 
+  // Manual trigger semantics: if a NON-not_found row exists we reuse it
+  // (avoids hammering Gemini on repeat clicks). A cached not_found row,
+  // however, counts as "user asked us to try again" — we delete it and
+  // re-run the pipeline. Keeps the "re-roll" affordance simple.
   const cached = await getPlayerPartner(playerId);
-  if (cached) return cached;
+  if (cached && cached.relationship !== "not_found") return cached;
+  if (cached?.relationship === "not_found") {
+    await prisma.playerPartnerInfo.delete({ where: { playerId } }).catch(() => {
+      /* race with another in-flight generator is benign */
+    });
+  }
 
   const player = await prisma.sleeperPlayer.findUnique({
     where: { playerId },
@@ -240,12 +253,22 @@ async function runGenerate(playerId: string): Promise<PartnerRow | null> {
   const extracted = extractJsonText(replyText);
   const validated = validate(extracted);
 
+  // If Gemini named someone but didn't return a usable image URL, try
+  // Wikipedia's REST summary endpoint. Many famous WAGs have their own
+  // page with a Commons-licensed thumbnail; those that don't just fall
+  // back to null + initials. 5s budget so this doesn't tank the overall
+  // manual-trigger wait.
+  let imageUrl = validated.imageUrl;
+  if (!imageUrl && validated.name && validated.relationship !== "not_found") {
+    imageUrl = await fetchWikipediaThumbnail(validated.name).catch(() => null);
+  }
+
   const writeRow = {
     playerId,
     name: validated.name,
     relationship: validated.relationship,
     notableFact: validated.notableFact,
-    imageUrl: validated.imageUrl,
+    imageUrl,
     sourceUrl: validated.sourceUrl,
     confidence: validated.confidence,
   };
@@ -336,6 +359,45 @@ function withTimeout<T>(p: Promise<T>, ms: number): Promise<T> {
     );
   });
   return Promise.race([p, timeout]).finally(() => clearTimeout(timer));
+}
+
+/** Fetch a Wikimedia-hosted thumbnail for a named public figure via
+ *  Wikipedia's REST summary endpoint. Returns null if the name doesn't
+ *  resolve to a page, the page has no thumbnail, or the URL isn't the
+ *  expected upload.wikimedia.org host. No auth required; ~300ms typical. */
+async function fetchWikipediaThumbnail(name: string): Promise<string | null> {
+  const slug = encodeURIComponent(name.trim().replace(/\s+/g, "_"));
+  const url = `https://en.wikipedia.org/api/rest_v1/page/summary/${slug}`;
+  const res = await fetch(url, {
+    headers: {
+      "User-Agent":
+        "LazyRiverCo/1.0 (+https://lazyriver.co) partner-lookup",
+      Accept: "application/json",
+    },
+    signal: AbortSignal.timeout(WIKIPEDIA_TIMEOUT_MS),
+    cache: "no-store",
+  });
+  if (!res.ok) return null;
+  const body = (await res.json()) as {
+    thumbnail?: { source?: string };
+    originalimage?: { source?: string };
+    type?: string;
+  };
+  // Disambiguation pages give multiple candidate names — don't guess.
+  if (body.type === "disambiguation") return null;
+  const candidate = body.originalimage?.source ?? body.thumbnail?.source;
+  if (!candidate) return null;
+  try {
+    const u = new URL(candidate);
+    if (u.protocol !== "https:") return null;
+    const host = u.hostname.toLowerCase();
+    if (host !== "upload.wikimedia.org" && host !== "commons.wikimedia.org") {
+      return null;
+    }
+    return u.toString();
+  } catch {
+    return null;
+  }
 }
 
 type Validated = {

@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import Image from "next/image";
 import Link from "next/link";
 import { cn } from "@/lib/utils";
@@ -420,16 +420,44 @@ const RELATIONSHIP_LABEL: Record<PartnerRow["relationship"], string> = {
   not_found: "—",
 };
 
+// Three-phase WAGFINDER search lifecycle:
+//   - idle: no cached row yet, button visible
+//   - searching: POST in flight, animated loader + rotating status
+//   - result: populated row rendered (or "no public info found" if
+//     Gemini came back not_found)
+// We do a lightweight GET on mount to discover whether there's already
+// a cached hit — that's instant and doesn't burn Gemini. The button
+// explicitly kicks off the expensive POST pipeline.
+
+type WagStatus = "idle" | "searching" | "result" | "error";
+
+// Status messages cycled through while the POST is in flight. Rotating
+// copy sells the "it's actually doing work" feeling instead of a silent
+// spinner for 20s. Order mirrors what the server actually does.
+const WAG_SEARCH_PHASES = [
+  "Combing the open web…",
+  "Cross-checking sources…",
+  "Looking for a photo…",
+  "Almost there…",
+];
+const WAG_PHASE_INTERVAL_MS = 3500;
+
 function PartnerCard({ playerId }: { playerId: string }) {
   const [partner, setPartner] = useState<PartnerRow | null | undefined>(
     undefined,
   );
+  const [status, setStatus] = useState<WagStatus>("idle");
   const [error, setError] = useState<string | null>(null);
   const [imageBroken, setImageBroken] = useState(false);
+  const [phaseIndex, setPhaseIndex] = useState(0);
 
+  // On mount: read-only cache lookup. If a row exists (even a not_found
+  // one), drop straight into the result state — the user already asked
+  // before. If it's genuinely empty, idle state shows the button.
   useEffect(() => {
     let cancelled = false;
     setPartner(undefined);
+    setStatus("idle");
     setError(null);
     setImageBroken(false);
     fetch(`/api/sleeper/players/${encodeURIComponent(playerId)}/partner`)
@@ -438,101 +466,290 @@ function PartnerCard({ playerId }: { playerId: string }) {
         if (cancelled) return;
         if (body.error) {
           setError(body.error);
-          setPartner(null);
+          setStatus("error");
           return;
         }
-        setPartner(body.partner ?? null);
+        if (body.partner) {
+          setPartner(body.partner);
+          setStatus("result");
+        } else {
+          setPartner(null);
+          setStatus("idle");
+        }
       })
       .catch((err) => {
         if (cancelled) return;
         setError(err instanceof Error ? err.message : "Failed to load");
-        setPartner(null);
+        setStatus("error");
       });
     return () => {
       cancelled = true;
     };
   }, [playerId]);
 
+  // Rotate the "searching…" status text. Stops as soon as we leave the
+  // searching state.
+  useEffect(() => {
+    if (status !== "searching") return;
+    setPhaseIndex(0);
+    const t = setInterval(() => {
+      setPhaseIndex((i) => (i + 1) % WAG_SEARCH_PHASES.length);
+    }, WAG_PHASE_INTERVAL_MS);
+    return () => clearInterval(t);
+  }, [status]);
+
+  const runFinder = useCallback(async () => {
+    setStatus("searching");
+    setError(null);
+    setImageBroken(false);
+    try {
+      const res = await fetch(
+        `/api/sleeper/players/${encodeURIComponent(playerId)}/partner`,
+        { method: "POST" },
+      );
+      const body = (await res.json()) as {
+        partner?: PartnerRow | null;
+        error?: string;
+      };
+      if (!res.ok) {
+        setError(body.error ?? `Search failed (${res.status})`);
+        setStatus("error");
+        return;
+      }
+      setPartner(body.partner ?? null);
+      setStatus("result");
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Search failed");
+      setStatus("error");
+    }
+  }, [playerId]);
+
   return (
     <section className="rounded-lg border border-bone-800 bg-bone-900/40 p-4">
-      <h2 className="font-display text-sm font-semibold uppercase tracking-wider text-bone-300">
-        Partner
-      </h2>
-      {partner === undefined ? (
-        <div className="mt-4 flex items-start gap-4">
-          <div className="h-14 w-14 flex-shrink-0 animate-pulse rounded-full bg-bone-800/60" />
-          <div className="flex-1 space-y-2">
-            <div className="h-4 w-2/3 animate-pulse rounded bg-bone-800/60" />
-            <div className="h-3 w-full animate-pulse rounded bg-bone-800/40" />
-            <div className="h-3 w-4/5 animate-pulse rounded bg-bone-800/40" />
-          </div>
-        </div>
+      <div className="flex items-baseline justify-between gap-2">
+        <h2 className="font-display text-sm font-semibold uppercase tracking-wider text-bone-300">
+          WAG
+        </h2>
+        {status === "result" &&
+        partner &&
+        partner.relationship !== "not_found" ? (
+          <button
+            type="button"
+            onClick={runFinder}
+            className="text-[11px] uppercase tracking-wider text-bone-500 hover:text-bone-300 focus:outline-none focus-visible:ring-2 focus-visible:ring-claude-500"
+            title="Re-run WAGFINDER"
+          >
+            re-roll
+          </button>
+        ) : null}
+      </div>
+
+      {status === "idle" || partner === undefined ? (
+        <WagIdle onClick={runFinder} disabled={partner === undefined} />
+      ) : status === "searching" ? (
+        <WagSearching phase={WAG_SEARCH_PHASES[phaseIndex]!} />
+      ) : status === "error" ? (
+        <WagError message={error} onRetry={runFinder} />
       ) : partner === null || partner.relationship === "not_found" ? (
-        <p className="mt-2 text-sm text-bone-400">
-          {error ?? "No public info found."}
-        </p>
+        <WagNotFound onRetry={runFinder} />
       ) : (
-        <div className="mt-4 flex items-start gap-4">
-          {partner.imageUrl && !imageBroken ? (
-            // Proxied image — the server-side /partner/image route fetches
-            // partner.imageUrl and streams the bytes back from our origin,
-            // so Instagram/Getty hotlink blockers + CORS + referrer policies
-            // don't apply. On any proxy failure (upstream 403, non-image
-            // response, size cap, whatever) the <img> onError flips to
-            // initials and we move on.
-            // eslint-disable-next-line @next/next/no-img-element
-            <img
-              src={`/api/sleeper/players/${encodeURIComponent(playerId)}/partner/image`}
-              alt=""
-              width={56}
-              height={56}
-              loading="lazy"
-              onError={() => setImageBroken(true)}
-              className="h-14 w-14 flex-shrink-0 rounded-full border border-bone-800 bg-bone-900 object-cover"
-            />
-          ) : (
-            <div
-              aria-hidden="true"
-              className="flex h-14 w-14 flex-shrink-0 items-center justify-center rounded-full border border-bone-800 bg-bone-900 text-sm text-bone-400"
-            >
-              {partner.name ? initials(partner.name) : "??"}
-            </div>
-          )}
-          <div className="min-w-0 flex-1">
-            <div className="flex items-baseline gap-2">
-              <h3 className="truncate font-display text-base font-semibold text-bone-50 text-balance">
-                {partner.name ?? "Unknown"}
-              </h3>
-              {/* Single claude-accent spot on the card — relationship is
-                  the one semantic signal that earns the dusty-rose. */}
-              <span className="flex-shrink-0 rounded-full border border-claude-700/70 px-2 py-0.5 text-[11px] uppercase tracking-widest text-claude-200">
-                {RELATIONSHIP_LABEL[partner.relationship]}
-              </span>
-            </div>
-            {partner.notableFact ? (
-              <p className="mt-1.5 text-sm text-bone-200 text-pretty">
-                {partner.notableFact}
-              </p>
-            ) : null}
-            <div className="mt-2 flex items-center gap-3 text-[11px] text-bone-500">
-              {partner.sourceUrl ? (
-                <a
-                  href={partner.sourceUrl}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="truncate hover:text-bone-300 focus:outline-none focus-visible:ring-2 focus-visible:ring-claude-500"
-                >
-                  source · {sourceDomain(partner.sourceUrl)}
-                </a>
-              ) : null}
-              {partner.confidence === "low" ? (
-                <span className="italic text-bone-500">low confidence</span>
-              ) : null}
-            </div>
-          </div>
-        </div>
+        <WagResult
+          playerId={playerId}
+          partner={partner}
+          imageBroken={imageBroken}
+          onImageBroken={() => setImageBroken(true)}
+        />
       )}
     </section>
+  );
+}
+
+function WagIdle({
+  onClick,
+  disabled,
+}: {
+  onClick: () => void;
+  disabled: boolean;
+}) {
+  return (
+    <div className="mt-4 flex flex-col items-start gap-3">
+      <p className="text-sm text-bone-300 text-pretty">
+        Run WAGFINDER to scour the web for this player&apos;s wife, fiancée,
+        or girlfriend. Takes about 15-30 seconds; result is cached after.
+      </p>
+      <button
+        type="button"
+        onClick={onClick}
+        disabled={disabled}
+        className={cn(
+          "inline-flex items-center gap-2 rounded-md border border-claude-700 bg-claude-900/30 px-3 py-1.5 text-sm font-medium text-claude-100 transition-colors",
+          "hover:border-claude-500 hover:bg-claude-900/60 hover:text-claude-50",
+          "focus:outline-none focus-visible:ring-2 focus-visible:ring-claude-500",
+          "disabled:cursor-not-allowed disabled:opacity-50",
+        )}
+      >
+        <span aria-hidden="true" className="text-xs">
+          ♡
+        </span>
+        Run WAGFINDER
+      </button>
+    </div>
+  );
+}
+
+function WagSearching({ phase }: { phase: string }) {
+  return (
+    <div className="mt-4 flex items-center gap-4">
+      <div
+        aria-hidden="true"
+        className="flex h-14 w-14 flex-shrink-0 items-center justify-center rounded-full border border-bone-800 bg-bone-900"
+      >
+        <WagSpinner />
+      </div>
+      <div className="min-w-0 flex-1">
+        <div className="font-display text-base font-semibold text-bone-100">
+          WAGFINDER working…
+        </div>
+        <div
+          aria-live="polite"
+          aria-atomic="true"
+          className="mt-1 text-sm text-bone-400 text-pretty transition-opacity"
+        >
+          {phase}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function WagSpinner() {
+  // Bone-palette concentric-ring spinner. Uses animate-spin (compositor-
+  // only transform) + a conic gradient mask so we stay inside the
+  // "no gratuitous motion, compositor props only" constraint.
+  return (
+    <span
+      role="status"
+      aria-label="Searching"
+      className="relative inline-block h-6 w-6"
+    >
+      <span className="absolute inset-0 rounded-full border-2 border-bone-800" />
+      <span className="absolute inset-0 animate-spin rounded-full border-2 border-transparent border-t-claude-400 border-r-claude-500" />
+    </span>
+  );
+}
+
+function WagNotFound({ onRetry }: { onRetry: () => void }) {
+  return (
+    <div className="mt-3 flex flex-col items-start gap-2">
+      <p className="text-sm text-bone-400">
+        No public info found. Could be a private player, or the web&apos;s
+        quiet on this one.
+      </p>
+      <button
+        type="button"
+        onClick={onRetry}
+        className="text-[11px] uppercase tracking-wider text-bone-500 hover:text-bone-300 focus:outline-none focus-visible:ring-2 focus-visible:ring-claude-500"
+      >
+        try again
+      </button>
+    </div>
+  );
+}
+
+function WagError({
+  message,
+  onRetry,
+}: {
+  message: string | null;
+  onRetry: () => void;
+}) {
+  return (
+    <div className="mt-3 flex flex-col items-start gap-2">
+      <p className="text-sm text-claude-200 text-pretty">
+        {message ?? "Search failed."}
+      </p>
+      <button
+        type="button"
+        onClick={onRetry}
+        className="inline-flex items-center gap-2 rounded-md border border-claude-700 bg-claude-900/30 px-3 py-1.5 text-sm font-medium text-claude-100 hover:border-claude-500 focus:outline-none focus-visible:ring-2 focus-visible:ring-claude-500"
+      >
+        Try again
+      </button>
+    </div>
+  );
+}
+
+function WagResult({
+  playerId,
+  partner,
+  imageBroken,
+  onImageBroken,
+}: {
+  playerId: string;
+  partner: PartnerRow;
+  imageBroken: boolean;
+  onImageBroken: () => void;
+}) {
+  return (
+    <div className="mt-4 flex items-start gap-4">
+      {partner.imageUrl && !imageBroken ? (
+        // Proxied image — the server-side /partner/image route fetches
+        // partner.imageUrl and streams the bytes back from our origin,
+        // so Instagram/Getty hotlink blockers + CORS + referrer policies
+        // don't apply. On any proxy failure (upstream 403, non-image
+        // response, size cap, whatever) the <img> onError flips to
+        // initials and we move on.
+        // eslint-disable-next-line @next/next/no-img-element
+        <img
+          src={`/api/sleeper/players/${encodeURIComponent(playerId)}/partner/image`}
+          alt=""
+          width={56}
+          height={56}
+          loading="lazy"
+          onError={onImageBroken}
+          className="h-14 w-14 flex-shrink-0 rounded-full border border-bone-800 bg-bone-900 object-cover"
+        />
+      ) : (
+        <div
+          aria-hidden="true"
+          className="flex h-14 w-14 flex-shrink-0 items-center justify-center rounded-full border border-bone-800 bg-bone-900 text-sm text-bone-400"
+        >
+          {partner.name ? initials(partner.name) : "??"}
+        </div>
+      )}
+      <div className="min-w-0 flex-1">
+        <div className="flex items-baseline gap-2">
+          <h3 className="truncate font-display text-base font-semibold text-bone-50 text-balance">
+            {partner.name ?? "Unknown"}
+          </h3>
+          {/* Single claude-accent spot on the card — relationship is
+              the one semantic signal that earns the dusty-rose. */}
+          <span className="flex-shrink-0 rounded-full border border-claude-700/70 px-2 py-0.5 text-[11px] uppercase tracking-widest text-claude-200">
+            {RELATIONSHIP_LABEL[partner.relationship]}
+          </span>
+        </div>
+        {partner.notableFact ? (
+          <p className="mt-1.5 text-sm text-bone-200 text-pretty">
+            {partner.notableFact}
+          </p>
+        ) : null}
+        <div className="mt-2 flex items-center gap-3 text-[11px] text-bone-500">
+          {partner.sourceUrl ? (
+            <a
+              href={partner.sourceUrl}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="truncate hover:text-bone-300 focus:outline-none focus-visible:ring-2 focus-visible:ring-claude-500"
+            >
+              source · {sourceDomain(partner.sourceUrl)}
+            </a>
+          ) : null}
+          {partner.confidence === "low" ? (
+            <span className="italic text-bone-500">low confidence</span>
+          ) : null}
+        </div>
+      </div>
+    </div>
   );
 }
 
