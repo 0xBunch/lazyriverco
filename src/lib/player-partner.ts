@@ -90,6 +90,7 @@ export type PartnerRow = {
   notableFact: string | null;
   imageUrl: string | null;
   sourceUrl: string | null;
+  instagramHandle: string | null;
   confidence: "low" | "medium" | "high";
   checkedAt: string;
 };
@@ -110,6 +111,7 @@ function toPartnerRow(r: {
   notableFact: string | null;
   imageUrl: string | null;
   sourceUrl: string | null;
+  instagramHandle: string | null;
   confidence: string;
   checkedAt: Date;
 }): PartnerRow {
@@ -120,6 +122,7 @@ function toPartnerRow(r: {
     notableFact: r.notableFact,
     imageUrl: r.imageUrl,
     sourceUrl: r.sourceUrl,
+    instagramHandle: r.instagramHandle,
     confidence: narrowConfidence(r.confidence),
     checkedAt: r.checkedAt.toISOString(),
   };
@@ -270,6 +273,7 @@ async function runGenerate(playerId: string): Promise<PartnerRow | null> {
     notableFact: validated.notableFact,
     imageUrl,
     sourceUrl: validated.sourceUrl,
+    instagramHandle: validated.instagramHandle,
     confidence: validated.confidence,
   };
 
@@ -299,6 +303,7 @@ function buildSystemPrompt(): string {
     "- Keep notableFact to one short public-facing fact (career, achievement, public profile). No private details, no speculation.",
     "- imageUrl: pick the clearest direct-image URL from the web results. Must END IN a real image extension (.jpg, .jpeg, .png, .webp, .gif, .avif — query strings OK after). Photos of the partner alone are best; couple photos are fine as a fallback. Skip it (null) only if you truly can't find a photo.",
     "- sourceUrl must be the web page that verifies the relationship.",
+    "- instagramHandle: the partner's own verified Instagram username WITHOUT the @. Pick only a handle that a source explicitly attributes to this person (their Wikipedia page, a major outlet's profile, their own verified account). NEVER invent or guess a handle. NEVER return a player's handle or a fan account. Null if unsure. Format: 1-30 chars, lowercase letters/digits/underscore/period only.",
     "- confidence: \"high\" when Wikipedia or an official source explicitly states the relationship; \"medium\" for reputable outlets; \"low\" otherwise.",
     "",
     "Output shape (all fields required, nullable where noted):",
@@ -308,6 +313,7 @@ function buildSystemPrompt(): string {
     "  \"notableFact\": string | null,",
     "  \"imageUrl\": string | null,",
     "  \"sourceUrl\": string | null,",
+    "  \"instagramHandle\": string | null,",
     "  \"confidence\": \"low\" | \"medium\" | \"high\"",
     "}",
     "",
@@ -406,6 +412,7 @@ type Validated = {
   notableFact: string | null;
   imageUrl: string | null;
   sourceUrl: string | null;
+  instagramHandle: string | null;
   confidence: "low" | "medium" | "high";
 };
 
@@ -416,6 +423,7 @@ function validate(raw: unknown): Validated {
     notableFact: null,
     imageUrl: null,
     sourceUrl: null,
+    instagramHandle: null,
     confidence: "low",
   };
   if (!raw || typeof raw !== "object") return fallback;
@@ -439,11 +447,40 @@ function validate(raw: unknown): Validated {
     typeof o.sourceUrl === "string" ? sanitizeHttpUrl(o.sourceUrl) : null;
   const imageUrl =
     typeof o.imageUrl === "string" ? sanitizeImageUrl(o.imageUrl) : null;
+  const instagramHandle =
+    relationship === "not_found"
+      ? null
+      : typeof o.instagramHandle === "string"
+        ? sanitizeInstagramHandle(o.instagramHandle)
+        : null;
   const confidence = narrowConfidence(
     typeof o.confidence === "string" ? o.confidence : "low",
   );
 
-  return { name, relationship, notableFact, imageUrl, sourceUrl, confidence };
+  return {
+    name,
+    relationship,
+    notableFact,
+    imageUrl,
+    sourceUrl,
+    instagramHandle,
+    confidence,
+  };
+}
+
+/** Instagram handle: lowercase, 1-30 chars, letters/digits/underscore/period.
+ *  Strip a leading @ if Claude/Gemini snuck one in despite the system
+ *  prompt. Returns null on anything that doesn't match so we never store
+ *  a bogus value that builds a broken instagram.com URL. */
+function sanitizeInstagramHandle(raw: string): string | null {
+  const trimmed = raw.trim().replace(/^@+/, "").toLowerCase();
+  if (!/^[a-z0-9_.]{1,30}$/.test(trimmed)) return null;
+  // Reject a few obviously-broken patterns: all dots, leading/trailing dot,
+  // consecutive dots — Instagram itself rejects these, so they're noise.
+  if (/^[.]+$/.test(trimmed)) return null;
+  if (trimmed.startsWith(".") || trimmed.endsWith(".")) return null;
+  if (trimmed.includes("..")) return null;
+  return trimmed;
 }
 
 function clip(s: string, max: number): string {
