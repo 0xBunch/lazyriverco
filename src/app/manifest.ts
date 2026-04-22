@@ -1,5 +1,27 @@
 import type { MetadataRoute } from "next";
 
+// Web Share Target API — lets an installed PWA appear in iOS/Android
+// share sheets. When a user hits Share → Lazy River on any page, the
+// browser navigates to `action` with the shared payload in the query
+// params, and our /library/share handler ingests it.
+//
+// Next.js 14's MetadataRoute.Manifest types `share_target.params` as an
+// array of `{ name, value }` objects, but the WebAppManifest spec — and
+// every browser that actually implements share_target — expects an
+// object mapping Web Share data keys (url, title, text) to the GET
+// parameter names. Next just JSON-serializes the return value, so we
+// cast here to emit the spec-correct shape. See
+// https://developer.mozilla.org/en-US/docs/Web/Manifest/share_target.
+const SHARE_TARGET = {
+  action: "/library/share",
+  method: "get",
+  params: {
+    url: "url",
+    title: "title",
+    text: "text",
+  },
+} as unknown as MetadataRoute.Manifest["share_target"];
+
 export default function manifest(): MetadataRoute.Manifest {
   return {
     name: "The Lazy River Co.",
@@ -9,6 +31,7 @@ export default function manifest(): MetadataRoute.Manifest {
     display: "standalone",
     background_color: "#141311",
     theme_color: "#141311",
+    share_target: SHARE_TARGET,
     // Install icons for macOS Dock / Chrome PWA. Chrome wraps installed
     // web apps in a rounded container; declaring "maskable" tells it to
     // fill that container edge-to-edge instead of framing our icon in
