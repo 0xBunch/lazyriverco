@@ -6,6 +6,7 @@ import {
   isSleeperEnabled,
   type PlayerProfile,
 } from "@/lib/sleeper";
+import { isPartnersEnabled } from "@/lib/player-partner";
 import { PlayerProfileView } from "./PlayerProfileView";
 import { ModulePlaceholder } from "@/components/ModulePlaceholder";
 
@@ -55,7 +56,10 @@ export default async function PlayerProfilePage({
           <span aria-hidden="true">←</span> MLF
         </Link>
       </nav>
-      <PlayerProfileView profile={profile} />
+      <PlayerProfileView
+        profile={profile}
+        partnersEnabled={isPartnersEnabled()}
+      />
     </div>
   );
 }

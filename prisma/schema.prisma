@@ -236,9 +236,40 @@ model SleeperPlayer {
   stats            PlayerSeasonStats[]
   projections      PlayerSeasonProjection[]
   agentTakes       PlayerAgentTake[]
+  partnerInfo      PlayerPartnerInfo?
 
   @@index([team])
   @@index([position])
+}
+
+/// One-shot cache of the player's publicly-known wife / girlfriend /
+/// fiancée / partner — populated lazily on first profile view via a
+/// Claude + web_search call that returns structured JSON. The row
+/// always exists after the first lookup even when no partner was
+/// found (relationship = "not_found"), so we don't re-query the web
+/// every page view. Admin re-rolls by deleting the row.
+model PlayerPartnerInfo {
+  id            String   @id @default(uuid())
+  playerId      String   @unique
+  name          String?
+  /// One of: 'wife' | 'fiancee' | 'girlfriend' | 'partner' | 'not_found'.
+  /// Stored as text rather than enum so future additions (e.g. "spouse",
+  /// "divorced") don't require a migration.
+  relationship  String
+  notableFact   String?  @db.Text
+  /// Hotlink URL. Whitelist-validated at write time (Wikimedia / a small
+  /// set of CDNs that the UI tolerates). Nullable when no usable image
+  /// was returned or the URL failed validation.
+  imageUrl      String?
+  sourceUrl     String?
+  /// 'low' | 'medium' | 'high'. Surfaces on the card when < high so
+  /// viewers don't read soft-confidence data as gospel.
+  confidence    String   @default("low")
+  checkedAt     DateTime @default(now())
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  player        SleeperPlayer @relation(fields: [playerId], references: [playerId], onDelete: Cascade)
 }
 
 /// Per-player per-season totals from the undocumented
