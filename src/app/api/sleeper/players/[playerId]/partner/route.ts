@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { getCurrentUser } from "@/lib/auth";
 import {
   generatePlayerPartner,
+  getPlayerPartner,
   isPartnersEnabled,
 } from "@/lib/player-partner";
 import { assertWithinLimit, RateLimitError } from "@/lib/rate-limit";
@@ -12,31 +13,67 @@ export const runtime = "nodejs";
 // the /take route so a malformed URL param can't reach Prisma or Claude.
 const PLAYER_ID_RE = /^\d{1,10}$/;
 
+function bad(
+  body: Record<string, unknown>,
+  status: number,
+  extra?: ResponseInit,
+): NextResponse {
+  return NextResponse.json(body, { status, ...extra });
+}
+
+/**
+ * GET — read-only cache lookup. Returns `{ partner: PartnerRow | null }`.
+ * Never triggers a Gemini call, never writes to the DB. Cheap, fast,
+ * safe to fire on every profile mount.
+ */
 export async function GET(
   _req: Request,
   { params }: { params: { playerId: string } },
 ) {
   const user = await getCurrentUser();
-  if (!user) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-  }
+  if (!user) return bad({ error: "Unauthorized" }, 401);
   if (!isPartnersEnabled()) {
-    return NextResponse.json(
-      { error: "Partner lookup disabled", code: "DISABLED" },
-      { status: 503 },
-    );
+    return bad({ error: "WAGFINDER disabled", code: "DISABLED" }, 503);
   }
   const playerId = params.playerId?.trim() ?? "";
   if (!PLAYER_ID_RE.test(playerId)) {
-    return NextResponse.json(
-      { error: "Invalid playerId" },
-      { status: 400 },
-    );
+    return bad({ error: "Invalid playerId" }, 400);
   }
 
-  // Tight rate limit — each cache miss runs a Claude + web_search call
-  // (more expensive than the takes endpoint). 10/min / 60/day is plenty
-  // for a human clicking profiles; it stops a scripted sweep.
+  try {
+    const partner = await getPlayerPartner(playerId);
+    return NextResponse.json(
+      { partner },
+      { headers: { "Cache-Control": "no-store" } },
+    );
+  } catch (err) {
+    console.error("[api/sleeper/players/partner GET] failed:", err);
+    return bad({ error: "cache read failed" }, 500);
+  }
+}
+
+/**
+ * POST — manual WAGFINDER trigger. Runs the Gemini + Wikipedia pipeline
+ * and persists the result. Rate-limited; the upstream pipeline owns its
+ * own ~30s timeout internally so slow searches don't wedge the handler.
+ */
+export async function POST(
+  _req: Request,
+  { params }: { params: { playerId: string } },
+) {
+  const user = await getCurrentUser();
+  if (!user) return bad({ error: "Unauthorized" }, 401);
+  if (!isPartnersEnabled()) {
+    return bad({ error: "WAGFINDER disabled", code: "DISABLED" }, 503);
+  }
+  const playerId = params.playerId?.trim() ?? "";
+  if (!PLAYER_ID_RE.test(playerId)) {
+    return bad({ error: "Invalid playerId" }, 400);
+  }
+
+  // Tight rate limit — each call runs Gemini + web search + (sometimes)
+  // a Wikipedia lookup. 10/min / 60/day per user is plenty for someone
+  // clicking around profiles; stops a scripted sweep of the NFL DB.
   try {
     await assertWithinLimit(user.id, "player.partner", {
       maxPerMinute: 10,
@@ -44,21 +81,15 @@ export async function GET(
     });
   } catch (err) {
     if (err instanceof RateLimitError) {
-      return NextResponse.json(
+      return bad(
         { error: "Rate limit exceeded", code: "RATE_LIMITED" },
-        {
-          status: 429,
-          headers: { "Retry-After": String(err.retryAfterSeconds) },
-        },
+        429,
+        { headers: { "Retry-After": String(err.retryAfterSeconds) } },
       );
     }
     throw err;
   }
 
-  // No extra timeout here — generatePlayerPartner owns the AbortController
-  // that caps the upstream Claude call. On timeout it returns null; the
-  // DB row is NOT written so the next page load re-tries. That's the
-  // right behavior for "Claude was slow" vs "genuinely no info found".
   try {
     const partner = await generatePlayerPartner(playerId);
     return NextResponse.json(
@@ -66,10 +97,7 @@ export async function GET(
       { headers: { "Cache-Control": "no-store" } },
     );
   } catch (err) {
-    console.error("[api/sleeper/players/partner] failed:", err);
-    return NextResponse.json(
-      { error: "partner lookup failed" },
-      { status: 500 },
-    );
+    console.error("[api/sleeper/players/partner POST] failed:", err);
+    return bad({ error: "lookup failed" }, 500);
   }
 }
