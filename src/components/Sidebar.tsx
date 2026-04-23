@@ -73,9 +73,12 @@ export async function Sidebar() {
         </div>
       ) : null}
 
-      {/* User footer */}
+      {/* User footer — pb uses env(safe-area-inset-bottom) so the Float
+          Out button clears the iOS home indicator in standalone PWA mode.
+          Resolves to 0 elsewhere (Android/desktop), matching the original
+          py-3 spacing. */}
       {user ? (
-        <div className="mt-auto border-t border-bone-700 px-3 py-3 group-data-[collapsed]:px-1 group-data-[collapsed]:py-2">
+        <div className="mt-auto border-t border-bone-700 px-3 pb-[calc(env(safe-area-inset-bottom)+0.75rem)] pt-3 group-data-[collapsed]:px-1 group-data-[collapsed]:pb-[calc(env(safe-area-inset-bottom)+0.5rem)] group-data-[collapsed]:pt-2">
           {/* Avatar — always visible */}
           <div className="flex items-center gap-3 px-2 pb-2 group-data-[collapsed]:justify-center group-data-[collapsed]:px-0 group-data-[collapsed]:pb-0">
             <div
