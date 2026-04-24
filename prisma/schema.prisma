@@ -45,6 +45,12 @@ model User {
   comments            Comment[]
   usageEvents         LLMUsageEvent[]
   feeds               Feed[]
+  // Draft 2026 back-relations. Named on DraftPick because it carries two
+  // FKs to User (the picker vs the person who hit the Lock button — same
+  // user in the normal case, different when admin picks on behalf).
+  draftSlots          DraftSlot[]
+  draftPicksMade      DraftPick[]         @relation("DraftPickMaker")
+  draftPicksLocked    DraftPick[]         @relation("DraftPickLocker")
 }
 
 enum Role {
@@ -97,6 +103,7 @@ model Character {
   conversations       Conversation[]
   pins                Pin[]
   playerTakes         PlayerAgentTake[]
+  draftReactions      DraftPickReaction[]
 
   @@index([displayOrder])
 }
@@ -240,15 +247,32 @@ model SleeperPlayer {
   status           String?
   injuryStatus     String?
   active           Boolean  @default(true)
+  /// Years of NFL experience from Sleeper's raw `/players/nfl` payload.
+  /// `0` = rookie (drafted this year OR undrafted-free-agent on a roster).
+  /// Nullable because Sleeper occasionally omits it for late UDFA signings.
+  /// Populated by runPlayersSync in src/lib/sleeper.ts; used by the draft
+  /// 2026 rookie-pool query (QB/RB/WR/TE + yearsExp=0 + team IS NOT NULL).
+  yearsExp         Int?
+  /// NFL draft year from Sleeper's raw payload. Not always present for
+  /// UDFAs; treat as advisory. Distinct from `yearsExp=0` because a
+  /// rookie's draftYear could be (current season - yearsExp) but Sleeper
+  /// is the source of truth when present.
+  draftYear        Int?
   updatedAt        DateTime @updatedAt
 
   stats            PlayerSeasonStats[]
   projections      PlayerSeasonProjection[]
   agentTakes       PlayerAgentTake[]
   partnerInfo      PlayerPartnerInfo?
+  draftPicks       DraftPick[]
+  draftPool        DraftPoolPlayer[]
+  scoutingReport   RookieScoutingReport?
 
   @@index([team])
   @@index([position])
+  // Supports the rookie-pool query: where yearsExp=0 AND position IN (...)
+  // AND team IS NOT NULL. Covers the prefix (yearsExp, position, team).
+  @@index([yearsExp, position, team])
 }
 
 /// One-shot cache of the player's publicly-known wife / girlfriend /
@@ -1078,4 +1102,228 @@ model FeedPollLog {
   // Cross-feed failure dashboard: "show me every feed that failed
   // overnight, newest first."
   @@index([outcome, startedAt(sort: Desc)])
+}
+
+// ---------------------------------------------------------------------------
+// MLF Rookie Draft 2026 — foundation models.
+//
+// One DraftRoom per draft event (v1 = "mlf-2026"). DraftSlot maps each of
+// the eight manager seats to a User. DraftPick carries the 24-pick snake
+// grid with status transitions (pending → onClock → locked). DraftPoolPlayer
+// tracks the per-draft rookie pool (seeded from SleeperPlayer + admin
+// tweaks). RookieScoutingReport + DraftPickReaction cache the two AI
+// pipelines (src/lib/sleeper-ai.ts). DraftAnnouncerImage is the Goodell-box
+// image pool (random rotation per Q12; no per-pick-slot mapping).
+// DraftSponsor is the per-draft sponsor rotation widget (Q15).
+//
+// All Draft* models cascade on DraftRoom delete so commissioner-initiated
+// resets clear the full tree. User FKs use RESTRICT to force an explicit
+// reassign before a manager deletion can land, except DraftPick.lockedById
+// which SETs NULL (audit-only field, losing it is acceptable).
+// ---------------------------------------------------------------------------
+
+model DraftRoom {
+  id             String    @id @default(uuid())
+  /// Stable slug for URL + cross-reference. v1 = "mlf-2026".
+  slug           String    @unique
+  /// Human name, e.g., "MLF Rookie Draft 2026".
+  name           String
+  /// Season string matching PlayerSeasonStats.season semantics — "2026".
+  season         String
+  totalRounds    Int       @default(3)
+  totalSlots     Int       @default(8)
+  snake          Boolean   @default(true)
+  /// One of: "setup" | "live" | "paused" | "complete". Text not enum so
+  /// we can add transitional states without a migration. Validated by
+  /// CHECK constraint in the migration.
+  status         String    @default("setup")
+  /// Soft-clock duration per pick in seconds. Default 24h (86400).
+  /// "Soft" = UI turns red at zero, no auto-pick. Commissioner nudges.
+  pickClockSec   Int       @default(86400)
+  openedAt       DateTime?
+  closedAt       DateTime?
+  /// User ID snapshot of whoever created this draft. Plain string (not
+  /// FK) so deleting the creator user doesn't orphan the draft — audit
+  /// only, the admin UI resolves it to a display name at read time.
+  createdBy      String
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+
+  slots          DraftSlot[]
+  picks          DraftPick[]
+  pool           DraftPoolPlayer[]
+  announcerImgs  DraftAnnouncerImage[]
+  sponsors       DraftSponsor[]
+
+  @@index([status])
+}
+
+/// One row per manager seat. Maps slotOrder (1..totalSlots) to a User.
+/// teamName caches the Sleeper roster's team nickname at draft-setup
+/// time so the Goodell caption reads from a stable source even if
+/// Sleeper mutates. Admin can override teamName in setup.
+model DraftSlot {
+  id         String    @id @default(uuid())
+  draftId    String
+  slotOrder  Int
+  userId     String
+  teamName   String?
+  createdAt  DateTime  @default(now())
+
+  draft      DraftRoom @relation(fields: [draftId], references: [id], onDelete: Cascade)
+  user       User      @relation(fields: [userId], references: [id], onDelete: Restrict)
+  picks      DraftPick[]
+
+  @@unique([draftId, slotOrder])
+  @@unique([draftId, userId])
+}
+
+/// The 24-cell snake grid. `overallPick` is 1..24, computed server-side
+/// via computeSnakeOrder (src/lib/draft.ts) so the UI never has to infer
+/// snake math. Status transitions: pending → onClock (when prior pick
+/// locks) → locked (when user commits). `undoneAt` is non-null for picks
+/// that were rolled back; the row stays for audit.
+model DraftPick {
+  id            String    @id @default(uuid())
+  draftId       String
+  round         Int
+  pickInRound   Int
+  overallPick   Int
+  slotId        String
+  /// User who owns this slot (denormalized from DraftSlot.userId).
+  userId        String
+  playerId      String?
+  /// One of: "pending" | "onClock" | "locked". CHECK-constrained in SQL.
+  status        String    @default("pending")
+  onClockAt     DateTime?
+  lockedAt      DateTime?
+  /// User who actually clicked Lock. Usually equals userId. Different
+  /// when admin picks on behalf of an AFK manager.
+  lockedById    String?
+  undoneAt      DateTime?
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+
+  draft         DraftRoom            @relation(fields: [draftId], references: [id], onDelete: Cascade)
+  slot          DraftSlot            @relation(fields: [slotId], references: [id], onDelete: Cascade)
+  user          User                 @relation("DraftPickMaker", fields: [userId], references: [id], onDelete: Restrict)
+  lockedBy      User?                @relation("DraftPickLocker", fields: [lockedById], references: [id], onDelete: SetNull)
+  player        SleeperPlayer?       @relation(fields: [playerId], references: [playerId], onDelete: SetNull)
+  reaction      DraftPickReaction?
+  announcerImg  DraftAnnouncerImage?
+
+  @@unique([draftId, overallPick])
+  @@index([draftId, status])
+  @@index([draftId, round, pickInRound])
+}
+
+/// The draftable rookie pool for a given draft. Auto-seeded from
+/// SleeperPlayer (yearsExp=0, position in QB/RB/WR/TE, team IS NOT NULL).
+/// Admin can add UDFA surprises manually and soft-remove with a note.
+/// `removed=true` rows stay for audit (who removed, when, why).
+model DraftPoolPlayer {
+  id         String    @id @default(uuid())
+  draftId    String
+  playerId   String
+  /// User ID snapshot (plain string, not FK) — audit only.
+  addedBy    String
+  removed    Boolean   @default(false)
+  note       String?   @db.Text
+  createdAt  DateTime  @default(now())
+  updatedAt  DateTime  @updatedAt
+
+  draft      DraftRoom     @relation(fields: [draftId], references: [id], onDelete: Cascade)
+  player     SleeperPlayer @relation(fields: [playerId], references: [playerId], onDelete: Cascade)
+
+  @@unique([draftId, playerId])
+  @@index([draftId, removed])
+}
+
+/// Per-rookie scouting report cached from Claude Sonnet 4.6. One row per
+/// SleeperPlayer — the report is player-scoped, not draft-scoped, so the
+/// same rookie's dossier can be shared across future drafts. Admin re-rolls
+/// by deleting the row (generateRookieScoutingReport re-populates on next
+/// view via single-flight in src/lib/sleeper-ai.ts).
+model RookieScoutingReport {
+  id         String   @id @default(uuid())
+  playerId   String   @unique
+  body       String   @db.Text
+  /// One of: "analyst" | "scout" | "goodell". Admin-chosen default in
+  /// DraftRoom settings; per-player override later if useful.
+  voice      String   @default("analyst")
+  /// Full model id the report was generated with (e.g., "claude-sonnet-4-6").
+  /// Lets us audit generations after a model bump and re-roll if needed.
+  model      String
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  player     SleeperPlayer @relation(fields: [playerId], references: [playerId], onDelete: Cascade)
+}
+
+/// Per-pick AI reaction cached from Claude Sonnet 4.6. Fires fire-and-forget
+/// from the lockPick server action; clients poll for presence. One row per
+/// DraftPick (unique). Admin can regenerate by deleting the row (Q17 —
+/// AI-only, no manual authoring). `characterId` null in v1 (neutral "MLF
+/// draft announcer" voice); reserved for v1.1 character personas.
+model DraftPickReaction {
+  id           String    @id @default(uuid())
+  draftPickId  String    @unique
+  body         String    @db.Text
+  characterId  String?
+  model        String
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+
+  pick         DraftPick  @relation(fields: [draftPickId], references: [id], onDelete: Cascade)
+  character    Character? @relation(fields: [characterId], references: [id], onDelete: SetNull)
+}
+
+/// Goodell-box image pool. Commissioner uploads ~30+ images pre-draft;
+/// server picks one at random per pick-lock (without replacement until
+/// pool exhausts, then resets). `consumedPickId` is SET when an image
+/// fires for a pick; the unique constraint on it (nullable) means the
+/// same image can't be reused within a single cycle. Clearing via admin
+/// reset nulls consumedPickId back out for reuse. See Q12 (revised).
+model DraftAnnouncerImage {
+  id               String     @id @default(uuid())
+  draftId          String
+  r2Key            String
+  /// Optional short label, e.g., "Joyce in a Bears jersey". Admin-only,
+  /// shown in the image-pool management UI; not rendered publicly.
+  label            String?
+  /// User ID snapshot — plain string, audit only.
+  uploadedBy       String
+  /// FK to the DraftPick this image fired for. Null when unused.
+  /// Setting this to non-null burns the image for the remainder of the
+  /// rotation cycle. Admin "reset rotation" clears these back to null.
+  consumedPickId   String?    @unique
+  createdAt        DateTime   @default(now())
+
+  draft            DraftRoom  @relation(fields: [draftId], references: [id], onDelete: Cascade)
+  consumedPick     DraftPick? @relation(fields: [consumedPickId], references: [id], onDelete: SetNull)
+
+  // "Pick a random unused image for this draft" — the pool-rotation query.
+  @@index([draftId, consumedPickId])
+}
+
+/// Sponsor rotation widget (Q15). Per-draft only; doesn't persist across
+/// drafts. Managed inline in /admin/draft/[id]/setup alongside slot order.
+/// `active=false` hides the entry without deletion (useful for mid-draft
+/// swaps). `displayOrder` drives the rotation sequence; admin can reorder.
+/// `imageR2Key` + `linkUrl` reserved for v2; v1 renders text-only.
+model DraftSponsor {
+  id            String   @id @default(uuid())
+  draftId       String
+  name          String
+  tagline       String?
+  imageR2Key    String?
+  linkUrl       String?
+  displayOrder  Int      @default(0)
+  active        Boolean  @default(true)
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  draft         DraftRoom @relation(fields: [draftId], references: [id], onDelete: Cascade)
+
+  @@index([draftId, active, displayOrder])
 }
