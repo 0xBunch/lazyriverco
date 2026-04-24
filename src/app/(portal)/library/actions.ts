@@ -5,6 +5,7 @@ import { prisma } from "@/lib/prisma";
 import { requireUser } from "@/lib/auth";
 import { assertWithinLimit, RateLimitError } from "@/lib/rate-limit";
 import { ingestUrl, IngestError } from "@/lib/ingest";
+import { persistIngest } from "@/lib/ingest/persist";
 import { runVisionTagging } from "@/lib/ai-tagging-run";
 import { getBannedSlugs } from "@/lib/ai-taxonomy";
 import { TAG_SHAPE, MAX_TAG_CHARS, parseTag } from "@/lib/tag-shape";
@@ -79,48 +80,15 @@ export async function ingestAndSaveUrlAction(input: {
     return { ok: false, error: "Couldn't fetch a preview for that link." };
   }
 
-  const created = await prisma.media.create({
-    data: {
-      uploadedById: user.id,
-      url: ingest.url,
-      sourceUrl: ingest.sourceUrl,
-      type: ingest.mediaType,
-      origin: ingest.origin,
-      originTitle: ingest.originTitle,
-      originAuthor: ingest.originAuthor,
-      ogImageUrl: ingest.ogImageUrl,
-      embedHtml: ingest.embedHtml,
-      storedLocally: ingest.storedLocally,
-      mimeType: ingest.mimeType,
-      caption,
-      tags,
-      status: "READY",
-    },
-    select: { id: true },
+  // DB write, tag-registry upsert, and vision-tag dispatch are all
+  // delegated to persistIngest. See src/lib/ingest/persist.ts.
+  const { id: mediaId } = await persistIngest(ingest, user.id, {
+    caption,
+    tags,
   });
 
-  // Register any human-entered tags in the Tag table so /admin/taxonomy
-  // sees every slug that actually lives on a Media row. AI-produced
-  // tags are upserted inside runVisionTagging.
-  await upsertTagRegistry(tags);
-
-  // Fire-and-forget: Railway runs a persistent Node process, so the
-  // orphan promise continues after the action returns. The user's save
-  // lands instantly; tags arrive seconds later on the next render.
-  // Link-only items (no preview image) are skipped at the gate.
-  if (ingest.mediaType !== "link" && ingest.url) {
-    void runVisionTagging(user.id, created.id, {
-      imageUrl: ingest.url,
-      caption,
-      originTitle: ingest.originTitle,
-      originAuthor: ingest.originAuthor,
-    }).catch((e) =>
-      console.error("vision-tag bg failed (ingest)", created.id, e),
-    );
-  }
-
   revalidatePath("/library");
-  return { ok: true, mediaId: created.id };
+  return { ok: true, mediaId };
 }
 
 // ---------------------------------------------------------------------------
