@@ -22,7 +22,7 @@ const SPORTS: SportCard[] = [
   {
     href: "/sports/mlf",
     label: "MLF",
-    tagline: "Men's League · Sleeper fantasy football",
+    tagline: "Mens League · Sleeper fantasy football",
     Icon: IconBallAmericanFootball,
     available: true,
   },
