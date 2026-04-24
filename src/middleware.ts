@@ -27,11 +27,13 @@ export async function middleware(req: NextRequest) {
 
 export const config = {
   // Allowlist: Next internals, start page, ALL /api/auth/* routes
-  // (login, logout, and any future session endpoints), and the PWA
+  // (login, logout, and any future session endpoints), /api/cron/*
+  // (header-secret auth lives in each cron route handler — session
+  // cookies don't apply to scheduled workflow runs), and the PWA
   // chrome (favicon, app icons, manifest) which must be reachable
-  // before the user authenticates. Everything else hits the auth check
-  // above.
+  // before the user authenticates. Everything else hits the auth
+  // check above.
   matcher: [
-    "/((?!_next/static|_next/image|favicon.ico|icon|apple-icon|manifest.webmanifest|start|api/auth/).*)",
+    "/((?!_next/static|_next/image|favicon.ico|icon|apple-icon|manifest.webmanifest|start|api/auth/|api/cron/).*)",
   ],
 };
