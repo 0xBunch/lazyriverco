@@ -1,0 +1,51 @@
+# Poll the automated-feeds endpoint every 15 minutes.
+#
+# This fires `/api/cron/poll-feeds` on the live site with the shared
+# CRON_SECRET. The endpoint picks up every enabled Feed whose
+# `nextPollEligibleAt` has elapsed and runs `pollFeed()` across them
+# with bounded concurrency. Results land in `FeedPollLog`.
+#
+# Why GitHub Actions instead of a dedicated Railway cron service:
+#   - No new service to pay for or maintain.
+#   - Failures are visible in the Actions tab; `workflow_dispatch`
+#     makes manual re-runs trivial.
+#   - Secret is stored in both Railway (as CRON_SECRET, for the route
+#     to match against) and in GitHub (as CRON_SECRET, for the curl
+#     below to send). Rotate both together.
+#
+# Caveats:
+#   - GitHub's scheduler can delay runs at peak load — the contract
+#     is "roughly every 15 min", not "exactly on the 15s." For news
+#     polling that's fine; if we later need tighter cadence, move to
+#     a Railway cron service.
+#   - The curl --fail flag turns non-2xx into workflow failure so the
+#     Actions tab lights up red when the endpoint breaks.
+
+name: poll-feeds
+
+on:
+  schedule:
+    # Every 15 minutes.
+    - cron: "*/15 * * * *"
+  # Manual trigger from the Actions tab — handy when you want to
+  # exercise a freshly-added feed without waiting for the next tick.
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  poll:
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    steps:
+      - name: Hit /api/cron/poll-feeds
+        env:
+          CRON_SECRET: ${{ secrets.CRON_SECRET }}
+        run: |
+          curl --fail \
+               --show-error \
+               --silent \
+               --max-time 600 \
+               -H "x-cron-secret: $CRON_SECRET" \
+               https://lazyriver.co/api/cron/poll-feeds
