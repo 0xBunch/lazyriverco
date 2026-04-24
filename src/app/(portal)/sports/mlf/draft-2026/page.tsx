@@ -90,6 +90,9 @@ export default async function DraftPage({
             user: { select: { id: true, displayName: true } },
           },
         },
+        reaction: {
+          select: { body: true, createdAt: true },
+        },
       },
     }),
     prisma.draftPoolPlayer.findMany({
@@ -198,6 +201,8 @@ export default async function DraftPage({
         <section className="px-8 pb-8">
           <GoodellBox latestLocked={latestLocked} />
         </section>
+
+        <ReactionsFeed picks={picks} />
 
         <Footer season={draft.season} />
       </main>
@@ -500,6 +505,7 @@ type PickDetail = {
   onClockAt: Date | null;
   lockedAt: Date | null;
   player: { playerId: string; fullName: string | null; position: string | null; team: string | null } | null;
+  reaction: { body: string; createdAt: Date } | null;
   slot: {
     slotOrder: number;
     teamName: string | null;
@@ -1012,6 +1018,85 @@ function GoodellBox({
 }
 
 // ---------------------------------------------------------------------------
+
+// ---------------------------------------------------------------------------
+// Reactions feed — latest locked picks with their AI-generated one-liners.
+// ---------------------------------------------------------------------------
+
+function ReactionsFeed({ picks }: { picks: PickDetail[] }) {
+  const lockedDesc = picks
+    .filter((p) => p.status === "locked" && p.player?.fullName)
+    .sort((a, b) => (b.lockedAt?.getTime() ?? 0) - (a.lockedAt?.getTime() ?? 0))
+    .slice(0, 6);
+
+  if (lockedDesc.length === 0) return null;
+
+  return (
+    <section className="px-8 pb-10">
+      <div className="mb-4 flex items-center gap-3">
+        <h2 className="text-[11px] font-bold uppercase tracking-[0.22em]" style={{ color: CREAM_200 }}>
+          Pick Reactions
+        </h2>
+        <span
+          className="rounded-sm px-1.5 py-0.5 text-[8px] font-bold uppercase tracking-[0.18em]"
+          style={{ backgroundColor: `${RED_900}CC`, color: RED_400 }}
+        >
+          Live
+        </span>
+      </div>
+      <ul
+        className="divide-y rounded-sm border"
+        style={{ borderColor: NAVY_700, backgroundColor: `${NAVY_900}CC`, /* use border color for divider */ }}
+      >
+        {lockedDesc.map((p) => {
+          const mgr = p.slot.teamName?.trim() || p.slot.user.displayName;
+          return (
+            <li
+              key={p.id}
+              className="flex items-start gap-4 border-t first:border-t-0 px-5 py-3"
+              style={{ borderColor: `${NAVY_700}80` }}
+            >
+              <span
+                className="mt-0.5 w-14 shrink-0 text-[10px] font-bold uppercase tracking-[0.18em] tabular-nums"
+                style={{ color: CREAM_400 }}
+              >
+                {p.round}.{String(p.pickInRound).padStart(2, "0")}
+              </span>
+              <span className="flex-1">
+                <span className="block text-[11px] font-bold uppercase tracking-[0.16em]" style={{ color: CREAM_200 }}>
+                  {mgr}
+                  <span style={{ color: CREAM_400 }}> took </span>
+                  <span style={{ color: CREAM_50 }}>{p.player?.fullName}</span>
+                  {p.player?.team && (
+                    <>
+                      <span style={{ color: CREAM_400 }}> · </span>
+                      <span style={{ color: CREAM_200 }}>{p.player.team}</span>
+                    </>
+                  )}
+                </span>
+                {p.reaction?.body ? (
+                  <span
+                    className="mt-1 block text-[13px] leading-[1.45]"
+                    style={{ color: CREAM_50 }}
+                  >
+                    {p.reaction.body}
+                  </span>
+                ) : (
+                  <span
+                    className="mt-1 block text-[12px] italic"
+                    style={{ color: CREAM_400 }}
+                  >
+                    [ reaction queued… ]
+                  </span>
+                )}
+              </span>
+            </li>
+          );
+        })}
+      </ul>
+    </section>
+  );
+}
 
 function Footer({ season }: { season: string }) {
   return (
