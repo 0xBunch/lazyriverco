@@ -150,7 +150,7 @@ export default async function AdminDraftDetail({
         </h3>
         <p className="mt-1 text-xs text-bone-400">
           Cascades slots, picks, pool, images, sponsors. Scouting reports
-          survive (they're player-scoped, not draft-scoped). Type DELETE
+          survive (they&rsquo;re player-scoped, not draft-scoped). Type DELETE
           to confirm — no undo.
         </p>
         <form action={deleteDraft} className="mt-3 flex items-center gap-3">

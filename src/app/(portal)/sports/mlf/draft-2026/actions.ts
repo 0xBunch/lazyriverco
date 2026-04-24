@@ -4,6 +4,7 @@ import { redirect } from "next/navigation";
 import { revalidatePath } from "next/cache";
 import { prisma } from "@/lib/prisma";
 import { getCurrentUser } from "@/lib/auth";
+import { generateDraftPickReaction } from "@/lib/sleeper-ai";
 
 const ROUTE = "/sports/mlf/draft-2026";
 
@@ -119,6 +120,15 @@ export async function lockPick(fd: FormData): Promise<void> {
           data: { status: "complete", closedAt: now },
         }),
   ]);
+
+  // Fire the reaction generator in the background. Errors are logged but
+  // never block the lock flow — a missing reaction is a cosmetic miss at
+  // worst; the pick itself is already committed. The reaction row
+  // populates async and the next page load (manual refresh or poll)
+  // picks it up.
+  void generateDraftPickReaction(pick.id).catch((err) => {
+    console.warn(`[lockPick] reaction generation failed for ${pick.id}:`, err);
+  });
 
   revalidatePath(ROUTE);
   redirect(`${ROUTE}?msg=locked`);

@@ -165,8 +165,8 @@ export default async function PoolPage({
         </h3>
         <p className="mt-1 text-xs text-bone-400">
           Searchable QB/RB/WR/TE from Sleeper; UDFAs appear as soon as
-          they sign to a roster. Notes are optional — useful for "late
-          UDFA" or "hand-flagged sleeper."
+          they sign to a roster. Notes are optional — useful for &ldquo;late
+          UDFA&rdquo; or &ldquo;hand-flagged sleeper.&rdquo;
         </p>
         <form
           action={addPlayerToPool}
