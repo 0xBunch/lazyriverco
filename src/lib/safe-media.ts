@@ -75,6 +75,31 @@ export function isImageOnlyMessage(content: string): string | null {
 }
 
 /**
+ * Strip safe-media URLs from a message body, leaving other text (and any
+ * non-media URLs) intact. Used by ChatMessage before handing mixed-content
+ * messages to the markdown renderer: images render via the dedicated
+ * <img> column, so the raw URL shouldn't double up as auto-linked text.
+ *
+ * Preserves trailing sentence punctuation so stripping a URL from the
+ * middle of a sentence doesn't leave a dangling period floating alone.
+ * Collapses runs of 3+ newlines to 2 so paragraph rhythm survives.
+ */
+export function stripSafeMediaUrls(content: string): string {
+  if (!MEDIA_ORIGIN) return content;
+  const stripped = content.replace(/https?:\/\/[^\s<>)]+/g, (match) => {
+    const cleaned = match.replace(/[.,;:!?)]+$/, "");
+    const trailing = match.slice(cleaned.length);
+    return isSafeMediaUrl(cleaned) ? trailing : match;
+  });
+  // Tidy whitespace left behind by removed URLs without disturbing
+  // intentional blank lines between paragraphs.
+  return stripped
+    .replace(/[ \t]+\n/g, "\n")
+    .replace(/\n{3,}/g, "\n\n")
+    .trim();
+}
+
+/**
  * Given a content-type string (possibly with params like `image/webp; charset=utf-8`),
  * return the bare MIME type. Falls back to `image/webp` — the default format
  * our image-gen path requests from Replicate.
