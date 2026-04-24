@@ -55,6 +55,12 @@ const CARDS = [
     body:
       "Homepage dropdown groups — the claude.ai-style row beneath the prompt box. Each group (\u201CWrite\u201D, \u201CRoast\u201D) is a button; each item pastes its full prompt text into the input on click.",
   },
+  {
+    href: "/admin/draft",
+    title: "Draft",
+    body:
+      "The Mens League Rookie Draft room — create a draft event, map managers to slots, curate the rookie pool, upload Goodell-box images, line up sponsors, and run the live commissioner cockpit.",
+  },
 ];
 
 export default function AdminLanding() {
