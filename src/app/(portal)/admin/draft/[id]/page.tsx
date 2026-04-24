@@ -2,6 +2,7 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { prisma } from "@/lib/prisma";
 import { deleteDraft } from "../actions";
+import { openDraft, pauseDraft, resumeDraft, completeDraft } from "./actions";
 
 // ---------------------------------------------------------------------------
 // /admin/draft/[id] — single-draft landing page.
@@ -115,17 +116,33 @@ export default async function AdminDraftDetail({
 
       <section className="rounded-2xl border border-bone-700 bg-bone-900 p-5">
         <h3 className="font-display text-base font-semibold text-bone-50">
-          Setup surfaces (coming in follow-up PRs)
+          Setup surfaces
         </h3>
-        <ul className="mt-3 grid gap-2 text-sm text-bone-300 sm:grid-cols-2">
-          <Hint title="Slots" body="Map each slotOrder → a Lazy River user. Set team-name overrides." />
-          <Hint title="Rookie pool" body="Auto-seed QB/RB/WR/TE rookies; add UDFAs by hand, remove with a note." />
-          <Hint title="Goodell images" body="Upload 30+ images to a draft-scoped pool; server rotates at random." />
-          <Hint title="Sponsors" body="Add rotating sponsor entries (name + tagline + optional image)." />
-          <Hint title="Live cockpit" body="Undo anytime, skip AFK, reassign a slot, pick-on-behalf, pause/reset." />
-          <Hint title="Status toggle" body="setup → live → paused → complete. Feature flag gates public view." />
+        <ul className="mt-3 grid gap-2 text-sm sm:grid-cols-2">
+          <SubLink
+            href={`/admin/draft/${draft.id}/setup`}
+            title="Slots"
+            body={`${draft._count.slots} / ${draft.totalSlots} assigned`}
+          />
+          <SubLink
+            href={`/admin/draft/${draft.id}/pool`}
+            title="Rookie pool"
+            body={`${draft._count.pool} rookies staged`}
+          />
+          <SubLink
+            href={`/admin/draft/${draft.id}/images`}
+            title="Announcer images"
+            body={`${draft._count.announcerImgs} uploaded`}
+          />
+          <SubLink
+            href={`/admin/draft/${draft.id}/sponsors`}
+            title="Sponsors"
+            body={`${draft._count.sponsors} on rotation`}
+          />
         </ul>
       </section>
+
+      <StatusSection draft={draft} />
 
       <section className="rounded-2xl border border-red-500/40 bg-red-950/30 p-5">
         <h3 className="font-display text-base font-semibold text-red-200">
@@ -165,6 +182,123 @@ function Stat({ label, value }: { label: string; value: string }) {
       </dt>
       <dd className="font-mono text-sm text-bone-100 tabular-nums">{value}</dd>
     </div>
+  );
+}
+
+function SubLink({
+  href,
+  title,
+  body,
+}: {
+  href: string;
+  title: string;
+  body: string;
+}) {
+  return (
+    <li className="group rounded-md border border-bone-800 bg-bone-950/50 p-3 transition hover:border-claude-500/50 hover:bg-bone-950">
+      <Link
+        href={href}
+        className="flex items-center justify-between gap-3 focus:outline-none"
+      >
+        <div>
+          <div className="text-xs font-semibold uppercase tracking-[0.14em] text-bone-100 group-hover:text-claude-200">
+            {title}
+          </div>
+          <p className="mt-1 text-xs text-bone-400">{body}</p>
+        </div>
+        <span className="text-bone-500 transition group-hover:text-claude-300">
+          →
+        </span>
+      </Link>
+    </li>
+  );
+}
+
+function StatusSection({
+  draft,
+}: {
+  draft: {
+    id: string;
+    status: string;
+    totalSlots: number;
+    totalRounds: number;
+    _count: { slots: number; picks: number; pool: number };
+  };
+}) {
+  const slotsReady = draft._count.slots === draft.totalSlots;
+  const poolReady = draft._count.pool > 0;
+  const canOpen = draft.status === "setup" && slotsReady && poolReady;
+  const canPause = draft.status === "live";
+  const canResume = draft.status === "paused";
+  const canComplete = draft.status === "live" || draft.status === "paused";
+
+  return (
+    <section className="rounded-2xl border border-bone-700 bg-bone-900 p-5">
+      <h3 className="font-display text-base font-semibold text-bone-50">
+        Status
+      </h3>
+      <p className="mt-1 text-xs text-bone-400">
+        Currently <code className="rounded bg-bone-800 px-1.5 py-0.5 font-mono text-bone-100">{draft.status}</code>.
+        Opening the draft materializes{" "}
+        <span className="font-mono tabular-nums">
+          {draft.totalRounds * draft.totalSlots}
+        </span>{" "}
+        picks from the snake order and flips pick 1.01 to on-clock.
+      </p>
+      <div className="mt-3 flex flex-wrap items-center gap-2">
+        {canOpen ? (
+          <form action={openDraft}>
+            <input type="hidden" name="draftId" value={draft.id} />
+            <button
+              type="submit"
+              className="rounded-md bg-emerald-700 px-3 py-1.5 text-sm font-semibold text-emerald-50 transition hover:bg-emerald-600 focus:outline-none focus-visible:ring-2 focus-visible:ring-emerald-400"
+            >
+              Open draft
+            </button>
+          </form>
+        ) : (
+          draft.status === "setup" && (
+            <span className="text-xs italic text-bone-400">
+              Fill all {draft.totalSlots} slots and seed the pool before
+              opening.
+            </span>
+          )
+        )}
+        {canPause && (
+          <form action={pauseDraft}>
+            <input type="hidden" name="draftId" value={draft.id} />
+            <button
+              type="submit"
+              className="rounded-md border border-amber-500/60 bg-amber-900/40 px-3 py-1.5 text-sm font-semibold text-amber-200 transition hover:bg-amber-900/60"
+            >
+              Pause
+            </button>
+          </form>
+        )}
+        {canResume && (
+          <form action={resumeDraft}>
+            <input type="hidden" name="draftId" value={draft.id} />
+            <button
+              type="submit"
+              className="rounded-md bg-emerald-700 px-3 py-1.5 text-sm font-semibold text-emerald-50 transition hover:bg-emerald-600"
+            >
+              Resume
+            </button>
+          </form>
+        )}
+        {canComplete && (
+          <form action={completeDraft}>
+            <input type="hidden" name="draftId" value={draft.id} />
+            <button
+              type="submit"
+              className="rounded-md border border-bone-700 px-3 py-1.5 text-sm font-semibold text-bone-200 transition hover:border-claude-500/60 hover:text-claude-200"
+            >
+              Mark complete
+            </button>
+          </form>
+        )}
+      </div>
+    </section>
   );
 }
 
