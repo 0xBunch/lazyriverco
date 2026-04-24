@@ -266,6 +266,7 @@ model SleeperPlayer {
   partnerInfo      PlayerPartnerInfo?
   draftPicks       DraftPick[]
   draftPool        DraftPoolPlayer[]
+  shadowPicks      DraftShadowPick[]
   scoutingReport   RookieScoutingReport?
 
   @@index([team])
@@ -1154,6 +1155,7 @@ model DraftRoom {
   pool           DraftPoolPlayer[]
   announcerImgs  DraftAnnouncerImage[]
   sponsors       DraftSponsor[]
+  shadowPicks    DraftShadowPick[]
 
   @@index([status])
 }
@@ -1168,11 +1170,20 @@ model DraftSlot {
   slotOrder  Int
   userId     String
   teamName   String?
+  /// True when this seat is shadow-managed by the commissioner (Joey /
+  /// OORFV case). Shadow slots are held by a User with passwordHash=null;
+  /// their picks are pre-seeded via DraftShadowPick and lock at openDraft
+  /// time. The flag is here (not inferred from user.passwordHash) so
+  /// behavior stays explicit — one can imagine real managers with OAuth-
+  /// only accounts in the future, and the semantic "this slot is not
+  /// staffed by a real participant" shouldn't collide with that.
+  isShadow   Boolean   @default(false)
   createdAt  DateTime  @default(now())
 
-  draft      DraftRoom @relation(fields: [draftId], references: [id], onDelete: Cascade)
-  user       User      @relation(fields: [userId], references: [id], onDelete: Restrict)
-  picks      DraftPick[]
+  draft       DraftRoom         @relation(fields: [draftId], references: [id], onDelete: Cascade)
+  user        User              @relation(fields: [userId], references: [id], onDelete: Restrict)
+  picks       DraftPick[]
+  shadowPicks DraftShadowPick[]
 
   @@unique([draftId, slotOrder])
   @@unique([draftId, userId])
@@ -1326,4 +1337,32 @@ model DraftSponsor {
   draft         DraftRoom @relation(fields: [draftId], references: [id], onDelete: Cascade)
 
   @@index([draftId, active, displayOrder])
+}
+
+/// Pre-seeded picks for shadow-managed slots. Written during setup (one
+/// row per round per shadow slot), read by openDraft when materializing
+/// the DraftPick grid — matching picks start as status=locked with this
+/// playerId instead of status=pending. Shadow picks flow through the
+/// rest of the system identically to real picks (announcer-image
+/// rotation, reaction generation, Goodell caption).
+///
+/// `addedBy` is a plain User ID snapshot (not FK) — matches the audit-
+/// field convention used on DraftRoom.createdBy and
+/// DraftAnnouncerImage.uploadedBy.
+model DraftShadowPick {
+  id         String   @id @default(uuid())
+  draftId    String
+  slotId     String
+  round      Int
+  playerId   String
+  addedBy    String
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  draft      DraftRoom     @relation(fields: [draftId], references: [id], onDelete: Cascade)
+  slot       DraftSlot     @relation(fields: [slotId], references: [id], onDelete: Cascade)
+  player     SleeperPlayer @relation(fields: [playerId], references: [playerId], onDelete: Cascade)
+
+  @@unique([draftId, slotId, round])
+  @@index([draftId, slotId])
 }
