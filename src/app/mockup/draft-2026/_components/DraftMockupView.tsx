@@ -1,4 +1,5 @@
 import Link from "next/link";
+import Image from "next/image";
 
 // ---------------------------------------------------------------------------
 // Shared draft-room view. Uses CSS variables --font-display and --font-ui
@@ -179,87 +180,22 @@ function ShieldWatermark() {
 }
 
 // ---------------------------------------------------------------------------
-// MLF shield — simplified SVG recreation. Swap in real asset at
-// /public/mlf-shield.png when ready.
+// MLF shield — real asset at /public/mlf_logo.png (1024×1024 PNG).
+// Component signature kept so every call site passes classNames like
+// "h-[160px] w-auto" and gets correct sizing for free.
 // ---------------------------------------------------------------------------
 
 export function MLFShield({ className = "h-full w-full" }: { className?: string }) {
   return (
-    <svg
-      viewBox="0 0 100 118"
-      fill="none"
+    <Image
+      src="/mlf_logo.png"
+      alt="MLF shield"
+      width={1024}
+      height={1024}
       className={className}
-      aria-label="MLF shield"
-    >
-      <defs>
-        <clipPath id="shield-clip">
-          <path d="M5 4 H95 V58 C95 88 74 106 50 113 C26 106 5 88 5 58 Z" />
-        </clipPath>
-      </defs>
-
-      <rect x="0" y="0" width="100" height="118" fill={RED_500} clipPath="url(#shield-clip)" />
-      <rect x="0" y="0" width="100" height="60" fill="#14213D" clipPath="url(#shield-clip)" />
-
-      <g fill={CREAM_50}>
-        <Star cx={22} cy={18} r={3.6} />
-        <Star cx={38} cy={16} r={3.6} />
-        <Star cx={62} cy={16} r={3.6} />
-        <Star cx={78} cy={18} r={3.6} />
-      </g>
-
-      <text
-        x="50"
-        y="50"
-        textAnchor="middle"
-        fill={CREAM_50}
-        fontFamily="var(--font-display), 'Archivo Black', 'Impact', sans-serif"
-        fontWeight={900}
-        fontSize={28}
-        letterSpacing={0.5}
-      >
-        MLF
-      </text>
-
-      {/* wagon silhouette (simplified) */}
-      <g fill={CREAM_50} opacity={0.92}>
-        <rect x="30" y="85" width="42" height="12" rx="2" />
-        <path d="M32 85 L40 76 L62 76 L68 85 Z" />
-        <rect x="42" y="78" width="7" height="6" fill={RED_500} />
-        <rect x="51" y="78" width="10" height="6" fill={RED_500} />
-        <circle cx="38" cy="98" r="3.2" />
-        <circle cx="64" cy="98" r="3.2" />
-        <circle cx="38" cy="98" r="1.2" fill={RED_500} />
-        <circle cx="64" cy="98" r="1.2" fill={RED_500} />
-      </g>
-
-      {/* cheerleader silhouette (abstract) */}
-      <g fill={CREAM_50} opacity={0.92}>
-        <circle cx="50" cy="65" r="2.2" />
-        <rect x="48.5" y="67" width="3" height="8" />
-        <rect x="46" y="69" width="8" height="1.5" />
-        <path d="M44 69 L46 66 M56 69 L54 66" stroke={CREAM_50} strokeWidth={1.2} />
-        <circle cx="43" cy="65" r="1.6" />
-        <circle cx="57" cy="65" r="1.6" />
-      </g>
-
-      <path
-        d="M5 4 H95 V58 C95 88 74 106 50 113 C26 106 5 88 5 58 Z"
-        fill="none"
-        stroke={CREAM_50}
-        strokeWidth={2.2}
-      />
-    </svg>
+      priority={false}
+    />
   );
-}
-
-function Star({ cx, cy, r }: { cx: number; cy: number; r: number }) {
-  const pts: string[] = [];
-  for (let i = 0; i < 10; i++) {
-    const angle = (Math.PI / 5) * i - Math.PI / 2;
-    const rr = i % 2 === 0 ? r : r * 0.42;
-    pts.push(`${cx + Math.cos(angle) * rr},${cy + Math.sin(angle) * rr}`);
-  }
-  return <polygon points={pts.join(" ")} />;
 }
 
 // ---------------------------------------------------------------------------
