@@ -25,6 +25,14 @@ model User {
   city         String?
   favoriteTeam String?
 
+  /// Feature flags the user has opted into. Membership is checked via
+  /// `hasBetaFeature(user, "news")` in src/lib/feed-types.ts. Backed by
+  /// a Postgres GIN index added in the migration so the gate can scale
+  /// to more flags without a per-flag column. Allowed values live in
+  /// the `BETA_FEATURES` literal tuple — adding one requires editing
+  /// that tuple; no migration needed.
+  betaFeatures String[] @default([])
+
   messages            Message[]
   picks               Pick[]
   votes               Vote[]
@@ -36,6 +44,7 @@ model User {
   pins                Pin[]
   comments            Comment[]
   usageEvents         LLMUsageEvent[]
+  feeds               Feed[]
 }
 
 enum Role {
@@ -496,6 +505,15 @@ model Media {
   /// (rate-limit, 5xx) while leaving permanent skips (policy blocks) alone.
   aiAnalysisNote String?     @db.Text
 
+  /// When non-null, the item was inserted by a MEDIA-kind Feed poll
+  /// rather than a user paste. Used by the library "show auto-feed
+  /// items" toggle (default off) and by /admin/feeds/[id] for the
+  /// per-feed item browser. SetNull on feed delete so the Media row
+  /// survives as a plain curated entry — we never want a feed
+  /// deletion to cascade-delete the library.
+  feedId          String?
+  feed            Feed?                @relation(fields: [feedId], references: [id], onDelete: SetNull)
+
   uploadedBy      User                 @relation(fields: [uploadedById], references: [id])
   calendarEntries CalendarEntryMedia[]
   comments        Comment[]
@@ -507,6 +525,14 @@ model Media {
   // Grid read path: filter by origin + status, order by recency. Covers
   // /library?origin=youtube and the admin "items by source" view.
   @@index([origin, status, createdAt(sort: Desc)])
+  // Per-feed item listing for /admin/feeds/[id]. Unique on
+  // (feedId, sourceUrl) is idempotency insurance for the feed
+  // poller — concurrent runs across crashes can't create duplicate
+  // Media rows for the same feed-item pair. Nullable sourceUrl is
+  // common for direct uploads; Postgres treats NULL as distinct in
+  // a compound unique, so that case is unaffected.
+  @@index([feedId])
+  @@unique([feedId, sourceUrl], map: "Media_feedId_sourceUrl_key")
   // Full-text search: functional GIN index on to_tsvector(caption+origin*+tags),
   // created in the migration SQL (Prisma can't model expression indexes).
   // Queries in src/lib/library-search.ts must use the same expression in
@@ -914,4 +940,142 @@ model ModelPricing {
   updatedAt            DateTime @updatedAt
 
   events LLMUsageEvent[]
+}
+
+/// A single polled source — either an RSS feed (kind=NEWS, items go to
+/// NewsItem) or a curated media URL source (kind=MEDIA, items go to
+/// Media via the existing ingest pipeline). Ownership stays with the
+/// admin who registered the feed; deleting the user is Restricted so
+/// orphan feeds force a reassign rather than silently dropping a
+/// running background job. Auto-disable kicks in after N consecutive
+/// poll failures — admin has to re-enable manually.
+///
+/// Health is COMPUTED from the fields below (src/lib/feed-health.ts,
+/// computeHealth). There is no stored health column — stale denormal-
+/// ization bugs are the #1 source of "the dashboard is lying" tickets,
+/// and the inputs (lastPolledAt, lastSuccessAt, lastError,
+/// consecutivePollFailures, autoDisabledAt) are cheap to read.
+model Feed {
+  id                      String        @id @default(uuid())
+  name                    String
+  url                     String        @unique
+  kind                    FeedKind
+  enabled                 Boolean       @default(true)
+  /// Minimum minutes between polls. Enforced by a CHECK constraint in
+  /// the migration (5..1440). Exponential backoff on failure multiplies
+  /// this value, capped at 24h — see feed-poller.ts.
+  pollIntervalMin         Int           @default(30)
+  ownerId                 String
+  owner                   User          @relation(fields: [ownerId], references: [id], onDelete: Restrict)
+  /// When the last poll actually started. Strictly observational —
+  /// the cron's "can I poll now" gate reads `nextPollEligibleAt`, not
+  /// this. Admin UIs show "last polled X min ago" from this column.
+  lastPolledAt            DateTime?
+  /// Earliest time the cron is allowed to poll this feed again. Set
+  /// to `lastPolledAt + pollIntervalMin` on success and to
+  /// `lastPolledAt + exponential-backoff` on failure (capped at 24h).
+  /// Separate from lastPolledAt so an admin reading the row never
+  /// sees a future timestamp in the "last polled" column — the
+  /// observable "when did it poll" and the gate "when can it poll"
+  /// are distinct facts.
+  nextPollEligibleAt      DateTime?
+  /// Distinct from lastPolledAt: lets the health chip distinguish
+  /// "polls are fine but feed hasn't published anything" (STALE) from
+  /// "polls are failing" (DEGRADED).
+  lastSuccessAt           DateTime?
+  /// Most recent item's publishedAt (or ingestedAt if null). Used by
+  /// the STALE health check (>30 days).
+  lastItemAt              DateTime?
+  /// Last error message, truncated to 2000 chars at write time so a
+  /// 10MB HTML error response can't land in a text column.
+  lastError               String?       @db.VarChar(2000)
+  consecutivePollFailures Int           @default(0)
+  /// Set when the breaker trips (failures ≥ 5). Admin must flip
+  /// `enabled` back on to clear. Distinct from `enabled=false` because
+  /// we want to distinguish "admin turned it off" (DISABLED) from
+  /// "system turned it off after errors" (FAILED).
+  autoDisabledAt          DateTime?
+  createdAt               DateTime      @default(now())
+  updatedAt               DateTime      @updatedAt
+
+  items                   NewsItem[]
+  mediaItems              Media[]
+  pollLogs                FeedPollLog[]
+}
+
+enum FeedKind {
+  NEWS
+  MEDIA
+}
+
+/// One RSS entry from a NEWS-kind feed. Dedupe key is `sourceUrl`
+/// (normalized via src/lib/feed-types.ts: normalizeUrl). `guid` is the
+/// RSS <guid> when present — used as a secondary dedup inside a feed
+/// via the compound unique index.
+///
+/// NOT cascade-deleted on Media — these are a separate surface (/news),
+/// not a library backing store. The `promote-to-library` admin action
+/// creates a new Media row (via ingestUrl + persistIngest) and leaves
+/// the NewsItem intact; later re-promotes are blocked by the unique
+/// `sourceUrl` on Media.
+model NewsItem {
+  id          String    @id @default(uuid())
+  feedId      String
+  feed        Feed      @relation(fields: [feedId], references: [id], onDelete: Cascade)
+  /// Normalized canonical URL. Unique across all feeds — two feeds
+  /// publishing the same article collapse to one row, owned by
+  /// whichever feed polled first.
+  sourceUrl   String    @unique
+  /// Raw URL from the feed, preserved so click-throughs go to the
+  /// publisher's version (with their own tracking, their own path).
+  originalUrl String
+  guid        String?
+  title       String
+  excerpt     String?
+  author      String?
+  /// Nullable because feeds sometimes omit <pubDate> or lie (future
+  /// dates, epoch 0). Query paths must COALESCE(publishedAt, ingestedAt).
+  publishedAt DateTime?
+  ingestedAt  DateTime  @default(now())
+  ogImageUrl  String?
+  /// Admin hide toggle. The /news grid filters hidden=false; the admin
+  /// item browser shows everything.
+  hidden      Boolean   @default(false)
+
+  // Keyset pagination on /news: ORDER BY publishedAt DESC, id DESC.
+  @@index([publishedAt(sort: Desc), id(sort: Desc)])
+  // Per-feed item list on /admin/feeds/[id].
+  @@index([feedId, publishedAt(sort: Desc)])
+  // Secondary dedupe: same feed, same <guid> = same item even if URLs
+  // differ by tracking params we didn't strip. Null guids allowed many
+  // (Postgres null != null in compound unique).
+  @@unique([feedId, guid], map: "NewsItem_feedId_guid_key")
+}
+
+/// Append-only log of every pollFeed invocation. One row per call.
+/// Pruned daily by the prune cron to a 14-day retention (see PR B /
+/// cron/prune-poll-logs.ts).
+///
+/// `outcome` is a text column (not enum) because the PollOutcome
+/// discriminated union in src/lib/feed-types.ts can evolve without a
+/// migration. Current values: "success" | "partial" | "failure" |
+/// "skipped". The admin dashboards query by this column directly.
+model FeedPollLog {
+  id            String   @id @default(uuid())
+  feedId        String
+  feed          Feed     @relation(fields: [feedId], references: [id], onDelete: Cascade)
+  startedAt     DateTime
+  durationMs    Int
+  outcome       String
+  inserted      Int      @default(0)
+  skipped       Int      @default(0)
+  /// Serialized PollError[]. Null for success rows (Postgres doesn't
+  /// love storing JSON defaults for null-meaning-absent semantics).
+  errors        Json?
+
+  // Per-feed sparkline + detail-page history.
+  @@index([feedId, startedAt(sort: Desc)])
+  // Cross-feed failure dashboard: "show me every feed that failed
+  // overnight, newest first."
+  @@index([outcome, startedAt(sort: Desc)])
 }

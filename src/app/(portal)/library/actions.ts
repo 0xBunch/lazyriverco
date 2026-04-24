@@ -82,10 +82,11 @@ export async function ingestAndSaveUrlAction(input: {
 
   // DB write, tag-registry upsert, and vision-tag dispatch are all
   // delegated to persistIngest. See src/lib/ingest/persist.ts.
-  const { id: mediaId } = await persistIngest(ingest, user.id, {
-    caption,
-    tags,
-  });
+  const { id: mediaId } = await persistIngest(
+    ingest,
+    { kind: "user", uploadedById: user.id },
+    { caption, tags },
+  );
 
   revalidatePath("/library");
   return { ok: true, mediaId };
