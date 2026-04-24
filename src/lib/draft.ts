@@ -183,3 +183,30 @@ export async function seedRookiePool(
 
   return { inserted: result.count, matched: players.length };
 }
+
+/**
+ * Find the earliest pending pick in a draft, by overallPick ascending.
+ *
+ * Used in two places:
+ *   1. `openDraft` — picks the initial on-clock slot AFTER any shadow
+ *      pre-seeds have locked their rows. In a normal draft with no
+ *      shadow picks, this returns overallPick=1 (the default on-clock).
+ *      When slot 1 is shadow-pre-seeded, it returns overallPick=2.
+ *
+ *   2. `lockPick` — advances the clock after a pick locks. Upgraded
+ *      from the prior `overallPick + 1` lookup so the draft skips over
+ *      pre-locked shadow picks cleanly.
+ *
+ * Returns null when there are no pending picks left (draft should flip
+ * to `complete`).
+ */
+export async function findNextPendingPick(
+  prisma: PrismaClient,
+  draftId: string,
+): Promise<{ id: string; overallPick: number } | null> {
+  return prisma.draftPick.findFirst({
+    where: { draftId, status: "pending" },
+    orderBy: { overallPick: "asc" },
+    select: { id: true, overallPick: true },
+  });
+}

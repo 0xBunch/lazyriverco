@@ -5,6 +5,7 @@ import { revalidatePath } from "next/cache";
 import { prisma } from "@/lib/prisma";
 import { getCurrentUser } from "@/lib/auth";
 import { generateDraftPickReaction } from "@/lib/sleeper-ai";
+import { findNextPendingPick } from "@/lib/draft";
 
 const ROUTE = "/sports/mlf/draft-2026";
 
@@ -70,13 +71,15 @@ export async function lockPick(fd: FormData): Promise<void> {
   if (!poolRow) flash("error", "Player isn't in the rookie pool.");
   if (alreadyPicked) flash("error", "Player was already drafted.");
 
-  const nextPick = await prisma.draftPick.findFirst({
-    where: {
-      draftId: pick.draftId,
-      overallPick: pick.overallPick + 1,
-    },
-    select: { id: true },
-  });
+  // Find the next pick by "first pending" (not overallPick+1). This
+  // handles shadow-manager pre-seeds, where a pick in the middle of the
+  // grid is already status=locked at openDraft time. Skipping by raw
+  // overallPick would hand the clock to an already-locked pick. We
+  // have to exclude the current pick too — findNextPendingPick only
+  // looks at status=pending, and we haven't yet transitioned `pick` to
+  // status=locked when this query runs, but `pick` is status=onClock so
+  // it's already excluded by the filter.
+  const nextPick = await findNextPendingPick(prisma, pick.draftId);
 
   // Pick an unused announcer image at random. Postgres `ORDER BY random()`
   // is fine at this scale; the pool is tiny. If the pool is empty or fully
