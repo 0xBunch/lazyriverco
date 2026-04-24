@@ -68,6 +68,15 @@ function playersTtlMs(): number {
   return Number.isFinite(raw) && raw > 0 ? raw : DEFAULT_PLAYERS_TTL_MS;
 }
 
+// Sleeper sometimes serializes integer-shaped fields (years_exp, draft_year)
+// as strings. Accept both; return null for anything that doesn't parse to a
+// finite non-negative integer (drops NaN, Infinity, negatives, and garbage).
+function parseIntOrNull(v: number | string | null | undefined): number | null {
+  if (v == null) return null;
+  const n = typeof v === "number" ? v : Number.parseInt(v, 10);
+  return Number.isFinite(n) && n >= 0 ? n : null;
+}
+
 // ---------------------------------------------------------------------------
 // Raw HTTP layer — one function per Sleeper endpoint we use. Plain `fetch`
 // with AbortSignal.timeout. NOT safeFetch — the base URL is developer-
@@ -231,6 +240,13 @@ export type SleeperPlayerRaw = {
   status?: string | null;
   injury_status?: string | null;
   active?: boolean;
+  /// Years of NFL experience. `0` = rookie (drafted this year OR a UDFA
+  /// who signed to a roster). Sleeper sometimes serializes this as a
+  /// string — treat both shapes in parsing.
+  years_exp?: number | string | null;
+  /// NFL draft year. Not always present for UDFAs. Advisory field;
+  /// rookie pool filter uses years_exp as the authoritative signal.
+  draft_year?: number | string | null;
 };
 
 // Endpoint wrappers — thin, typed, don't cache here.
@@ -562,6 +578,8 @@ async function runPlayersSync(force: boolean): Promise<SyncPlayersResult> {
       status: raw.status ?? null,
       injuryStatus: raw.injury_status ?? null,
       active: raw.active ?? true,
+      yearsExp: parseIntOrNull(raw.years_exp),
+      draftYear: parseIntOrNull(raw.draft_year),
     }))
     .filter((r) => r.playerId);
 
