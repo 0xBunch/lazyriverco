@@ -14,6 +14,7 @@ const ADMIN_TABS = [
   { href: "/admin/library", label: "Library" },
   { href: "/admin/taxonomy", label: "Taxonomy" },
   { href: "/admin/calendar", label: "Calendar" },
+  { href: "/admin/feeds", label: "Feeds" },
   { href: "/admin/prompts", label: "Prompts" },
   { href: "/admin/usage", label: "Usage" },
 ] as const;
