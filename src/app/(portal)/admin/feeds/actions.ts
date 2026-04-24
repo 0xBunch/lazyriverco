@@ -132,14 +132,18 @@ export async function pollFeedNow(fd: FormData): Promise<void> {
   const id = (fd.get("id") ?? "").toString();
   if (!id) return back({ error: "Missing feed id." });
 
+  // Next.js `redirect()` throws NEXT_REDIRECT for control flow — it
+  // MUST NOT be caught. Keep the try/catch tight around the actual
+  // work; `return back(...)` (which calls redirect) lives outside.
+  let outcome;
   try {
-    const outcome = await pollFeed(id);
-    revalidatePath("/admin/feeds");
-    return back({ msg: formatOutcome(outcome) });
+    outcome = await pollFeed(id);
   } catch (e) {
     console.error("pollFeedNow failed", e);
     return back({ error: "Poll failed — check server logs." });
   }
+  revalidatePath("/admin/feeds");
+  return back({ msg: formatOutcome(outcome) });
 }
 
 // ---------------------------------------------------------------------------
