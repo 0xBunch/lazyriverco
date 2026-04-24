@@ -29,11 +29,12 @@ export const config = {
   // Allowlist: Next internals, start page, ALL /api/auth/* routes
   // (login, logout, and any future session endpoints), /api/cron/*
   // (header-secret auth lives in each cron route handler — session
-  // cookies don't apply to scheduled workflow runs), and the PWA
-  // chrome (favicon, app icons, manifest) which must be reachable
-  // before the user authenticates. Everything else hits the auth
-  // check above.
+  // cookies don't apply to scheduled workflow runs), and public brand
+  // assets (favicon, app icons, manifest, mlf_logo.png) which must be
+  // reachable before the user authenticates — next/image rendering
+  // relies on these being publicly fetchable. Everything else hits the
+  // auth check above.
   matcher: [
-    "/((?!_next/static|_next/image|favicon.ico|icon|apple-icon|manifest.webmanifest|start|api/auth/|api/cron/).*)",
+    "/((?!_next/static|_next/image|favicon.ico|icon|apple-icon|manifest.webmanifest|mlf_logo.png|start|api/auth/|api/cron/).*)",
   ],
 };
