@@ -5,7 +5,12 @@ import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import { cn } from "@/lib/utils";
 import type { ChatMessageDTO } from "@/lib/chat";
-import { extractSafeMediaUrls, isVideoUrl } from "@/lib/safe-media";
+import {
+  extractSafeMediaUrls,
+  isImageOnlyMessage,
+  isVideoUrl,
+  stripSafeMediaUrls,
+} from "@/lib/safe-media";
 import { AgentSuggestionButton } from "@/components/AgentSuggestionButton";
 import { AgentAvatar } from "@/components/AgentAvatar";
 import { MessageActions } from "@/components/MessageActions";
@@ -92,6 +97,18 @@ export function ChatMessage({ message, isMe, showHeader, conversationId, isStrea
   const isCharacter = message.authorType === "CHARACTER";
   const mediaUrls =
     isCharacter && message.content ? extractSafeMediaUrls(message.content) : [];
+  // When the entire reply is a single safe-media URL, suppress the text
+  // bubble so the raw URL doesn't render as auto-linked text alongside
+  // the <img> below. For mixed messages we strip the URL from the
+  // markdown source but keep the bubble (text still needs to render).
+  const imageOnlyUrl =
+    isCharacter && !isStreaming && message.content
+      ? isImageOnlyMessage(message.content)
+      : null;
+  const markdownContent =
+    isCharacter && message.content && !imageOnlyUrl
+      ? stripSafeMediaUrls(message.content)
+      : message.content;
   const suggestion =
     isCharacter && message.suggestion ? message.suggestion : null;
 
@@ -147,32 +164,34 @@ export function ChatMessage({ message, isMe, showHeader, conversationId, isStrea
           </div>
         ) : null}
 
-        <div
-          className={cn(
-            "max-w-[min(42rem,100%)] text-sm leading-relaxed",
-            isMe
-              ? "rounded-2xl rounded-br-md bg-claude-500/90 px-4 py-2 text-bone-50"
-              : isCharacter
-                ? "text-bone-100"
-                : "rounded-2xl rounded-bl-md bg-bone-800 px-4 py-2 text-bone-100",
-            // Markdown prose styles for character replies; plain
-            // whitespace-pre-wrap for user messages.
-            isCharacter
-              ? "prose prose-sm prose-invert max-w-none prose-p:my-1 prose-ul:my-1 prose-ol:my-1 prose-li:my-0 prose-headings:mb-1 prose-headings:mt-2 prose-headings:text-bone-50"
-              : "whitespace-pre-wrap break-words",
-          )}
-        >
-          {isCharacter ? (
-            <AgentMarkdown>{message.content}</AgentMarkdown>
-          ) : (
-            message.content
-          )}
-          {isStreaming ? (
-            <span className="ml-0.5 inline-block animate-pulse text-claude-400">
-              ▍
-            </span>
-          ) : null}
-        </div>
+        {imageOnlyUrl ? null : (
+          <div
+            className={cn(
+              "max-w-[min(42rem,100%)] text-sm leading-relaxed",
+              isMe
+                ? "rounded-2xl rounded-br-md bg-claude-500/90 px-4 py-2 text-bone-50"
+                : isCharacter
+                  ? "text-bone-100"
+                  : "rounded-2xl rounded-bl-md bg-bone-800 px-4 py-2 text-bone-100",
+              // Markdown prose styles for character replies; plain
+              // whitespace-pre-wrap for user messages.
+              isCharacter
+                ? "prose prose-sm prose-invert max-w-none prose-p:my-1 prose-ul:my-1 prose-ol:my-1 prose-li:my-0 prose-headings:mb-1 prose-headings:mt-2 prose-headings:text-bone-50"
+                : "whitespace-pre-wrap break-words",
+            )}
+          >
+            {isCharacter ? (
+              <AgentMarkdown>{markdownContent ?? ""}</AgentMarkdown>
+            ) : (
+              message.content
+            )}
+            {isStreaming ? (
+              <span className="ml-0.5 inline-block animate-pulse text-claude-400">
+                ▍
+              </span>
+            ) : null}
+          </div>
+        )}
 
         {/* Share/copy affordances — only for character messages that are
             fully delivered. The streaming bubble uses id="streaming" and
