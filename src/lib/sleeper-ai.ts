@@ -102,7 +102,7 @@ export async function generateSeasonNarrative(): Promise<string | null> {
     .join("\n");
 
   const userPrompt = [
-    `Write a single punchy paragraph (80-140 words) summarizing the Men's League Football fantasy season.`,
+    `Write a single punchy paragraph (80-140 words) summarizing the Mens League of Football fantasy season.`,
     `Tone: barbershop storytelling, a little snark, affectionate. Use manager display names (not team names) once each.`,
     `Don't list every team — just the winner, the runner-up, the cellar, and one or two narrative turns.`,
     `Never mention that you are an AI. Never use the word "fantasy" in the output.`,
@@ -325,7 +325,7 @@ async function generateOne(
     ? `${profile.projection.season} projection: ${profile.projection.ptsPpr.toFixed(1)} PPR${profile.projection.adpPpr != null && profile.projection.adpPpr < 999 ? ` (ADP ${profile.projection.adpPpr.toFixed(1)})` : ""}`
     : "no current-season projection";
   const userPrompt = [
-    `You're writing a single one-liner (12-22 words, MAX 140 chars) about an NFL player for the Men's League clubhouse.`,
+    `You're writing a single one-liner (12-22 words, MAX 140 chars) about an NFL player for the Mens League clubhouse.`,
     `It should sound like a throwaway group-chat aside — not a full analysis. Strong opinion, dry delivery, specific.`,
     `No hashtags, no emojis, no "I think", no second-person, no quoting the stats back verbatim.`,
     ``,

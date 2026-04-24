@@ -98,7 +98,7 @@ const LIBRARY_SEARCH_TOOL: Anthropic.Messages.Tool = {
   },
 };
 
-// Client-managed tool: pulls live Men's League fantasy data from Sleeper.
+// Client-managed tool: pulls live Mens League fantasy data from Sleeper.
 // Registered only when SLEEPER_ENABLED=true so disabled deploys don't tease
 // the model with a tool it can't complete. Subcommands intentionally
 // mirror the page's three tabs (standings / rosters / transactions) so
@@ -107,7 +107,7 @@ const LIBRARY_SEARCH_TOOL: Anthropic.Messages.Tool = {
 const LOOKUP_SLEEPER_TOOL: Anthropic.Messages.Tool = {
   name: "lookup_sleeper",
   description:
-    "Look up live Men's League fantasy football data from Sleeper. Use when the user asks about standings, a specific manager's roster, recent trades/waiver moves, or an individual NFL player (bio, 2025 stats, 2026 projection, current MLF ownership). Returns a short pre-formatted text block. Prefer this over web_search for MLF data and for any NFL player we might already have in the fantasy DB.",
+    "Look up live Mens League fantasy football data from Sleeper. Use when the user asks about standings, a specific manager's roster, recent trades/waiver moves, or an individual NFL player (bio, 2025 stats, 2026 projection, current MLF ownership). Returns a short pre-formatted text block. Prefer this over web_search for MLF data and for any NFL player we might already have in the fantasy DB.",
   input_schema: {
     type: "object",
     properties: {
