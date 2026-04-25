@@ -2,7 +2,7 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { prisma } from "@/lib/prisma";
 import { deleteDraft } from "../actions";
-import { openDraft, pauseDraft, resumeDraft, completeDraft } from "./actions";
+import { openDraft, pauseDraft, resumeDraft, completeDraft, resetDraft } from "./actions";
 
 // ---------------------------------------------------------------------------
 // /admin/draft/[id] — single-draft landing page.
@@ -143,6 +143,35 @@ export default async function AdminDraftDetail({
       </section>
 
       <StatusSection draft={draft} />
+
+      <section className="rounded-2xl border border-amber-500/40 bg-amber-950/30 p-5">
+        <h3 className="font-display text-base font-semibold text-amber-200">
+          Reset draft
+        </h3>
+        <p className="mt-1 text-xs text-bone-400">
+          Wipes all picks (and their reactions) + frees up the announcer
+          image rotation + flips status back to <code className="font-mono">setup</code>.
+          Keeps slots, pool, sponsors, images, and shadow pre-seeds —
+          you can &ldquo;Open draft&rdquo; again right after to start over with
+          the same setup. Type RESET to confirm.
+        </p>
+        <form action={resetDraft} className="mt-3 flex items-center gap-3">
+          <input type="hidden" name="draftId" value={draft.id} />
+          <input
+            type="text"
+            name="confirm"
+            placeholder="type RESET"
+            required
+            className="w-40 rounded-md border border-amber-500/40 bg-bone-950 px-3 py-2 font-mono text-sm text-bone-50 outline-none focus-visible:border-amber-400"
+          />
+          <button
+            type="submit"
+            className="rounded-md border border-amber-500/60 bg-amber-900/40 px-3 py-2 text-sm font-semibold text-amber-200 transition hover:bg-amber-900/60 focus:outline-none focus-visible:ring-2 focus-visible:ring-amber-400"
+          >
+            Reset draft
+          </button>
+        </form>
+      </section>
 
       <section className="rounded-2xl border border-red-500/40 bg-red-950/30 p-5">
         <h3 className="font-display text-base font-semibold text-red-200">
@@ -319,6 +348,16 @@ function humanMsg(msg: string | undefined): string {
       return "Draft created.";
     case "updated":
       return "Draft updated.";
+    case "draft-opened":
+      return "Draft opened. Pick 1.01 is on the clock.";
+    case "paused":
+      return "Draft paused.";
+    case "resumed":
+      return "Draft resumed.";
+    case "completed":
+      return "Draft marked complete.";
+    case "reset":
+      return "Draft reset back to setup.";
     default:
       return msg ?? "";
   }

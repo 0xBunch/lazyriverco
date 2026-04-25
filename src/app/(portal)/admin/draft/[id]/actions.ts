@@ -258,3 +258,59 @@ export async function completeDraft(fd: FormData): Promise<void> {
   revalidatePath(`/sports/mlf/draft-2026`);
   redirect(`${base}?msg=completed`);
 }
+
+/**
+ * Reset a draft back to "setup" state. Wipes:
+ *   * All DraftPick rows (cascades DraftPickReaction via the FK)
+ *   * Clears DraftAnnouncerImage.consumedPickId so images are eligible
+ *     for the next rotation
+ *   * Resets DraftRoom.status="setup", openedAt=null, closedAt=null
+ *
+ * Preserves:
+ *   * DraftSlot rows (manager assignments stay intact)
+ *   * DraftPoolPlayer rows (rookie pool stays intact)
+ *   * DraftSponsor rows
+ *   * DraftAnnouncerImage rows themselves (just unlinked from picks)
+ *   * DraftShadowPick rows (shadow pre-seeds stay; openDraft re-locks
+ *     them)
+ *   * RookieScoutingReport (player-scoped, not draft-scoped)
+ *
+ * Gated by typing "RESET" in the confirm field. Destructive but
+ * recoverable — no asset uploads or AI tokens get wiped.
+ */
+export async function resetDraft(fd: FormData): Promise<void> {
+  await requireAdmin();
+  const draftId = String(fd.get("draftId") ?? "").trim();
+  const base = `/admin/draft/${draftId}`;
+  if (!draftId) flash("/admin/draft", "error", "Missing draft id.");
+
+  const confirm = String(fd.get("confirm") ?? "").trim();
+  if (confirm !== "RESET") {
+    flash(base, "error", "Type RESET to confirm.");
+  }
+
+  const draft = await prisma.draftRoom.findUnique({
+    where: { id: draftId },
+    select: { id: true, status: true },
+  });
+  if (!draft) flash("/admin/draft", "error", "Draft not found.");
+
+  // Two-step transaction: clear out pick-derived state, then reset the
+  // room metadata. Picks cascade-delete reactions via the FK; images
+  // get their consumedPickId nulled so the rotation pool is whole again.
+  await prisma.$transaction([
+    prisma.draftAnnouncerImage.updateMany({
+      where: { draftId, consumedPickId: { not: null } },
+      data: { consumedPickId: null },
+    }),
+    prisma.draftPick.deleteMany({ where: { draftId } }),
+    prisma.draftRoom.update({
+      where: { id: draftId },
+      data: { status: "setup", openedAt: null, closedAt: null },
+    }),
+  ]);
+
+  revalidatePath(base);
+  revalidatePath(`/sports/mlf/draft-2026`);
+  redirect(`${base}?msg=reset`);
+}
