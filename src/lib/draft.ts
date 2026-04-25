@@ -137,20 +137,41 @@ export type SeedRookiePoolResult = {
   /** Candidates the rookie filter matched in SleeperPlayer. Useful for
    *  admin UI: "Seeded 62 rookies (42 inserted, 20 already in pool)." */
   matched: number;
+  /** Breakdown for diagnostic admin UI — how many of the matches came
+   *  via each signal. Sum can exceed `matched` (a player can satisfy
+   *  both `draftYear=season` and `yearsExp=0`). */
+  breakdown: {
+    byDraftYear: number;
+    byYearsExp: number;
+    withTeam: number;
+    withoutTeam: number;
+  };
 };
 
 /**
  * Populates DraftPoolPlayer from SleeperPlayer, filtered to fantasy-
- * relevant rookies: QB/RB/WR/TE with `yearsExp=0` and a current NFL team.
- * Safe to call repeatedly — the unique (draftId, playerId) lets
- * createMany skip collisions without raising.
+ * relevant rookies: QB/RB/WR/TE who are either flagged with
+ * `draftYear=<DraftRoom.season>` or `yearsExp=0`. Safe to call repeatedly
+ * — the unique (draftId, playerId) lets createMany skip collisions.
+ *
+ * History: original v1 filter required `yearsExp=0 AND team IS NOT NULL`,
+ * which silently dropped (a) freshly-drafted rookies before Sleeper had
+ * flipped `years_exp` to 0, and (b) every UDFA who hadn't signed yet —
+ * leaving KB with ~12 players when Sleeper's site showed dozens. We now:
+ *   * Pull on `draftYear=season OR yearsExp=0`. `draftYear` flips to the
+ *     correct value the moment Sleeper records the pick; `yearsExp` is
+ *     the post-signing/season-rolled-over signal. Together they catch
+ *     both windows.
+ *   * Drop the `team IS NOT NULL` requirement. A drafted rookie with no
+ *     team yet is still a valid rookie pool candidate — Sleeper will
+ *     populate `team` within a day or so. Commissioner can manually
+ *     remove anyone clearly not fantasy-relevant.
  *
  * Notes:
- *   * Depends on `years_exp` being populated by the extended
- *     runPlayersSync in src/lib/sleeper.ts. Run a players sync first
- *     (admin button on the MLF admin page) if the column is all NULL.
- *   * UDFAs are captured automatically: the Sleeper payload marks them
- *     `yearsExp=0` once they sign to a roster.
+ *   * Depends on `years_exp` and `draft_year` being populated by the
+ *     extended runPlayersSync in src/lib/sleeper.ts. Run a players sync
+ *     first (admin button on the MLF admin page) if the columns are
+ *     all NULL or stale.
  *   * `active=true` filter drops retired-mid-camp edge cases.
  */
 export async function seedRookiePool(
@@ -158,18 +179,37 @@ export async function seedRookiePool(
   draftId: string,
   seededBy: string,
 ): Promise<SeedRookiePoolResult> {
+  const draft = await prisma.draftRoom.findUnique({
+    where: { id: draftId },
+    select: { season: true },
+  });
+  if (!draft) {
+    throw new Error(`Draft ${draftId} not found`);
+  }
+  const seasonInt = Number.parseInt(draft.season, 10);
+  const seasonFilter = Number.isFinite(seasonInt) ? seasonInt : null;
+
   const players = await prisma.sleeperPlayer.findMany({
     where: {
-      yearsExp: 0,
-      team: { not: null },
+      OR: [
+        ...(seasonFilter != null ? [{ draftYear: seasonFilter }] : []),
+        { yearsExp: 0 },
+      ],
       position: { in: [...ROOKIE_POSITIONS] },
       active: true,
     },
-    select: { playerId: true },
+    select: { playerId: true, draftYear: true, yearsExp: true, team: true },
   });
 
+  const breakdown = {
+    byDraftYear: players.filter((p) => seasonFilter != null && p.draftYear === seasonFilter).length,
+    byYearsExp: players.filter((p) => p.yearsExp === 0).length,
+    withTeam: players.filter((p) => p.team != null).length,
+    withoutTeam: players.filter((p) => p.team == null).length,
+  };
+
   if (players.length === 0) {
-    return { inserted: 0, matched: 0 };
+    return { inserted: 0, matched: 0, breakdown };
   }
 
   const result = await prisma.draftPoolPlayer.createMany({
@@ -181,7 +221,7 @@ export async function seedRookiePool(
     skipDuplicates: true,
   });
 
-  return { inserted: result.count, matched: players.length };
+  return { inserted: result.count, matched: players.length, breakdown };
 }
 
 /**

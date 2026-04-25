@@ -28,11 +28,12 @@ export async function seedPool(fd: FormData): Promise<void> {
 
   const result = await seedRookiePool(prisma, draftId, admin.id);
   revalidatePath(base);
-  redirect(
-    `${base}?msg=${encodeURIComponent(
-      `Seeded ${result.matched} matched rookies · ${result.inserted} new rows`,
-    )}`,
-  );
+  const { matched, inserted, breakdown } = result;
+  const msg =
+    `Seeded ${matched} matched rookies · ${inserted} new rows ` +
+    `(by draftYear=${breakdown.byDraftYear} · by yearsExp=${breakdown.byYearsExp} · ` +
+    `with team=${breakdown.withTeam} · no team=${breakdown.withoutTeam})`;
+  redirect(`${base}?msg=${encodeURIComponent(msg)}`);
 }
 
 export async function addPlayerToPool(fd: FormData): Promise<void> {
