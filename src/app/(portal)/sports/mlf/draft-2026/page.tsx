@@ -189,7 +189,7 @@ export default async function DraftPage({
           total={total}
         />
 
-        <section className="grid grid-cols-[minmax(0,1.6fr)_minmax(0,1fr)] gap-5 px-8 pb-7 pt-2">
+        <section className="grid grid-cols-1 gap-4 px-4 pb-7 pt-2 md:grid-cols-[minmax(0,1.6fr)_minmax(0,1fr)] md:gap-5 md:px-8">
           <OnClockPanel
             onClock={onClock}
             onDeck={onDeck}
@@ -297,12 +297,12 @@ function TopBar({
 }) {
   return (
     <header
-      className="flex items-center justify-between border-b px-6 py-3"
+      className="flex items-center justify-between gap-3 border-b px-4 py-3 md:px-6"
       style={{ borderColor: NAVY_700, backgroundColor: `${NAVY_900}E6` }}
     >
       <Link
         href="/"
-        className="group flex items-center gap-3 text-[11px] font-semibold tracking-[0.16em] transition"
+        className="group flex items-center gap-2 text-[10px] font-semibold tracking-[0.16em] transition md:gap-3 md:text-[11px]"
         style={{ color: CREAM_200 }}
       >
         <span
@@ -312,12 +312,13 @@ function TopBar({
           ←
         </span>
         <span className="uppercase" style={{ color: CREAM_200 }}>
-          Back to Lazy River
+          <span className="md:hidden">Lazy River</span>
+          <span className="hidden md:inline">Back to Lazy River</span>
         </span>
       </Link>
 
       <div
-        className="flex items-baseline gap-3 text-[11px] font-bold uppercase tracking-[0.24em]"
+        className="hidden items-baseline gap-3 text-[11px] font-bold uppercase tracking-[0.24em] md:flex"
         style={{ color: CREAM_400 }}
       >
         <span style={{ color: CREAM_200 }}>The Official</span>
@@ -328,7 +329,7 @@ function TopBar({
 
       {user ? (
         <div
-          className="flex items-center gap-2 rounded-sm px-2.5 py-1.5"
+          className="flex items-center gap-2 rounded-sm px-2 py-1 md:px-2.5 md:py-1.5"
           style={{ backgroundColor: NAVY_800 }}
         >
           <span
@@ -336,11 +337,11 @@ function TopBar({
             style={{ backgroundColor: user.role === "ADMIN" ? RED_500 : "#3D689E" }}
           />
           <span
-            className="text-[10px] font-semibold uppercase tracking-[0.16em]"
+            className="text-[9px] font-semibold uppercase tracking-[0.14em] md:text-[10px] md:tracking-[0.16em]"
             style={{ color: CREAM_50 }}
           >
             {user.displayName}
-            {user.role === "ADMIN" ? " · Commissioner" : ""}
+            {user.role === "ADMIN" ? " · Commish" : ""}
           </span>
         </div>
       ) : (
@@ -360,18 +361,18 @@ function Hero({
   total: number;
 }) {
   return (
-    <section className="relative px-8 pb-6 pt-10">
-      <div className="flex items-center gap-8">
+    <section className="relative px-4 pb-6 pt-6 md:px-8 md:pt-10">
+      <div className="flex flex-col items-start gap-4 md:flex-row md:items-center md:gap-8">
         <div className="relative shrink-0">
           <div
             aria-hidden
             className="absolute -inset-4 -z-10 rounded-full blur-2xl"
             style={{ background: `radial-gradient(closest-side, ${RED_900}80 0%, transparent 70%)` }}
           />
-          <MLFShield className="h-[160px] w-auto drop-shadow-[0_12px_24px_rgba(0,0,0,0.5)]" />
+          <MLFShield className="h-[88px] w-auto drop-shadow-[0_12px_24px_rgba(0,0,0,0.5)] md:h-[160px]" />
         </div>
         <div className="flex flex-1 flex-col gap-3">
-          <div className="flex items-center gap-4">
+          <div className="flex flex-wrap items-center gap-3 md:gap-4">
             <span className="text-[10px] font-bold uppercase tracking-[0.26em]" style={{ color: CREAM_200 }}>
               Live draft · 2026 Rookie class
             </span>
@@ -381,11 +382,10 @@ function Hero({
             </span>
           </div>
           <h1
-            className="leading-[0.86] tracking-[-0.015em]"
+            className="text-[44px] leading-[0.86] tracking-[-0.015em] md:text-[108px]"
             style={{
               fontFamily: "var(--font-display)",
               fontWeight: 800,
-              fontSize: 108,
               color: CREAM_50,
               textTransform: "uppercase",
             }}
@@ -487,7 +487,7 @@ function OnClockPanel({
 }) {
   return (
     <div
-      className="relative flex items-center gap-8 overflow-hidden rounded-sm border p-6"
+      className="relative flex flex-wrap items-start gap-x-6 gap-y-4 overflow-hidden rounded-sm border p-5 md:flex-nowrap md:items-center md:gap-8 md:p-6"
       style={{
         borderColor: RED_500,
         backgroundColor: `${NAVY_900}CC`,
@@ -501,11 +501,10 @@ function OnClockPanel({
           On the clock
         </span>
         <div
-          className="leading-[0.9] tracking-[-0.01em]"
+          className="text-[26px] leading-[0.9] tracking-[-0.01em] md:text-[34px]"
           style={{
             fontFamily: "var(--font-display)",
             fontWeight: 800,
-            fontSize: 34,
             color: CREAM_50,
             textTransform: "uppercase",
           }}
@@ -519,7 +518,7 @@ function OnClockPanel({
         )}
       </div>
 
-      <div className="h-16 w-px" style={{ backgroundColor: NAVY_600 }} />
+      <div className="hidden h-16 w-px md:block" style={{ backgroundColor: NAVY_600 }} />
 
       <div className="flex flex-col gap-2">
         <span className="text-[10px] font-bold uppercase tracking-[0.26em]" style={{ color: CREAM_400 }}>
@@ -533,13 +532,16 @@ function OnClockPanel({
             expiredColor={CREAM_400}
           />
         ) : (
-          <span style={{ fontFamily: "var(--font-display)", fontWeight: 700, fontSize: 36, color: CREAM_400 }}>
+          <span
+            className="text-[28px] md:text-[36px]"
+            style={{ fontFamily: "var(--font-display)", fontWeight: 700, color: CREAM_400 }}
+          >
             —
           </span>
         )}
       </div>
 
-      <div className="h-16 w-px" style={{ backgroundColor: NAVY_600 }} />
+      <div className="hidden h-16 w-px md:block" style={{ backgroundColor: NAVY_600 }} />
 
       <div className="flex flex-col gap-2">
         <span className="text-[10px] font-bold uppercase tracking-[0.26em]" style={{ color: CREAM_400 }}>
@@ -591,11 +593,10 @@ function SponsorRail({
       {sponsor ? (
         <>
           <div
-            className="leading-[1] tracking-[-0.01em]"
+            className="text-[20px] leading-[1] tracking-[-0.01em] md:text-[24px]"
             style={{
               fontFamily: "var(--font-display)",
               fontWeight: 700,
-              fontSize: 24,
               color: CREAM_50,
               textTransform: "uppercase",
             }}
@@ -653,21 +654,21 @@ function BigBoard({
 }) {
   return (
     <section
-      className="mx-8 mb-8 overflow-hidden rounded-sm border"
+      className="mx-4 mb-8 overflow-hidden rounded-sm border md:mx-8"
       style={{ borderColor: NAVY_700, backgroundColor: `${NAVY_900}CC` }}
     >
-      <div className="flex items-center gap-5 border-b px-4 py-3" style={{ borderColor: NAVY_700 }}>
+      <div className="flex flex-wrap items-center gap-3 border-b px-4 py-3 md:gap-5" style={{ borderColor: NAVY_700 }}>
         <h2 className="text-[11px] font-bold uppercase tracking-[0.22em]" style={{ color: CREAM_200 }}>
           Big Board
         </h2>
-        <span className="h-3.5 w-px" style={{ backgroundColor: NAVY_600 }} />
+        <span className="hidden h-3.5 w-px md:block" style={{ backgroundColor: NAVY_600 }} />
         <span className="text-[10px] font-bold uppercase tracking-[0.22em]" style={{ color: CREAM_400 }}>
           {pool.length} available
         </span>
-        <div className="flex-1" />
+        <div className="hidden flex-1 md:block" />
         {youreOnClock && (
           <span
-            className="rounded-sm px-2 py-1 text-[10px] font-bold uppercase tracking-[0.18em]"
+            className="ml-auto rounded-sm px-2 py-1 text-[10px] font-bold uppercase tracking-[0.18em] md:ml-0"
             style={{ backgroundColor: RED_900, color: RED_400 }}
           >
             Your pick
@@ -675,7 +676,7 @@ function BigBoard({
         )}
         {isAdmin && !youreOnClock && onClockPickId && (
           <span
-            className="rounded-sm px-2 py-1 text-[10px] font-bold uppercase tracking-[0.18em]"
+            className="ml-auto rounded-sm px-2 py-1 text-[10px] font-bold uppercase tracking-[0.18em] md:ml-0"
             style={{ backgroundColor: NAVY_800, color: CREAM_200 }}
           >
             Admin · pick on-behalf
@@ -725,20 +726,33 @@ function PoolRow({
   const name = player.fullName ?? player.playerId;
   return (
     <div
-      className="grid grid-cols-[40px_minmax(0,2fr)_50px_50px_140px] items-center gap-3 border-b px-4 py-2.5 text-[13px] tabular-nums transition duration-150 hover:translate-x-px"
+      className="grid grid-cols-[28px_1fr_auto] items-center gap-3 border-b px-3 py-3 text-[13px] tabular-nums transition duration-150 md:grid-cols-[40px_minmax(0,2fr)_50px_50px_140px] md:px-4 md:py-2.5 md:hover:translate-x-px"
       style={{
         borderColor: `${NAVY_700}40`,
         backgroundColor: alt ? `${NAVY_800}55` : "transparent",
       }}
     >
-      <span style={{ color: CREAM_400 }}>{String(rank).padStart(2, "0")}</span>
-      <span className="truncate font-semibold" style={{ color: CREAM_50 }}>
-        {name}
+      <span className="text-[11px] md:text-[13px]" style={{ color: CREAM_400 }}>
+        {String(rank).padStart(2, "0")}
       </span>
-      <span className="font-semibold" style={{ color: CREAM_200 }}>
+      <div className="min-w-0">
+        <div className="truncate font-semibold" style={{ color: CREAM_50 }}>
+          {name}
+        </div>
+        {/* Inline meta on mobile only — POS · NFL beneath the name. */}
+        <div
+          className="mt-0.5 flex items-center gap-2 text-[10px] font-semibold uppercase tracking-[0.14em] md:hidden"
+          style={{ color: CREAM_200 }}
+        >
+          <span>{player.position ?? "?"}</span>
+          <span style={{ color: CREAM_400 }}>·</span>
+          <span>{player.team ?? "FA"}</span>
+        </div>
+      </div>
+      <span className="hidden font-semibold md:inline" style={{ color: CREAM_200 }}>
         {player.position ?? "?"}
       </span>
-      <span className="font-semibold" style={{ color: CREAM_200 }}>
+      <span className="hidden font-semibold md:inline" style={{ color: CREAM_200 }}>
         {player.team ?? "FA"}
       </span>
       <div className="flex items-center justify-end">
@@ -748,7 +762,7 @@ function PoolRow({
             <input type="hidden" name="playerId" value={player.playerId} />
             <button
               type="submit"
-              className="inline-flex items-center gap-1.5 rounded-sm px-3 py-1.5 text-[10px] font-bold uppercase tracking-[0.18em] transition hover:brightness-110"
+              className="inline-flex min-h-[44px] items-center gap-1.5 rounded-sm px-4 py-2.5 text-[11px] font-bold uppercase tracking-[0.18em] transition hover:brightness-110 md:min-h-0 md:px-3 md:py-1.5 md:text-[10px]"
               style={{
                 backgroundColor: RED_500,
                 color: CREAM_50,
@@ -787,13 +801,19 @@ function DraftBoard({
   }
 
   return (
-    <section className="px-8 pb-8">
-      <div className="mb-4 flex items-baseline gap-3">
+    <section className="px-4 pb-8 md:px-8">
+      <div className="mb-4 flex flex-wrap items-baseline gap-x-3 gap-y-1">
         <h2 className="text-[11px] font-bold uppercase tracking-[0.22em]" style={{ color: CREAM_200 }}>
           Draft Board
         </h2>
         <span className="text-[10px] font-bold uppercase tracking-[0.22em]" style={{ color: CREAM_400 }}>
           · Snake · 3 rounds × {totalSlots} managers
+        </span>
+        <span
+          className="ml-auto text-[9px] font-semibold italic md:hidden"
+          style={{ color: CREAM_400 }}
+        >
+          swipe to see all picks →
         </span>
       </div>
       <div className="flex flex-col gap-2">
@@ -802,14 +822,18 @@ function DraftBoard({
           .map(([round, rp]) => (
             <div
               key={round}
-              className="grid gap-2"
-              style={{ gridTemplateColumns: `repeat(${rp.length}, minmax(0, 1fr))` }}
+              className="-mx-4 overflow-x-auto px-4 pb-1 md:mx-0 md:overflow-visible md:px-0 md:pb-0"
             >
-              {rp
-                .sort((a, b) => a.pickInRound - b.pickInRound)
-                .map((p) => (
-                  <SnakeCell key={p.id} pick={p} />
-                ))}
+              <div
+                className="grid gap-2 md:gap-2"
+                style={{ gridTemplateColumns: `repeat(${rp.length}, minmax(96px, 1fr))` }}
+              >
+                {rp
+                  .sort((a, b) => a.pickInRound - b.pickInRound)
+                  .map((p) => (
+                    <SnakeCell key={p.id} pick={p} />
+                  ))}
+              </div>
             </div>
           ))}
       </div>
@@ -923,11 +947,11 @@ function GoodellBox({
 
   return (
     <div
-      className="flex overflow-hidden rounded-sm border"
+      className="flex flex-col overflow-hidden rounded-sm border md:flex-row"
       style={{ borderColor: NAVY_700, backgroundColor: `${NAVY_900}CC` }}
     >
       <div
-        className="relative flex h-[220px] w-[260px] shrink-0 items-center justify-center overflow-hidden border-r"
+        className="relative flex h-[160px] w-full shrink-0 items-center justify-center overflow-hidden border-b md:h-[220px] md:w-[260px] md:border-b-0 md:border-r"
         style={{
           borderColor: NAVY_700,
           background: `linear-gradient(180deg, ${NAVY_700} 0%, ${NAVY_950} 100%)`,
@@ -953,7 +977,7 @@ function GoodellBox({
         )}
       </div>
 
-      <div className="flex flex-1 flex-col justify-center gap-3 px-7 py-6">
+      <div className="flex flex-1 flex-col justify-center gap-3 px-5 py-5 md:px-7 md:py-6">
         <div className="flex items-center gap-3">
           <MLFShield className="h-6 w-auto" />
           <span
@@ -964,11 +988,10 @@ function GoodellBox({
           </span>
         </div>
         <p
-          className="leading-[1.2] tracking-[-0.005em]"
+          className="text-[18px] leading-[1.2] tracking-[-0.005em] md:text-[26px]"
           style={{
             fontFamily: "var(--font-display)",
             fontWeight: 700,
-            fontSize: 26,
             color: CREAM_50,
             textTransform: "uppercase",
           }}
@@ -995,7 +1018,7 @@ function ReactionsFeed({ picks }: { picks: PickDetail[] }) {
   if (lockedDesc.length === 0) return null;
 
   return (
-    <section className="px-8 pb-10">
+    <section className="px-4 pb-10 md:px-8">
       <div className="mb-4 flex items-center gap-3">
         <h2 className="text-[11px] font-bold uppercase tracking-[0.22em]" style={{ color: CREAM_200 }}>
           Pick Reactions
@@ -1016,7 +1039,7 @@ function ReactionsFeed({ picks }: { picks: PickDetail[] }) {
           return (
             <li
               key={p.id}
-              className="flex items-start gap-4 border-t first:border-t-0 px-5 py-3"
+              className="flex items-start gap-3 border-t first:border-t-0 px-4 py-3 md:gap-4 md:px-5"
               style={{ borderColor: `${NAVY_700}80` }}
             >
               <span
@@ -1064,7 +1087,7 @@ function ReactionsFeed({ picks }: { picks: PickDetail[] }) {
 function Footer({ season }: { season: string }) {
   return (
     <footer
-      className="flex items-center justify-between border-t px-8 py-6 text-[10px] font-bold uppercase tracking-[0.26em]"
+      className="flex flex-wrap items-center justify-between gap-2 border-t px-4 py-5 text-[10px] font-bold uppercase tracking-[0.26em] md:px-8 md:py-6"
       style={{ borderColor: NAVY_800, color: CREAM_400 }}
     >
       <span>
@@ -1089,7 +1112,7 @@ function SkeletonFrame({ children }: { children: React.ReactNode }) {
     >
       <TurfAmbient />
       <ShieldWatermark />
-      <div className="relative mx-auto flex min-h-screen max-w-3xl flex-col px-8 py-12">
+      <div className="relative mx-auto flex min-h-screen max-w-3xl flex-col px-4 py-8 md:px-8 md:py-12">
         <Link
           href="/"
           className="text-[11px] font-semibold uppercase tracking-[0.22em] transition hover:opacity-80"
@@ -1100,7 +1123,7 @@ function SkeletonFrame({ children }: { children: React.ReactNode }) {
         <div className="my-auto">
           <header className="space-y-3 text-center">
             <div className="flex justify-center">
-              <MLFShield className="h-[120px] w-auto" />
+              <MLFShield className="h-[88px] w-auto md:h-[120px]" />
             </div>
             <p
               className="text-[10px] font-bold uppercase tracking-[0.26em]"
@@ -1109,11 +1132,10 @@ function SkeletonFrame({ children }: { children: React.ReactNode }) {
               Mens League of Football
             </p>
             <h1
-              className="leading-[0.9] tracking-[-0.015em]"
+              className="text-[36px] leading-[0.9] tracking-[-0.015em] md:text-[56px]"
               style={{
                 fontFamily: "var(--font-display)",
                 fontWeight: 800,
-                fontSize: 56,
                 color: CREAM_50,
                 textTransform: "uppercase",
               }}
@@ -1122,7 +1144,7 @@ function SkeletonFrame({ children }: { children: React.ReactNode }) {
             </h1>
           </header>
           <section
-            className="mt-10 rounded-sm border p-8"
+            className="mt-8 rounded-sm border p-6 md:mt-10 md:p-8"
             style={{ borderColor: NAVY_700, backgroundColor: `${NAVY_900}CC` }}
           >
             {children}
