@@ -51,44 +51,36 @@ const FONT_VARS: React.CSSProperties = {
 // draft and the old one quietly drops to "complete" (or gets deleted).
 const R2_BASE = process.env.NEXT_PUBLIC_R2_PUBLIC_BASE_URL ?? "";
 
-// Pick clock targets the next 11:00 America/Chicago boundary so the draft
-// keeps an MLF-pace daily rhythm regardless of when a pick goes on clock.
-// If "now" is already past 11am CT today, advance to 11am tomorrow.
+// Pick clock targets *tomorrow* at 11:00 America/Chicago so each manager
+// sees "you have until 11am tomorrow CT" the moment they go on clock.
+// To change the target time/day, edit the +1 day offset and the "11" hour
+// below. DST-aware: CDT in April, CST in winter.
 function nextElevenAmCentral(): Date {
   const now = new Date();
+  const tomorrow = new Date(now.getTime() + 24 * 60 * 60 * 1000);
   const ct = new Intl.DateTimeFormat("en-CA", {
     timeZone: "America/Chicago",
     year: "numeric",
     month: "2-digit",
     day: "2-digit",
-    hour: "2-digit",
-    hour12: false,
-  }).formatToParts(now);
+  }).formatToParts(tomorrow);
   const part = (t: string) => Number(ct.find((p) => p.type === t)?.value ?? "0");
   const y = part("year");
   const m = part("month");
   const d = part("day");
-  const h = part("hour");
-  // April → CDT (UTC-5); November–March → CST (UTC-6). Pick the offset by
-  // round-tripping a same-day 11am candidate through Intl and matching.
   const pad = (n: number) => String(n).padStart(2, "0");
   const candidate = (offset: "-05:00" | "-06:00") =>
     new Date(`${y}-${pad(m)}-${pad(d)}T11:00:00${offset}`);
-  const offsetForDay = (): "-05:00" | "-06:00" => {
-    const probe = candidate("-05:00");
-    const probeHourCT = new Intl.DateTimeFormat("en-US", {
-      timeZone: "America/Chicago",
-      hour: "numeric",
-      hour12: false,
-    }).format(probe);
-    return probeHourCT === "11" ? "-05:00" : "-06:00";
-  };
-  const offset = offsetForDay();
-  let target = candidate(offset);
-  if (h >= 11) {
-    target = new Date(target.getTime() + 24 * 60 * 60 * 1000);
-  }
-  return target;
+  // April → CDT (UTC-5); winter → CST (UTC-6). Probe by round-tripping a
+  // candidate through Intl and matching the hour back to 11.
+  const probe = candidate("-05:00");
+  const probeHourCT = new Intl.DateTimeFormat("en-US", {
+    timeZone: "America/Chicago",
+    hour: "numeric",
+    hour12: false,
+  }).format(probe);
+  const offset = probeHourCT === "11" ? "-05:00" : "-06:00";
+  return candidate(offset);
 }
 
 // ---------------------------------------------------------------------------
