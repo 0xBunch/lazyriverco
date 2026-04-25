@@ -611,16 +611,10 @@ function SponsorRail({
     >
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-2 text-[10px] font-bold uppercase tracking-[0.26em]">
-          <span style={{ color: CREAM_400 }}>Sponsor</span>
+          <span style={{ color: CREAM_400 }}>MLF Draft 2026</span>
           <span style={{ color: NAVY_600 }}>·</span>
-          <span style={{ color: CREAM_200 }}>Rotation</span>
+          <span style={{ color: CREAM_200 }}>Presented By</span>
         </div>
-        <span
-          className="text-[10px] font-bold uppercase tracking-[0.18em] tabular-nums"
-          style={{ color: CREAM_400 }}
-        >
-          {totalSponsors > 0 ? `01 / ${String(totalSponsors).padStart(2, "0")}` : "—"}
-        </span>
       </div>
 
       {sponsor ? (
