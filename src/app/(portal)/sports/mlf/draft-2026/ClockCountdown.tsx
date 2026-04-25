@@ -11,6 +11,10 @@ type Props = {
   onClockAt: string;
   /** Pick-clock duration in seconds (draft-wide config). */
   pickClockSec: number;
+  /** Optional fixed deadline (ISO). When provided, overrides the
+   *  onClockAt + pickClockSec calculation. Used to pin the visible
+   *  countdown to a specific wall-clock target (e.g. "11am tomorrow"). */
+  deadlineAt?: string;
   /** Display color when time remains. */
   activeColor?: string;
   /** Display color when the clock has crossed zero. */
@@ -20,6 +24,7 @@ type Props = {
 export function ClockCountdown({
   onClockAt,
   pickClockSec,
+  deadlineAt,
   activeColor = "#E23A52",
   expiredColor = "#8A8372",
 }: Props) {
@@ -29,8 +34,9 @@ export function ClockCountdown({
     return () => clearInterval(id);
   }, []);
 
-  const start = new Date(onClockAt).getTime();
-  const deadline = start + pickClockSec * 1000;
+  const deadline = deadlineAt
+    ? new Date(deadlineAt).getTime()
+    : new Date(onClockAt).getTime() + pickClockSec * 1000;
   const remainingMs = Math.max(0, deadline - now);
   const expired = remainingMs === 0;
 
