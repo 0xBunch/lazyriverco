@@ -43,7 +43,12 @@ const FONT_VARS: React.CSSProperties = {
   ["--font-ui" as string]: "'Satoshi', 'Manrope', system-ui, -apple-system, sans-serif",
 };
 
-const DRAFT_SLUG = "mlf-2026";
+// The page used to hardcode `slug: "mlf-2026"` for findUnique, but that
+// forced the commissioner to use that exact string when creating the
+// draft. Instead: prefer the live/paused draft, fall back to the most
+// recently created. v1 only ever has one active rookie draft at a time
+// — when we reuse this page for the 2027 season, just create the new
+// draft and the old one quietly drops to "complete" (or gets deleted).
 const R2_BASE = process.env.NEXT_PUBLIC_R2_PUBLIC_BASE_URL ?? "";
 
 // ---------------------------------------------------------------------------
@@ -56,21 +61,30 @@ export default async function DraftPage({
   const user = await getCurrentUser();
   const enabled = isDraft2026Enabled();
 
+  const draftInclude = {
+    slots: {
+      include: {
+        user: { select: { id: true, displayName: true, name: true } },
+      },
+    },
+    sponsors: {
+      where: { active: true },
+      orderBy: [{ displayOrder: "asc" as const }],
+    },
+  };
+
+  // Prefer a live/paused draft; fall back to the most-recent of any
+  // status. Either way, we serve "the draft." No slug coupling.
   const draft = enabled
-    ? await prisma.draftRoom.findUnique({
-        where: { slug: DRAFT_SLUG },
-        include: {
-          slots: {
-            include: {
-              user: { select: { id: true, displayName: true, name: true } },
-            },
-          },
-          sponsors: {
-            where: { active: true },
-            orderBy: [{ displayOrder: "asc" }],
-          },
-        },
-      })
+    ? (await prisma.draftRoom.findFirst({
+        where: { status: { in: ["live", "paused"] } },
+        orderBy: { openedAt: "desc" },
+        include: draftInclude,
+      })) ??
+      (await prisma.draftRoom.findFirst({
+        orderBy: { createdAt: "desc" },
+        include: draftInclude,
+      }))
     : null;
 
   if (!enabled) return <SkeletonFrame><NotYetOpen reason="flag" /></SkeletonFrame>;
