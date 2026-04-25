@@ -44,11 +44,10 @@ export function ClockCountdown({
 
   return (
     <span
-      className="inline-flex items-baseline leading-none tracking-[-0.01em] tabular-nums"
+      className="inline-flex items-baseline text-[28px] leading-none tracking-[-0.01em] tabular-nums md:text-[36px]"
       style={{
         fontFamily: "var(--font-display, 'Clash Display', system-ui)",
         fontWeight: 700,
-        fontSize: 36,
         color,
       }}
     >
