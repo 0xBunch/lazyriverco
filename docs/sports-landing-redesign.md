@@ -170,28 +170,65 @@ model NewsItem {
 enum SportTag { NFL NBA MLB NHL MLS UFC }
 ```
 
-Migration SQL (post-`prisma generate`):
+Migration SQL — **two files**, per data-integrity-guardian review 2026-04-27. The transactional file does fast catalog-only ops; the index goes in a separate non-transactional file so it can use `CREATE INDEX CONCURRENTLY`.
+
+**File 1** — `prisma/migrations/<ts>_sports_landing/migration.sql` (transactional, default Prisma wrapper):
 
 ```sql
--- Add enum types
-CREATE TYPE "FeedCategory" AS ENUM ('GENERAL', 'SPORTS');
-CREATE TYPE "SportTag"     AS ENUM ('NFL', 'NBA', 'MLB', 'NHL', 'MLS', 'UFC');
+-- Cap how long DDL blocks writers queued behind us. If a long-running
+-- transaction holds AccessShare on these tables, fail fast rather than
+-- queueing all subsequent writers behind our DDL waiter.
+SET lock_timeout      = '3s';
+SET statement_timeout = '30s';
 
--- Add columns. Feed.category gets a non-null default → no backfill needed
--- on existing rows (they become GENERAL retroactively, which is correct —
--- the library feeds shipped pre-this-migration are general-interest).
+-- IF NOT EXISTS on CREATE TYPE requires PG ≥ 15 (Railway runs 15/16).
+-- Idempotency matters: a half-applied migration leaves orphaned types,
+-- and a re-run with bare CREATE TYPE fails.
+CREATE TYPE IF NOT EXISTS "FeedCategory" AS ENUM ('GENERAL', 'SPORTS');
+CREATE TYPE IF NOT EXISTS "SportTag"     AS ENUM ('NFL', 'NBA', 'MLB', 'NHL', 'MLS', 'UFC');
+
+-- Feed.category NOT NULL DEFAULT 'GENERAL'. PG ≥ 11 stores the default in
+-- pg_attribute.attmissingval and synthesizes it for pre-existing tuples
+-- — no table rewrite. ACCESS EXCLUSIVE held only for catalog updates
+-- (milliseconds).
 ALTER TABLE "Feed"     ADD COLUMN "category" "FeedCategory" NOT NULL DEFAULT 'GENERAL';
 ALTER TABLE "NewsItem" ADD COLUMN "sport"    "SportTag";
 
--- Index
-CREATE INDEX "NewsItem_sport_publishedAt_idx" ON "NewsItem" ("sport", "publishedAt" DESC);
+-- Sports-side new table CHECK (cheap; table is empty at migration time)
+ALTER TABLE "SportsScheduleGame" ADD CONSTRAINT "SportsScheduleGame_team_distinct"
+  CHECK ("homeTeam" <> "awayTeam");
 ```
 
-**Migration safety review (data-integrity-guardian + data-migration-expert run on actual SQL at PR 1 implementation):**
+**File 2** — `prisma/migrations/<ts>_sports_landing_index/migration.sql` (non-transactional; required for CONCURRENTLY):
 
-- `Feed.category NOT NULL DEFAULT 'GENERAL'` — Postgres adds the default in-place without rewriting the table on PG ≥ 11. No locking concern at the row counts this app sees.
-- `NewsItem.sport` nullable — null is the correct value for items ingested before this migration, since their parent feeds were `GENERAL`. No backfill needed.
-- The migration coexists with running cron — `pollFeed` writes only the existing column set per `src/lib/feed-poller.ts`. Adding a nullable column doesn't break existing writes.
+```sql
+-- prisma+disable-transactions
+-- CREATE INDEX CONCURRENTLY cannot run inside a transaction block, so
+-- this migration file disables Prisma's transaction wrapper. Plain
+-- CREATE INDEX would take SHARE lock and block all NewsItem writers
+-- (the 15-min poll-feeds cron) for the build duration.
+CREATE INDEX CONCURRENTLY IF NOT EXISTS "NewsItem_sport_publishedAt_idx"
+  ON "NewsItem" ("sport", "publishedAt" DESC);
+```
+
+**Down-migration (rollback)** — order matters: index → columns → types. Types-before-columns would fail on referenced-type errors.
+
+```sql
+DROP INDEX  IF EXISTS "NewsItem_sport_publishedAt_idx";
+ALTER TABLE "NewsItem" DROP COLUMN IF EXISTS "sport";
+ALTER TABLE "Feed"     DROP COLUMN IF EXISTS "category";
+DROP TYPE   IF EXISTS "SportTag";
+DROP TYPE   IF EXISTS "FeedCategory";
+```
+
+**Migration safety review (data-integrity-guardian, 2026-04-27):**
+
+- ✅ `Feed.category NOT NULL DEFAULT 'GENERAL'` — Postgres ≥ 11 fast-default semantics. No table rewrite. ACCESS EXCLUSIVE for milliseconds.
+- ✅ `NewsItem.sport` nullable — pure catalog update. With `lock_timeout = '3s'`, a slow holder of AccessShare won't queue all writers behind our DDL.
+- ✅ `CREATE INDEX CONCURRENTLY` (split into File 2) — does NOT block writers. Required for a populated table that the 15-min cron continuously writes to.
+- ✅ `CREATE TYPE IF NOT EXISTS` — Railway runs PG ≥ 15. Re-run idempotent.
+- ✅ Down-migration drop order: index → columns → types.
+- ⚠️ Verify at PR 1 implementation: `pollFeed` insert site at [src/lib/feed-poller.ts](../src/lib/feed-poller.ts) — adding a nullable `sport` column doesn't break existing writes, but read the actual insert to confirm.
 
 **Out of scope for sports PR 1:** updating `/admin/feeds` UI to expose the category + sport dropdowns. That's a one-screen `<select>` add — bundle into sports PR 1 or fast-follow as PR 1.1. Until that ships, sports feeds get `category=SPORTS` set via Prisma Studio or a one-off SQL update.
 
