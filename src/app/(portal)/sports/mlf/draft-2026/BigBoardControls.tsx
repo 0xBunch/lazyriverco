@@ -1,8 +1,10 @@
 "use client";
 
 import Link from "next/link";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { ConfirmLockPickButton } from "./ConfirmLockPickButton";
+
+const PAGE_SIZE = 25;
 
 // BigBoard with client-side search / position-chip / sort controls.
 // Replaces the previous server-only BigBoard so filter UX feels live
@@ -63,6 +65,16 @@ export function BigBoardControls({
   const [search, setSearch] = useState("");
   const [position, setPosition] = useState<Position>("All");
   const [sortKey, setSortKey] = useState<SortKey>("rank");
+  const [page, setPage] = useState(0);
+
+  // Reset to first page when any filter/sort changes — otherwise the
+  // user types into search, the result set shrinks, and they're left
+  // staring at an empty page N. Math.min in render handles the case
+  // where the pool itself shrinks under our position (a player gets
+  // locked); this effect handles the user-driven changes.
+  useEffect(() => {
+    setPage(0);
+  }, [search, position, sortKey]);
 
   // Snapshot ranks so the ## column always reflects the player's true
   // ADP rank in the un-filtered pool, not their filter-relative index.
@@ -229,21 +241,118 @@ export function BigBoardControls({
             : "No players match the current filters."}
         </p>
       ) : (
-        <div>
-          {filtered.map((row, idx) => (
-            <PoolRow
-              key={row.id}
-              rank={rankByPlayerId.get(row.playerId) ?? idx + 1}
-              player={row.player}
-              youCanPick={(youreOnClock || isAdmin) && !!onClockPickId}
-              onClockPickId={onClockPickId}
-              selected={selectedPlayerId === row.playerId}
-              alt={idx % 2 !== 0}
-            />
-          ))}
-        </div>
+        <PaginatedRows
+          filtered={filtered}
+          page={page}
+          setPage={setPage}
+          rankByPlayerId={rankByPlayerId}
+          youreOnClock={youreOnClock}
+          isAdmin={isAdmin}
+          onClockPickId={onClockPickId}
+          selectedPlayerId={selectedPlayerId}
+        />
       )}
     </div>
+  );
+}
+
+function PaginatedRows({
+  filtered,
+  page,
+  setPage,
+  rankByPlayerId,
+  youreOnClock,
+  isAdmin,
+  onClockPickId,
+  selectedPlayerId,
+}: {
+  filtered: PoolItem[];
+  page: number;
+  setPage: (updater: (p: number) => number) => void;
+  rankByPlayerId: Map<string, number>;
+  youreOnClock: boolean;
+  isAdmin: boolean;
+  onClockPickId: string | null;
+  selectedPlayerId: string | null;
+}) {
+  const pageCount = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE));
+  // Math.min clamp protects against the pool shrinking underneath the
+  // current page (e.g., a player on the last page gets locked; without
+  // this we'd render an empty page N until the next filter change).
+  const safePage = Math.min(page, pageCount - 1);
+  const startIdx = safePage * PAGE_SIZE;
+  const endIdx = Math.min(startIdx + PAGE_SIZE, filtered.length);
+  const pageItems = filtered.slice(startIdx, endIdx);
+
+  return (
+    <>
+      <div>
+        {pageItems.map((row, idx) => (
+          <PoolRow
+            key={row.id}
+            rank={rankByPlayerId.get(row.playerId) ?? startIdx + idx + 1}
+            player={row.player}
+            youCanPick={(youreOnClock || isAdmin) && !!onClockPickId}
+            onClockPickId={onClockPickId}
+            selected={selectedPlayerId === row.playerId}
+            alt={(startIdx + idx) % 2 !== 0}
+          />
+        ))}
+      </div>
+
+      {pageCount > 1 && (
+        <nav
+          aria-label="Big Board pagination"
+          className="flex flex-wrap items-center justify-between gap-3 border-t px-4 py-3"
+          style={{ borderColor: NAVY_700, backgroundColor: `${NAVY_900}80` }}
+        >
+          <span
+            className="text-[10px] font-bold uppercase tracking-[0.22em] tabular-nums"
+            style={{ color: CREAM_400 }}
+          >
+            {startIdx + 1}–{endIdx} of {filtered.length}
+          </span>
+          <div className="flex items-center gap-2">
+            <button
+              type="button"
+              onClick={() => setPage((p) => Math.max(0, p - 1))}
+              disabled={safePage === 0}
+              aria-label="Previous page"
+              className="rounded-sm px-3 py-1 text-[10px] font-bold uppercase tracking-[0.18em] transition hover:brightness-125 focus:outline-none disabled:cursor-not-allowed disabled:opacity-40"
+              style={{
+                backgroundColor: NAVY_800,
+                color: CREAM_200,
+                boxShadow: `0 0 0 1px ${NAVY_700}`,
+              }}
+            >
+              ← Prev
+            </button>
+            <span
+              className="text-[10px] font-bold uppercase tracking-[0.22em] tabular-nums"
+              style={{ color: CREAM_200 }}
+            >
+              Page {safePage + 1} of {pageCount}
+            </span>
+            <button
+              type="button"
+              onClick={() =>
+                setPage((p) => Math.min(pageCount - 1, p + 1))
+              }
+              disabled={safePage === pageCount - 1}
+              aria-label="Next page"
+              className="rounded-sm px-3 py-1 text-[10px] font-bold uppercase tracking-[0.18em] transition hover:brightness-125 focus:outline-none disabled:cursor-not-allowed disabled:opacity-40"
+              style={{
+                backgroundColor: NAVY_800,
+                color: CREAM_200,
+                boxShadow: `0 0 0 1px ${NAVY_700}`,
+              }}
+            >
+              Next →
+            </button>
+          </div>
+        </nav>
+      )}
+    </>
   );
 }
 
