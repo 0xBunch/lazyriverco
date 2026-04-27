@@ -15,7 +15,7 @@ export async function addSponsor(fd: FormData): Promise<void> {
   const draftId = String(fd.get("draftId") ?? "").trim();
   const name = String(fd.get("name") ?? "").trim();
   const tagline = String(fd.get("tagline") ?? "").trim() || null;
-  const base = `/admin/draft/${draftId}/sponsors`;
+  const base = `/admin/sports/mlf/draft/${draftId}/sponsors`;
   if (!draftId || !name) flash(base, "error", "Sponsor name required.");
   if (name.length > 80) flash(base, "error", "Name too long (max 80).");
   if (tagline && tagline.length > 200) flash(base, "error", "Tagline too long (max 200).");
@@ -42,7 +42,7 @@ export async function toggleSponsorActive(fd: FormData): Promise<void> {
   await requireAdmin();
   const id = String(fd.get("id") ?? "").trim();
   const draftId = String(fd.get("draftId") ?? "").trim();
-  const base = `/admin/draft/${draftId}/sponsors`;
+  const base = `/admin/sports/mlf/draft/${draftId}/sponsors`;
   if (!id) flash(base, "error", "Missing sponsor id.");
 
   const cur = await prisma.draftSponsor.findUnique({
@@ -62,7 +62,7 @@ export async function deleteSponsor(fd: FormData): Promise<void> {
   await requireAdmin();
   const id = String(fd.get("id") ?? "").trim();
   const draftId = String(fd.get("draftId") ?? "").trim();
-  const base = `/admin/draft/${draftId}/sponsors`;
+  const base = `/admin/sports/mlf/draft/${draftId}/sponsors`;
   if (!id) flash(base, "error", "Missing sponsor id.");
   await prisma.draftSponsor.delete({ where: { id } });
   revalidatePath(base);
@@ -74,7 +74,7 @@ export async function reorderSponsor(fd: FormData): Promise<void> {
   const id = String(fd.get("id") ?? "").trim();
   const draftId = String(fd.get("draftId") ?? "").trim();
   const direction = String(fd.get("direction") ?? "").trim();
-  const base = `/admin/draft/${draftId}/sponsors`;
+  const base = `/admin/sports/mlf/draft/${draftId}/sponsors`;
   if (!id || (direction !== "up" && direction !== "down")) {
     flash(base, "error", "Bad reorder request.");
   }

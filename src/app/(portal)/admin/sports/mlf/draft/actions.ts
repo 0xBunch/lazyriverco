@@ -5,7 +5,7 @@ import { revalidatePath } from "next/cache";
 import { prisma } from "@/lib/prisma";
 import { requireAdmin } from "@/lib/auth";
 
-// Admin actions for /admin/draft. Matches the /admin/memory/feeds pattern —
+// Admin actions for /admin/sports/mlf/draft. Matches the /admin/memory/feeds pattern —
 // plain `<form action={...}>` server actions with ?msg= / ?error= flash
 // redirects so the page can render the outcome without client state.
 //
@@ -39,22 +39,22 @@ export async function createDraft(fd: FormData): Promise<void> {
   const pickClockHours = Number(fd.get("pickClockHours") ?? 24);
 
   if (!SLUG_PATTERN.test(slug)) {
-    flash("/admin/draft", "error", "Slug must be 2–64 chars, lowercase letters / digits / hyphens.");
+    flash("/admin/sports/mlf/draft", "error", "Slug must be 2–64 chars, lowercase letters / digits / hyphens.");
   }
   if (!name || name.length > MAX_NAME) {
-    flash("/admin/draft", "error", `Name is required (max ${MAX_NAME} chars).`);
+    flash("/admin/sports/mlf/draft", "error", `Name is required (max ${MAX_NAME} chars).`);
   }
   if (!season || season.length > MAX_SEASON) {
-    flash("/admin/draft", "error", `Season is required (max ${MAX_SEASON} chars, e.g. "2026").`);
+    flash("/admin/sports/mlf/draft", "error", `Season is required (max ${MAX_SEASON} chars, e.g. "2026").`);
   }
   if (!Number.isFinite(totalRounds) || totalRounds < 1 || totalRounds > 20) {
-    flash("/admin/draft", "error", "Rounds must be between 1 and 20.");
+    flash("/admin/sports/mlf/draft", "error", "Rounds must be between 1 and 20.");
   }
   if (!Number.isFinite(totalSlots) || totalSlots < 2 || totalSlots > 32) {
-    flash("/admin/draft", "error", "Slots must be between 2 and 32.");
+    flash("/admin/sports/mlf/draft", "error", "Slots must be between 2 and 32.");
   }
   if (!Number.isFinite(pickClockHours) || pickClockHours < 1 || pickClockHours > 168) {
-    flash("/admin/draft", "error", "Pick clock must be between 1 and 168 hours (7 days).");
+    flash("/admin/sports/mlf/draft", "error", "Pick clock must be between 1 and 168 hours (7 days).");
   }
 
   const existing = await prisma.draftRoom.findUnique({
@@ -62,7 +62,7 @@ export async function createDraft(fd: FormData): Promise<void> {
     select: { id: true },
   });
   if (existing) {
-    flash("/admin/draft", "error", `A draft with slug "${slug}" already exists.`);
+    flash("/admin/sports/mlf/draft", "error", `A draft with slug "${slug}" already exists.`);
   }
 
   const draft = await prisma.draftRoom.create({
@@ -78,18 +78,18 @@ export async function createDraft(fd: FormData): Promise<void> {
     select: { id: true, slug: true },
   });
 
-  revalidatePath("/admin/draft");
-  redirect(`/admin/draft/${draft.id}?msg=created`);
+  revalidatePath("/admin/sports/mlf/draft");
+  redirect(`/admin/sports/mlf/draft/${draft.id}?msg=created`);
 }
 
 export async function deleteDraft(fd: FormData): Promise<void> {
   await requireAdmin();
   const id = String(fd.get("id") ?? "").trim();
-  if (!id) flash("/admin/draft", "error", "Missing draft id.");
+  if (!id) flash("/admin/sports/mlf/draft", "error", "Missing draft id.");
 
   const confirm = String(fd.get("confirm") ?? "").trim();
   if (confirm !== "DELETE") {
-    flash("/admin/draft", "error", "Type DELETE to confirm draft removal.");
+    flash("/admin/sports/mlf/draft", "error", "Type DELETE to confirm draft removal.");
   }
 
   // Cascade: DraftSlot, DraftPick, DraftPoolPlayer, DraftAnnouncerImage,
@@ -97,6 +97,6 @@ export async function deleteDraft(fd: FormData): Promise<void> {
   // ON DELETE CASCADE policy. Scouting reports survive (player-scoped).
   await prisma.draftRoom.delete({ where: { id } });
 
-  revalidatePath("/admin/draft");
-  redirect("/admin/draft?msg=deleted");
+  revalidatePath("/admin/sports/mlf/draft");
+  redirect("/admin/sports/mlf/draft?msg=deleted");
 }

@@ -10,7 +10,7 @@ const ADMIN_TABS = [
   { href: "/admin/members", label: "Members" },
   { href: "/admin/memory", label: "Memory" },
   { href: "/admin/calendar", label: "Calendar" },
-  { href: "/admin/draft", label: "Draft" },
+  { href: "/admin/sports", label: "Sports" },
 ] as const;
 
 export function AdminSubNav() {

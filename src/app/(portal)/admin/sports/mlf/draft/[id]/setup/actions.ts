@@ -36,8 +36,8 @@ export async function createShadowUser(fd: FormData): Promise<void> {
   const draftId = String(fd.get("draftId") ?? "").trim();
   const displayName = String(fd.get("displayName") ?? "").trim();
   const base = draftId
-    ? `/admin/draft/${draftId}/setup`
-    : "/admin/draft";
+    ? `/admin/sports/mlf/draft/${draftId}/setup`
+    : "/admin/sports/mlf/draft";
 
   if (!displayName) flash(base, "error", "Shadow manager name required.");
   if (displayName.length > MAX_DISPLAY_NAME) {
@@ -66,14 +66,14 @@ export async function createShadowUser(fd: FormData): Promise<void> {
 export async function saveSlots(fd: FormData): Promise<void> {
   await requireAdmin();
   const draftId = String(fd.get("draftId") ?? "").trim();
-  if (!draftId) flash("/admin/draft", "error", "Missing draft id.");
-  const base = `/admin/draft/${draftId}/setup`;
+  if (!draftId) flash("/admin/sports/mlf/draft", "error", "Missing draft id.");
+  const base = `/admin/sports/mlf/draft/${draftId}/setup`;
 
   const draft = await prisma.draftRoom.findUnique({
     where: { id: draftId },
     select: { id: true, totalSlots: true, totalRounds: true, status: true },
   });
-  if (!draft) flash("/admin/draft", "error", "Draft not found.");
+  if (!draft) flash("/admin/sports/mlf/draft", "error", "Draft not found.");
 
   if (draft.status === "live" || draft.status === "complete") {
     flash(base, "error", "Can't edit slots once draft is live. Pause first.");

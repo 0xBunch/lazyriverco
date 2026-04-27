@@ -14,14 +14,14 @@ function flash(path: string, key: "msg" | "error", value: string): never {
 export async function seedPool(fd: FormData): Promise<void> {
   const admin = await requireAdmin();
   const draftId = String(fd.get("draftId") ?? "").trim();
-  if (!draftId) flash("/admin/draft", "error", "Missing draft id.");
-  const base = `/admin/draft/${draftId}/pool`;
+  if (!draftId) flash("/admin/sports/mlf/draft", "error", "Missing draft id.");
+  const base = `/admin/sports/mlf/draft/${draftId}/pool`;
 
   const draft = await prisma.draftRoom.findUnique({
     where: { id: draftId },
     select: { id: true, status: true },
   });
-  if (!draft) flash("/admin/draft", "error", "Draft not found.");
+  if (!draft) flash("/admin/sports/mlf/draft", "error", "Draft not found.");
   if (draft.status === "live" || draft.status === "complete") {
     flash(base, "error", "Can't seed pool while draft is live or complete.");
   }
@@ -41,8 +41,8 @@ export async function addPlayerToPool(fd: FormData): Promise<void> {
   const draftId = String(fd.get("draftId") ?? "").trim();
   const playerId = String(fd.get("playerId") ?? "").trim();
   const note = String(fd.get("note") ?? "").trim() || null;
-  if (!draftId) flash("/admin/draft", "error", "Missing draft id.");
-  const base = `/admin/draft/${draftId}/pool`;
+  if (!draftId) flash("/admin/sports/mlf/draft", "error", "Missing draft id.");
+  const base = `/admin/sports/mlf/draft/${draftId}/pool`;
   if (!playerId) flash(base, "error", "Pick a player from the dropdown.");
 
   try {
@@ -64,7 +64,7 @@ export async function togglePlayerRemoved(fd: FormData): Promise<void> {
   const draftId = String(fd.get("draftId") ?? "").trim();
   const id = String(fd.get("id") ?? "").trim();
   const removed = String(fd.get("removed") ?? "") === "true";
-  const base = `/admin/draft/${draftId}/pool`;
+  const base = `/admin/sports/mlf/draft/${draftId}/pool`;
   if (!id) flash(base, "error", "Missing row id.");
 
   await prisma.draftPoolPlayer.update({

@@ -85,7 +85,7 @@ export default async function SetupPage({
     <div className="space-y-6">
       <header className="flex flex-col gap-2">
         <Link
-          href={`/admin/draft/${draft.id}`}
+          href={`/admin/sports/mlf/draft/${draft.id}`}
           className="text-xs uppercase tracking-[0.18em] text-bone-400 hover:text-bone-200"
         >
           ← {draft.name}
@@ -364,7 +364,7 @@ function SlotCard({
           <p className="mt-2 text-xs italic text-bone-400">
             No rookies in the pool yet. Seed the pool first at{" "}
             <code className="rounded bg-bone-900 px-1.5 py-0.5">
-              /admin/draft/[id]/pool
+              /admin/sports/mlf/draft/[id]/pool
             </code>
             , then come back to select shadow picks.
           </p>

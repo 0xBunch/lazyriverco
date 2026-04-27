@@ -25,8 +25,8 @@ function flash(path: string, key: "msg" | "error", value: string): never {
 export async function openDraft(fd: FormData): Promise<void> {
   const admin = await requireAdmin();
   const draftId = String(fd.get("draftId") ?? "").trim();
-  if (!draftId) flash("/admin/draft", "error", "Missing draft id.");
-  const base = `/admin/draft/${draftId}`;
+  if (!draftId) flash("/admin/sports/mlf/draft", "error", "Missing draft id.");
+  const base = `/admin/sports/mlf/draft/${draftId}`;
 
   const draft = await prisma.draftRoom.findUnique({
     where: { id: draftId },
@@ -42,7 +42,7 @@ export async function openDraft(fd: FormData): Promise<void> {
       _count: { select: { pool: true, picks: true } },
     },
   });
-  if (!draft) flash("/admin/draft", "error", "Draft not found.");
+  if (!draft) flash("/admin/sports/mlf/draft", "error", "Draft not found.");
   if (draft.status !== "setup") {
     flash(base, "error", `Draft is already ${draft.status}.`);
   }
@@ -207,7 +207,7 @@ export async function openDraft(fd: FormData): Promise<void> {
 export async function pauseDraft(fd: FormData): Promise<void> {
   await requireAdmin();
   const draftId = String(fd.get("draftId") ?? "").trim();
-  const base = `/admin/draft/${draftId}`;
+  const base = `/admin/sports/mlf/draft/${draftId}`;
   const draft = await prisma.draftRoom.findUnique({
     where: { id: draftId },
     select: { status: true },
@@ -228,7 +228,7 @@ export async function pauseDraft(fd: FormData): Promise<void> {
 export async function resumeDraft(fd: FormData): Promise<void> {
   await requireAdmin();
   const draftId = String(fd.get("draftId") ?? "").trim();
-  const base = `/admin/draft/${draftId}`;
+  const base = `/admin/sports/mlf/draft/${draftId}`;
   const draft = await prisma.draftRoom.findUnique({
     where: { id: draftId },
     select: { status: true },
@@ -249,7 +249,7 @@ export async function resumeDraft(fd: FormData): Promise<void> {
 export async function completeDraft(fd: FormData): Promise<void> {
   await requireAdmin();
   const draftId = String(fd.get("draftId") ?? "").trim();
-  const base = `/admin/draft/${draftId}`;
+  const base = `/admin/sports/mlf/draft/${draftId}`;
   await prisma.draftRoom.update({
     where: { id: draftId },
     data: { status: "complete", closedAt: new Date() },
@@ -281,8 +281,8 @@ export async function completeDraft(fd: FormData): Promise<void> {
 export async function resetDraft(fd: FormData): Promise<void> {
   await requireAdmin();
   const draftId = String(fd.get("draftId") ?? "").trim();
-  const base = `/admin/draft/${draftId}`;
-  if (!draftId) flash("/admin/draft", "error", "Missing draft id.");
+  const base = `/admin/sports/mlf/draft/${draftId}`;
+  if (!draftId) flash("/admin/sports/mlf/draft", "error", "Missing draft id.");
 
   const confirm = String(fd.get("confirm") ?? "").trim();
   if (confirm !== "RESET") {
@@ -293,7 +293,7 @@ export async function resetDraft(fd: FormData): Promise<void> {
     where: { id: draftId },
     select: { id: true, status: true },
   });
-  if (!draft) flash("/admin/draft", "error", "Draft not found.");
+  if (!draft) flash("/admin/sports/mlf/draft", "error", "Draft not found.");
 
   // Two-step transaction: clear out pick-derived state, then reset the
   // room metadata. Picks cascade-delete reactions via the FK; images
@@ -348,8 +348,8 @@ export async function undoPick(fd: FormData): Promise<void> {
   const admin = await requireAdmin();
   const draftId = String(fd.get("draftId") ?? "").trim();
   const pickId = String(fd.get("pickId") ?? "").trim();
-  const base = `/admin/draft/${draftId}`;
-  if (!draftId) flash("/admin/draft", "error", "Missing draft id.");
+  const base = `/admin/sports/mlf/draft/${draftId}`;
+  if (!draftId) flash("/admin/sports/mlf/draft", "error", "Missing draft id.");
   if (!pickId) flash(base, "error", "Missing pick id.");
 
   const pick = await prisma.draftPick.findUnique({
@@ -375,7 +375,7 @@ export async function undoPick(fd: FormData): Promise<void> {
     where: { id: draftId },
     select: { status: true },
   });
-  if (!draft) flash("/admin/draft", "error", "Draft not found.");
+  if (!draft) flash("/admin/sports/mlf/draft", "error", "Draft not found.");
 
   const wasComplete = draft.status === "complete";
   const now = new Date();

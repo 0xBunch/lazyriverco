@@ -8,11 +8,11 @@ export const metadata = {
 };
 
 // ---------------------------------------------------------------------------
-// /admin/draft — list existing draft rooms + create a new one.
+// /admin/sports/mlf/draft — list existing draft rooms + create a new one.
 //
 // v1 scope: ship enough to create a DraftRoom and see it listed. Slot
 // mapping, sponsor management, image-pool uploads, live cockpit all
-// layer in under /admin/draft/[id]/* in follow-up PRs. The feature flag
+// layer in under /admin/sports/mlf/draft/[id]/* in follow-up PRs. The feature flag
 // (DRAFT_2026_ENABLED) doesn't gate this page — commissioners can set up
 // in the background. It gates the public /sports/mlf/draft-2026 view.
 // ---------------------------------------------------------------------------
@@ -91,7 +91,7 @@ export default async function AdminDraftPage({
               <div className="flex items-start justify-between gap-3">
                 <div>
                   <Link
-                    href={`/admin/draft/${d.id}`}
+                    href={`/admin/sports/mlf/draft/${d.id}`}
                     className="font-display text-lg font-semibold text-bone-50 hover:text-claude-200 focus:outline-none focus-visible:ring-2 focus-visible:ring-claude-500 focus-visible:ring-offset-2 focus-visible:ring-offset-bone-950"
                   >
                     {d.name} →
