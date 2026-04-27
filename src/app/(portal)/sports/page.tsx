@@ -1,107 +1,148 @@
-import Link from "next/link";
 import { redirect } from "next/navigation";
-import { IconBallAmericanFootball } from "@tabler/icons-react";
 import { getCurrentUser } from "@/lib/auth";
+import { prisma } from "@/lib/prisma";
+import { getMlfTopN } from "@/lib/sleeper/standings";
+import { getWagOfTheDay } from "@/lib/sports/wag-rotation";
+import { pickSponsorForToday } from "@/lib/sports/sponsor-rotation";
+import { SportsHero } from "./_components/SportsHero";
+import { WagOfTheDay } from "./_components/WagOfTheDay";
+import { MlfTopThree } from "./_components/MlfTopThree";
+import { TonightStrip } from "./_components/TonightStrip";
+import { HeadlinesRail } from "./_components/HeadlinesRail";
+import { HighlightsGrid } from "./_components/HighlightsGrid";
+import { SponsorBreakRail } from "./_components/SponsorBreakRail";
 
 export const dynamic = "force-dynamic";
 
-// Sports dashboard — parent surface for every sport module (MLF fantasy
-// football today, future NBA/MLB/etc. modules). Placeholder card grid
-// for now; a richer at-a-glance dashboard (scores, standings, injury
-// alerts, next matchup) lands in a follow-up.
+// /sports — daily clubhouse front page. Five modules: Headlines (RSS,
+// reads from shipped NewsItem WHERE feed.category=SPORTS), WAG of the
+// Day (editorial schedule), MLF Top 3 (Sleeper-backed, shipped),
+// TONIGHT (admin-curated schedule, PR 4 adds auto-sync), Highlights
+// (admin-curated YouTube, PR 3 adds auto-sync). Plus a rotating
+// sponsor in two surfaces — hero presenter line + mid-page break.
+//
+// See docs/sports-landing-redesign.md for full design context. Visual
+// reference: mockups/sports-desktop.html + mockups/sports-mobile.html.
 
-type SportCard = {
-  href: string;
-  label: string;
-  tagline: string;
-  Icon: typeof IconBallAmericanFootball;
-  available: boolean;
-};
-
-const SPORTS: SportCard[] = [
-  {
-    href: "/sports/mlf",
-    label: "MLF",
-    tagline: "Mens League · Sleeper fantasy football",
-    Icon: IconBallAmericanFootball,
-    available: true,
-  },
-];
-
-export default async function SportsDashboardPage() {
+export default async function SportsLandingPage() {
   const user = await getCurrentUser();
   if (!user) redirect("/start");
+  const isAdmin = user.role === "ADMIN";
+
+  // Single batched read. Each module renders its own empty state if
+  // its slice comes back empty/null, so a single missing data source
+  // doesn't 500 the page.
+  //
+  // headlinesCount + scheduleCount are separate from the list reads
+  // because the lists `take: N` cap their result length — if we used
+  // headlines.length the hero would always say "8 headlines" once the
+  // feed is healthy, regardless of how many actually exist. Indexed
+  // count() is cheap.
+  const now = new Date();
+  const [wag, mlf, headlines, highlights, schedule, liveCount, headlinesCount, gamesCount, sponsors] =
+    await Promise.all([
+      getWagOfTheDay(),
+      getMlfTopN(3),
+      prisma.newsItem.findMany({
+        where: { hidden: false, feed: { category: "SPORTS", enabled: true } },
+        orderBy: { publishedAt: "desc" },
+        take: 8,
+        include: { feed: { select: { name: true } } },
+      }),
+      prisma.sportsHighlight.findMany({
+        where: { hidden: false },
+        orderBy: [{ sortOrder: "desc" }, { publishedAt: "desc" }],
+        take: 6,
+      }),
+      prisma.sportsScheduleGame.findMany({
+        where: { hidden: false, gameTime: { gte: now } },
+        orderBy: { gameTime: "asc" },
+        take: 6,
+      }),
+      prisma.sportsScheduleGame.count({
+        where: { status: "LIVE", hidden: false },
+      }),
+      prisma.newsItem.count({
+        where: { hidden: false, feed: { category: "SPORTS", enabled: true } },
+      }),
+      prisma.sportsScheduleGame.count({
+        where: { hidden: false, gameTime: { gte: now } },
+      }),
+      prisma.sportsSponsor.findMany({
+        where: { active: true },
+        orderBy: { displayOrder: "asc" },
+      }),
+    ]);
+
+  const pickedSponsor = pickSponsorForToday(sponsors);
+  const sponsor = pickedSponsor?.sponsor ?? null;
+  const sponsorIndex = pickedSponsor?.index ?? -1;
+
+  const headlineItems = headlines.map((row) => ({
+    id: row.id,
+    title: row.title,
+    excerpt: row.excerpt,
+    originalUrl: row.originalUrl,
+    publishedAt: row.publishedAt,
+    ingestedAt: row.ingestedAt,
+    ogImageUrl: row.ogImageUrl,
+    sport: row.sport,
+    feedName: row.feed.name,
+  }));
 
   return (
-    <div className="mx-auto max-w-5xl px-4 py-6 md:px-6 md:py-10">
-      <header className="mb-8 md:mb-10">
-        <h1 className="font-display text-3xl font-semibold tracking-tight text-bone-50 text-balance md:text-4xl">
-          Sports
-        </h1>
-        <p className="mt-2 text-sm text-bone-300 text-pretty">
-          Every league, roster, and box score the clubhouse cares about. More
-          sports arrive as we wire them up.
-        </p>
-      </header>
+    <main className="w-full">
+      <SportsHero
+        liveCount={liveCount}
+        totalGames={gamesCount}
+        totalHeadlines={headlinesCount}
+        sponsor={sponsor}
+      />
 
-      <ul className="grid gap-3 md:grid-cols-2">
-        {SPORTS.map((s) =>
-          s.available ? (
-            <li key={s.href}>
-              <Link
-                href={s.href}
-                className="group flex items-start gap-3 rounded-xl border border-bone-800 bg-bone-900/40 p-4 transition-colors hover:border-bone-700 hover:bg-bone-900/70 focus:outline-none focus-visible:ring-2 focus-visible:ring-claude-500"
-              >
-                <span
-                  aria-hidden="true"
-                  className="flex h-11 w-11 flex-shrink-0 items-center justify-center rounded-lg border border-bone-700 bg-bone-950 text-bone-200 group-hover:text-bone-50"
-                >
-                  <s.Icon size={22} stroke={1.5} />
-                </span>
-                <span className="min-w-0 flex-1">
-                  <span className="block font-display text-base font-semibold text-bone-50">
-                    {s.label}
-                  </span>
-                  <span className="mt-0.5 block text-sm text-bone-400">
-                    {s.tagline}
-                  </span>
-                </span>
-                <span
-                  aria-hidden="true"
-                  className="self-center text-bone-500 transition-colors group-hover:text-bone-200"
-                >
-                  →
-                </span>
-              </Link>
-            </li>
-          ) : (
-            <li key={s.href}>
-              <div
-                aria-disabled="true"
-                className="flex items-start gap-3 rounded-xl border border-dashed border-bone-800 bg-bone-900/20 p-4 opacity-60"
-              >
-                <span
-                  aria-hidden="true"
-                  className="flex h-11 w-11 flex-shrink-0 items-center justify-center rounded-lg border border-bone-800 bg-bone-950 text-bone-500"
-                >
-                  <s.Icon size={22} stroke={1.5} />
-                </span>
-                <span className="min-w-0 flex-1">
-                  <span className="block font-display text-base font-semibold text-bone-300">
-                    {s.label}
-                  </span>
-                  <span className="mt-0.5 block text-sm text-bone-500">
-                    {s.tagline}
-                  </span>
-                </span>
-                <span className="self-center text-[10px] uppercase tracking-widest text-bone-500">
-                  Soon
-                </span>
-              </div>
-            </li>
-          ),
-        )}
-      </ul>
-    </div>
+      <hr aria-hidden="true" className="h-px w-full border-0 bg-sports-amber/40" />
+
+      {/* Grid 1 — WAG + right-rail (MLF + TONIGHT) */}
+      <section className="relative w-full">
+        <div className="mx-auto grid max-w-7xl grid-cols-1 gap-6 px-4 py-8 md:grid-cols-12 md:gap-6 md:px-6 md:py-12 lg:gap-10 lg:px-10">
+          <WagOfTheDay data={wag} isAdmin={isAdmin} />
+          <div className="flex flex-col gap-6 md:col-span-5 lg:gap-10">
+            <MlfTopThree data={mlf} />
+            <TonightStrip games={schedule} isAdmin={isAdmin} />
+          </div>
+        </div>
+      </section>
+
+      {/* Mid-page broadcast break (renders nothing when no active sponsor) */}
+      <SponsorBreakRail
+        sponsor={sponsor}
+        totalActive={sponsors.length}
+        activeIndex={sponsorIndex}
+      />
+
+      {/* Grid 2 — Headlines (cols 1-8) + Highlights (cols 9-12) */}
+      <section className="relative w-full">
+        <div className="mx-auto grid max-w-7xl grid-cols-1 gap-6 px-4 py-8 md:grid-cols-12 md:gap-6 md:px-6 md:py-12 lg:gap-10 lg:px-10">
+          <div className="md:col-span-8">
+            <HeadlinesRail items={headlineItems} isAdmin={isAdmin} />
+          </div>
+          <div className="md:col-span-4">
+            <HighlightsGrid items={highlights} isAdmin={isAdmin} />
+          </div>
+        </div>
+      </section>
+
+      <hr aria-hidden="true" className="h-px w-full border-0 bg-sports-amber/20" />
+
+      <footer className="w-full">
+        <div className="mx-auto flex max-w-7xl items-center justify-between px-4 py-6 md:px-6 md:py-10 lg:px-10">
+          <span className="font-display text-[10px] font-semibold uppercase tracking-[0.28em] text-bone-500">
+            Lazy River · Sports · End of broadcast
+          </span>
+          <span className="font-display text-[10px] font-semibold uppercase tracking-[0.28em] tabular-nums text-bone-500">
+            v1
+          </span>
+        </div>
+      </footer>
+    </main>
   );
 }
