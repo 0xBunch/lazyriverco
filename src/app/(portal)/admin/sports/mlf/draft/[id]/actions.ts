@@ -4,7 +4,7 @@ import { redirect } from "next/navigation";
 import { revalidatePath } from "next/cache";
 import { prisma } from "@/lib/prisma";
 import { requireAdmin } from "@/lib/auth";
-import { computeSnakeOrder } from "@/lib/draft";
+import { computeSnakeOrder, rewindOnClockTo } from "@/lib/draft";
 import { generateDraftPickReaction } from "@/lib/sleeper-ai";
 
 function flash(path: string, key: "msg" | "error", value: string): never {
@@ -329,16 +329,21 @@ export async function resetDraft(fd: FormData): Promise<void> {
  *   * DraftPickReaction row deleted, so re-locking will trigger a
  *     fresh AI reaction.
  *
- * The current on-clock pointer is intentionally NOT moved. If the draft
- * has already advanced past this pick, that's fine — the next call to
- * `lockPick` will run `findNextPendingPick`, which orders by
- * overallPick asc and will return this just-undone pick first. Manager
- * retro-picks before the live draft advances further.
+ * The on-clock pointer is rewound atomically via `rewindOnClockTo` (in
+ * the same transaction): if the current on-clock pick is later in the
+ * sequence than the undone one, it gets demoted back to `pending` and
+ * the undone pick is promoted to `onClock` with a fresh `onClockAt`. The
+ * manager whose pick was undone immediately gets the clock back; the
+ * draft doesn't have to wait for whoever was on-clock to lock first.
+ * (Earlier behavior left the on-clock pointer unmoved and relied on a
+ * post-hoc rewind via `findNextPendingPick`, which surfaced as a UX bug
+ * — pick 3 stayed on the clock after pick 2 was undone.)
  *
  * Edge case: if the draft was `complete` (final pick was the only
  * locked one or all 24 are locked), we flip status back to `live` and
  * put this pick on-clock immediately so the draft doesn't sit in a
- * dead "complete" state with a pending pick orphaned.
+ * dead "complete" state with a pending pick orphaned. The rewind helper
+ * is skipped in this branch — there's no other on-clock pick to demote.
  *
  * Not gated by typed-confirm. Undo is fully reversible (admin can just
  * re-pick), so the friction isn't worth the speed cost during a live
@@ -380,14 +385,18 @@ export async function undoPick(fd: FormData): Promise<void> {
   const wasComplete = draft.status === "complete";
   const now = new Date();
 
-  await prisma.$transaction([
-    prisma.draftPick.update({
+  // Interactive transaction: the on-clock rewind needs to read the
+  // current on-clock row and conditionally demote/promote inside the
+  // same atomic boundary as the undo's main update. The array form of
+  // $transaction can't express that read-then-write pattern.
+  await prisma.$transaction(async (tx) => {
+    await tx.draftPick.update({
       where: { id: pick.id },
       data: {
         // If the draft was complete, flip this pick straight back to
-        // onClock so the live state is consistent. Otherwise it goes
-        // pending and findNextPendingPick on the next lock will surface
-        // it as the next on-clock.
+        // onClock so the live state is consistent — there's no other
+        // on-clock pick to fight with. Otherwise it goes pending and
+        // rewindOnClockTo (below) promotes it to on-clock atomically.
         status: wasComplete ? "onClock" : "pending",
         playerId: null,
         lockedAt: null,
@@ -395,31 +404,30 @@ export async function undoPick(fd: FormData): Promise<void> {
         onClockAt: wasComplete ? now : null,
         undoneAt: now,
       },
-    }),
-    ...(pick.announcerImg
-      ? [
-          prisma.draftAnnouncerImage.update({
-            where: { id: pick.announcerImg.id },
-            data: { consumedPickId: null },
-          }),
-        ]
-      : []),
-    ...(pick.reaction
-      ? [
-          prisma.draftPickReaction.delete({
-            where: { id: pick.reaction.id },
-          }),
-        ]
-      : []),
-    ...(wasComplete
-      ? [
-          prisma.draftRoom.update({
-            where: { id: draftId },
-            data: { status: "live", closedAt: null },
-          }),
-        ]
-      : []),
-  ]);
+    });
+
+    if (pick.announcerImg) {
+      await tx.draftAnnouncerImage.update({
+        where: { id: pick.announcerImg.id },
+        data: { consumedPickId: null },
+      });
+    }
+
+    if (pick.reaction) {
+      await tx.draftPickReaction.delete({
+        where: { id: pick.reaction.id },
+      });
+    }
+
+    if (wasComplete) {
+      await tx.draftRoom.update({
+        where: { id: draftId },
+        data: { status: "live", closedAt: null },
+      });
+    } else {
+      await rewindOnClockTo(tx, draftId, pick.id, pick.overallPick, now);
+    }
+  });
 
   // Audit breadcrumb in case anything looks off later. Plain log — admin
   // already has the in-app flash, this is for ops.

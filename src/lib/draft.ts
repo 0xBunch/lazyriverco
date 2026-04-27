@@ -1,4 +1,4 @@
-import type { PrismaClient } from "@prisma/client";
+import type { Prisma, PrismaClient } from "@prisma/client";
 
 // ---------------------------------------------------------------------------
 // MLF Rookie Draft 2026 — pure helpers + pool-seed helper.
@@ -248,5 +248,65 @@ export async function findNextPendingPick(
     where: { draftId, status: "pending" },
     orderBy: { overallPick: "asc" },
     select: { id: true, overallPick: true },
+  });
+}
+
+/**
+ * Rewind the on-clock pointer back to a just-undone pick.
+ *
+ * Called from inside `undoPick`'s interactive transaction. Atomic with the
+ * undo's main update so a concurrent admin can't read stale on-clock
+ * state between the read and the write.
+ *
+ * Behavior:
+ *   * Reads the current `status: "onClock"` row inside the same txn.
+ *   * If one exists AND its overallPick > the undone pick's overallPick:
+ *     demote it to `pending` (clear `onClockAt`), then promote the undone
+ *     pick to `onClock` with a fresh `onClockAt`.
+ *   * If no on-clock row exists (defensive — shouldn't happen on a live
+ *     draft, but the wasComplete branch in `undoPick` already nulls it):
+ *     promote the undone pick directly.
+ *   * If the existing on-clock pick is at or before the undone pick (e.g.
+ *     undoing pick 5 while pick 3 is still on-clock — possible if an
+ *     earlier pick was retro-undone first): do nothing. The earlier pick
+ *     stays on the clock; the undone pick joins the pending queue and
+ *     will be picked up by `findNextPendingPick` after the current
+ *     on-clock pick locks.
+ *
+ * The caller is responsible for setting the undone pick's status to
+ * `pending` (and nulling its playerId/lockedAt) BEFORE calling this —
+ * `rewindOnClockTo` only handles the on-clock pointer.
+ */
+export async function rewindOnClockTo(
+  tx: Prisma.TransactionClient,
+  draftId: string,
+  undonePickId: string,
+  undoneOverallPick: number,
+  now: Date,
+): Promise<void> {
+  const currentOnClock = await tx.draftPick.findFirst({
+    where: { draftId, status: "onClock" },
+    select: { id: true, overallPick: true },
+  });
+
+  if (!currentOnClock) {
+    await tx.draftPick.update({
+      where: { id: undonePickId },
+      data: { status: "onClock", onClockAt: now },
+    });
+    return;
+  }
+
+  if (currentOnClock.overallPick <= undoneOverallPick) {
+    return;
+  }
+
+  await tx.draftPick.update({
+    where: { id: currentOnClock.id },
+    data: { status: "pending", onClockAt: null },
+  });
+  await tx.draftPick.update({
+    where: { id: undonePickId },
+    data: { status: "onClock", onClockAt: now },
   });
 }
