@@ -3,15 +3,34 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { cn } from "@/lib/utils";
-import { type NavItem } from "@/lib/nav";
+import { ADMIN_NAV_ITEM, MAIN_NAV_ITEMS, type NavItem } from "@/lib/nav";
 
-type SidebarNavProps = {
-  items: readonly NavItem[];
-  ariaLabel?: string;
+// Imports of MAIN_NAV_ITEMS / ADMIN_NAV_ITEM live inside this client
+// component on purpose: those arrays carry Tabler icon component refs
+// (functions), which cannot cross the RSC server→client boundary as
+// props. The parent Server Component picks a slot via string and the
+// items resolve here, in client land. Don't refactor this back into
+// "pass items as a prop from the server" — production breaks.
+type Slot = "main" | "admin";
+
+const ITEMS_BY_SLOT: Record<Slot, readonly NavItem[]> = {
+  main: MAIN_NAV_ITEMS,
+  admin: [ADMIN_NAV_ITEM],
 };
 
-export function SidebarNav({ items, ariaLabel = "Portal navigation" }: SidebarNavProps) {
+const ARIA_LABEL_BY_SLOT: Record<Slot, string> = {
+  main: "Portal navigation",
+  admin: "Admin navigation",
+};
+
+type SidebarNavProps = {
+  slot: Slot;
+};
+
+export function SidebarNav({ slot }: SidebarNavProps) {
   const pathname = usePathname();
+  const items = ITEMS_BY_SLOT[slot];
+  const ariaLabel = ARIA_LABEL_BY_SLOT[slot];
 
   return (
     <nav aria-label={ariaLabel} className="space-y-0.5 px-3 py-2 group-data-[collapsed]:px-1">
