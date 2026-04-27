@@ -21,7 +21,7 @@ export default async function AdminLayout({
           Lazy River
         </p>
         <h1 className="font-display text-3xl font-semibold tracking-tight text-bone-50">
-          Commissioner&rsquo;s Office
+          Control Panel
         </h1>
         <p className="mt-2 max-w-2xl text-sm italic text-bone-300">
           Curate the agents&rsquo; voices, what they know about the crew,

@@ -42,7 +42,7 @@ export { IconBallAmericanFootball as IconMLF };
 export const ADMIN_NAV_ITEM: NavItem = {
   href: "/admin",
   icon: IconTools,
-  label: "Commissioner",
+  label: "Control Panel",
 };
 
 export type NavHref =
@@ -50,7 +50,7 @@ export type NavHref =
   | (typeof APP_NAV_ITEMS)[number]["href"];
 
 /**
- * Gate for admin-only surfaces (Commissioner Room). Kept separate
+ * Gate for admin-only surfaces (Control Panel). Kept separate
  * from the app nav so non-admins can see the Apps section but not
  * the admin tools.
  */

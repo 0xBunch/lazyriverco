@@ -1,8 +1,11 @@
 import Link from "next/link";
+import { IconLogout } from "@tabler/icons-react";
+
 import { getCurrentUser } from "@/lib/auth";
+import { ADMIN_NAV_ITEM, MAIN_NAV_ITEMS } from "@/lib/nav";
+import { ConversationSidebarList } from "@/components/ConversationSidebarList";
 import { LazyRiverLogo } from "@/components/LazyRiverLogo";
 import { SidebarNav } from "@/components/SidebarNav";
-import { ConversationSidebarList } from "@/components/ConversationSidebarList";
 import { StarredSidebarList } from "@/components/StarredSidebarList";
 
 function initials(displayName: string): string {
@@ -57,7 +60,7 @@ export async function Sidebar() {
       ) : null}
 
       {/* Main nav */}
-      <SidebarNav isAdmin={isAdmin} />
+      <SidebarNav items={MAIN_NAV_ITEMS} />
 
       {/* Starred + Recents — both sections scroll together inside a single
           lane so the total footprint adapts to how many pins the user has.
@@ -73,14 +76,21 @@ export async function Sidebar() {
         </div>
       ) : null}
 
-      {/* User footer — pb uses env(safe-area-inset-bottom) so the Float
-          Out button clears the iOS home indicator in standalone PWA mode.
-          Resolves to 0 elsewhere (Android/desktop), matching the original
-          py-3 spacing. */}
+      {/* Admin slot — Control Panel sits at the bottom of the nav stack,
+          one row above the user footer, so admin tools live next to the
+          user account rather than mixed with daily-use tabs. */}
+      {isAdmin ? (
+        <SidebarNav items={[ADMIN_NAV_ITEM]} ariaLabel="Admin navigation" />
+      ) : null}
+
+      {/* User footer — single row: avatar · name/role · logout icon.
+          pb uses env(safe-area-inset-bottom) so the logout button clears
+          the iOS home indicator in standalone PWA mode. Resolves to 0
+          elsewhere (Android/desktop). */}
       {user ? (
         <div className="mt-auto border-t border-bone-700 px-3 pb-[calc(env(safe-area-inset-bottom)+0.75rem)] pt-3 group-data-[collapsed]:px-1 group-data-[collapsed]:pb-[calc(env(safe-area-inset-bottom)+0.5rem)] group-data-[collapsed]:pt-2">
-          {/* Avatar — always visible */}
-          <div className="flex items-center gap-3 px-2 pb-2 group-data-[collapsed]:justify-center group-data-[collapsed]:px-0 group-data-[collapsed]:pb-0">
+          <div className="flex items-center gap-3 px-2 group-data-[collapsed]:justify-center group-data-[collapsed]:px-0">
+            {/* Avatar — always visible */}
             <div
               aria-hidden="true"
               className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-claude-500/20 text-xs font-semibold text-claude-200"
@@ -96,21 +106,22 @@ export async function Sidebar() {
                 {user.role === "ADMIN" ? "Commissioner" : "Member"}
               </p>
             </div>
-          </div>
-
-          {/* Logout button — hidden when collapsed */}
-          <form
-            action="/api/auth/logout"
-            method="post"
-            className="group-data-[collapsed]:hidden"
-          >
-            <button
-              type="submit"
-              className="w-full rounded-lg border border-bone-700 bg-bone-800 px-3 py-2 text-xs font-medium text-bone-200 transition-colors hover:border-claude-500/60 hover:text-claude-50 focus:outline-none focus-visible:ring-2 focus-visible:ring-claude-500 focus-visible:ring-offset-2 focus-visible:ring-offset-bone-950"
+            {/* Logout — icon-only button; hidden when collapsed */}
+            <form
+              action="/api/auth/logout"
+              method="post"
+              className="shrink-0 group-data-[collapsed]:hidden"
             >
-              Float Out
-            </button>
-          </form>
+              <button
+                type="submit"
+                title="Log out"
+                aria-label="Log out"
+                className="flex h-8 w-8 items-center justify-center rounded-md text-bone-300 transition-colors hover:bg-bone-800 hover:text-bone-50 focus:outline-none focus-visible:ring-2 focus-visible:ring-claude-500 focus-visible:ring-offset-2 focus-visible:ring-offset-bone-950"
+              >
+                <IconLogout aria-hidden="true" className="h-4 w-4" />
+              </button>
+            </form>
+          </div>
         </div>
       ) : null}
     </div>
