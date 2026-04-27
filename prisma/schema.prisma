@@ -990,6 +990,12 @@ model Feed {
   /// to GENERAL — feeds shipped before the sports landing migration
   /// keep their existing semantics.
   category                FeedCategory  @default(GENERAL)
+  /// Optional sport tag. Only meaningful when category=SPORTS — the
+  /// poller propagates this to NewsItem.sport on insert so per-sport
+  /// filtering on /sports works without an extra per-item write. Null
+  /// on GENERAL feeds; admin UI clears it automatically when the
+  /// category flips back to GENERAL.
+  sport                   SportTag?
   enabled                 Boolean       @default(true)
   /// Minimum minutes between polls. Enforced by a CHECK constraint in
   /// the migration (5..1440). Exponential backoff on failure multiplies

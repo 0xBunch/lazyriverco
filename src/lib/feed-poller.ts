@@ -247,6 +247,14 @@ async function writeNewsItems(
   feed: Feed,
   items: RawItem[],
 ): Promise<WriteResult> {
+  // SPORTS-category feeds with a sport tag stamp every inserted item
+  // with that tag — the /sports HeadlinesRail filters by feed.category
+  // and per-sport filtering reads NewsItem.sport, so this is the single
+  // place that connects feed-level intent to per-item searchability.
+  // GENERAL feeds (and SPORTS feeds with no tag set) leave it null.
+  const inheritedSport =
+    feed.category === "SPORTS" ? feed.sport ?? null : null;
+
   const rows: Array<{
     feedId: string;
     sourceUrl: string;
@@ -257,6 +265,7 @@ async function writeNewsItems(
     author: string | null;
     publishedAt: Date | null;
     ogImageUrl: string | null;
+    sport: typeof inheritedSport;
   }> = [];
   const errors: PollError[] = [];
   // The "latest item" candidate across everything we tried to insert.
@@ -283,6 +292,7 @@ async function writeNewsItems(
         author: item.creator?.trim() || null,
         publishedAt,
         ogImageUrl: extractImage(item),
+        sport: inheritedSport,
       });
       const bucket = publishedAt ?? new Date();
       if (!latestAt || bucket > latestAt) latestAt = bucket;
