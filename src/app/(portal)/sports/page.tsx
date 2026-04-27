@@ -4,7 +4,6 @@ import { prisma } from "@/lib/prisma";
 import { getMlfTopN } from "@/lib/sleeper/standings";
 import { getWagOfTheDay } from "@/lib/sports/wag-rotation";
 import { pickSponsorForToday } from "@/lib/sports/sponsor-rotation";
-import { SportsHero } from "./_components/SportsHero";
 import { WagOfTheDay } from "./_components/WagOfTheDay";
 import { MlfDraftBanner } from "./_components/MlfDraftBanner";
 import { MlfTopThree } from "./_components/MlfTopThree";
@@ -20,10 +19,11 @@ export const dynamic = "force-dynamic";
 // Day (editorial schedule), MLF Top 3 (Sleeper-backed, shipped),
 // TONIGHT (admin-curated schedule, PR 4 adds auto-sync), Highlights
 // (admin-curated YouTube, PR 3 adds auto-sync). Plus a rotating
-// sponsor in two surfaces — hero presenter line + mid-page break.
+// sponsor in the mid-page break rail.
 //
-// See docs/sports-landing-redesign.md for full design context. Visual
-// reference: mockups/sports-desktop.html + mockups/sports-mobile.html.
+// MlsnHeaderBar (red, in /sports/layout.tsx) sits above this page —
+// section-level branding lives in the bar, so this page goes
+// straight into the content modules.
 
 export default async function SportsLandingPage() {
   const user = await getCurrentUser();
@@ -33,14 +33,8 @@ export default async function SportsLandingPage() {
   // Single batched read. Each module renders its own empty state if
   // its slice comes back empty/null, so a single missing data source
   // doesn't 500 the page.
-  //
-  // headlinesCount + scheduleCount are separate from the list reads
-  // because the lists `take: N` cap their result length — if we used
-  // headlines.length the hero would always say "8 headlines" once the
-  // feed is healthy, regardless of how many actually exist. Indexed
-  // count() is cheap.
   const now = new Date();
-  const [wag, mlf, headlines, highlights, schedule, liveCount, headlinesCount, gamesCount, sponsors] =
+  const [wag, mlf, headlines, highlights, schedule, sponsors] =
     await Promise.all([
       getWagOfTheDay(),
       getMlfTopN(3),
@@ -59,15 +53,6 @@ export default async function SportsLandingPage() {
         where: { hidden: false, gameTime: { gte: now } },
         orderBy: { gameTime: "asc" },
         take: 6,
-      }),
-      prisma.sportsScheduleGame.count({
-        where: { status: "LIVE", hidden: false },
-      }),
-      prisma.newsItem.count({
-        where: { hidden: false, feed: { category: "SPORTS", enabled: true } },
-      }),
-      prisma.sportsScheduleGame.count({
-        where: { hidden: false, gameTime: { gte: now } },
       }),
       prisma.sportsSponsor.findMany({
         where: { active: true },
@@ -93,15 +78,6 @@ export default async function SportsLandingPage() {
 
   return (
     <main className="w-full">
-      <SportsHero
-        liveCount={liveCount}
-        totalGames={gamesCount}
-        totalHeadlines={headlinesCount}
-        sponsor={sponsor}
-      />
-
-      <hr aria-hidden="true" className="h-px w-full border-0 bg-sports-amber/40" />
-
       {/* Grid 1 — WAG + right-rail (MLF + TONIGHT) */}
       <section className="relative w-full">
         <div className="mx-auto grid max-w-7xl grid-cols-1 gap-6 px-4 py-8 md:grid-cols-12 md:gap-6 md:px-6 md:py-12 lg:gap-10 lg:px-10">
