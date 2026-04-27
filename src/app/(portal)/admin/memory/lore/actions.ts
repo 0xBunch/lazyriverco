@@ -36,7 +36,7 @@ export async function createLore(formData: FormData): Promise<void> {
     },
   });
 
-  revalidatePath("/admin/lore");
+  revalidatePath("/admin/memory/lore");
 }
 
 export async function updateLore(formData: FormData): Promise<void> {
@@ -65,7 +65,7 @@ export async function updateLore(formData: FormData): Promise<void> {
     },
   });
 
-  revalidatePath("/admin/lore");
+  revalidatePath("/admin/memory/lore");
 }
 
 export async function deleteLore(formData: FormData): Promise<void> {
@@ -76,5 +76,5 @@ export async function deleteLore(formData: FormData): Promise<void> {
 
   await prisma.lore.delete({ where: { id } });
 
-  revalidatePath("/admin/lore");
+  revalidatePath("/admin/memory/lore");
 }

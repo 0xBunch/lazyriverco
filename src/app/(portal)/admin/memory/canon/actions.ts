@@ -27,5 +27,5 @@ export async function updateCanon(formData: FormData): Promise<void> {
     data: { content },
   });
 
-  revalidatePath("/admin/canon");
+  revalidatePath("/admin/memory/canon");
 }

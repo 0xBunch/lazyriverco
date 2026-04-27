@@ -25,7 +25,7 @@ import {
   type AdminTaxonomyState,
 } from "./actions";
 
-// /admin/taxonomy registry view. One table, every tag. Bucket filter
+// /admin/memory/taxonomy registry view. One table, every tag. Bucket filter
 // chips up top + search + bulk import. Click a row to expand an inline
 // editor (description, bucket reassign, ban, delete). Every write goes
 // through a server action and pending states are scoped to the form

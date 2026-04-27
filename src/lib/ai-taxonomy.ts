@@ -13,7 +13,7 @@ export { BANNED_LABEL } from "@/lib/taxonomy-constants";
 //   pressure in the prompt + a server-side backstop in ai-tagging.ts
 //   that strips any banned slug from the model's JSON before persist.
 //
-// Buckets live in TaxonomyBucket; admin edits via /admin/taxonomy.
+// Buckets live in TaxonomyBucket; admin edits via /admin/memory/taxonomy.
 // Phrasing of the preferred block avoids "MUST use" — that triggered
 // refusals in smoke-testing when the canon didn't match the image.
 // "Prefer when applicable" is the right pressure level.
@@ -139,7 +139,7 @@ function renderHint(preferred: BucketRow[], banned: string[]): string {
       const known =
         r.slugs.length > 0
           ? `\n  Known: ${r.slugs.join(", ")}`
-          : "\n  (No known slugs yet — add via /admin/taxonomy.)";
+          : "\n  (No known slugs yet — add via /admin/memory/taxonomy.)";
       sections.push(`- ${r.label}: ${rule}${known}`);
     }
   }

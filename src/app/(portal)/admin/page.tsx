@@ -20,25 +20,25 @@ const CARDS = [
       "21 textareas — one per (agent × member) pair. Free-form takes that flavor how each agent talks to each specific member. The depth lever.",
   },
   {
-    href: "/admin/canon",
+    href: "/admin/memory/canon",
     title: "Canon",
     body:
       "The core identity — always injected into every agent prompt. Org hierarchy, essential context, the stuff every agent should know on every message.",
   },
   {
-    href: "/admin/lore",
+    href: "/admin/memory/lore",
     title: "Lore",
     body:
       "Topic-tagged knowledge chunks. Fantasy draft history, trip stories, roast archives — selectively injected when relevant to the conversation via a two-pass Haiku call.",
   },
   {
-    href: "/admin/library",
+    href: "/admin/memory/library",
     title: "Library",
     body:
       "Bulk tools for the shared visual bank. Select rows to delete, hide, star for Hall of Fame, or add/remove tags in one shot. Drop photos directly to upload. Agents reach the same data via the library_search tool.",
   },
   {
-    href: "/admin/taxonomy",
+    href: "/admin/memory/taxonomy",
     title: "Taxonomy",
     body:
       "Controlled vocabulary for the Gemini vision tagger. Preferred buckets (people / places / topics / vibes) nudge the model toward canonical slugs; the banned bucket strips a tag from every item and blocks future AI emission in one click.",
@@ -72,7 +72,8 @@ export default function AdminLanding() {
         conversation topic. Calendar entries auto-appear near their dates.
         Taxonomy shapes how Gemini tags new library uploads. Prompts
         drives the homepage dropdown suggestions. Personas, Opinions, and
-        Prompts now live under the AI tab in the top nav.
+        Prompts live under the AI tab; Canon, Lore, Library, Taxonomy,
+        and Feeds live under the Memory tab.
       </p>
       <ul className="grid gap-3 sm:grid-cols-2">
         {CARDS.map((card) => (

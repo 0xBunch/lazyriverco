@@ -3,7 +3,7 @@ import type { FeedHealth } from "@/lib/feed-types";
 
 // Colored chip for a FeedHealth value. Server component on purpose —
 // the health value is always computed server-side (computeHealth) and
-// this is rendered inside the /admin/feeds page's RSC tree.
+// this is rendered inside the /admin/memory/feeds page's RSC tree.
 
 const STYLES: Record<FeedHealth, string> = {
   HEALTHY: "bg-emerald-900/40 text-emerald-300 ring-emerald-500/40",

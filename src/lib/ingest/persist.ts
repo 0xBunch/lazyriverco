@@ -61,7 +61,7 @@ export async function persistIngest(
     select: { id: true },
   });
 
-  // Register any human-entered tags in the Tag table so /admin/taxonomy
+  // Register any human-entered tags in the Tag table so /admin/memory/taxonomy
   // sees every slug that actually lives on a Media row. AI-produced
   // tags are upserted inside runVisionTagging. Feed-sourced ingest
   // passes no tags, making this a no-op.

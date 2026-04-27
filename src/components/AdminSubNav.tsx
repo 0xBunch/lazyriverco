@@ -8,12 +8,8 @@ const ADMIN_TABS = [
   { href: "/admin", label: "Overview" },
   { href: "/admin/ai", label: "AI" },
   { href: "/admin/members", label: "Members" },
-  { href: "/admin/canon", label: "Canon" },
-  { href: "/admin/lore", label: "Lore" },
-  { href: "/admin/library", label: "Library" },
-  { href: "/admin/taxonomy", label: "Taxonomy" },
+  { href: "/admin/memory", label: "Memory" },
   { href: "/admin/calendar", label: "Calendar" },
-  { href: "/admin/feeds", label: "Feeds" },
   { href: "/admin/draft", label: "Draft" },
   { href: "/admin/usage", label: "Usage" },
 ] as const;

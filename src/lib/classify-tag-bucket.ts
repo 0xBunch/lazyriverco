@@ -2,7 +2,7 @@ import "server-only";
 import Anthropic from "@anthropic-ai/sdk";
 
 // One-shot bucket classifier for uncategorized tags. Admin-invoked from
-// /admin/taxonomy (no auto-fire on creation — see lessons.md:115-118 on
+// /admin/memory/taxonomy (no auto-fire on creation — see lessons.md:115-118 on
 // opt-in AI invocation). One Haiku call covers every uncategorized
 // slug at once; returns a {slug -> bucketId | null} map. `null` means
 // "ambiguous, leave uncategorized" — we'd rather punt than misfile.

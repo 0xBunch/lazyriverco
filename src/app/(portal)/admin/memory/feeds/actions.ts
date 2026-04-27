@@ -7,10 +7,10 @@ import { requireAdmin } from "@/lib/auth";
 import { pollFeed } from "@/lib/feed-poller";
 import type { FeedKind } from "@prisma/client";
 
-// Admin actions for /admin/feeds. All actions follow the same shape:
+// Admin actions for /admin/memory/feeds. All actions follow the same shape:
 //   - require ADMIN (middleware + role check — belt + suspenders)
 //   - revalidatePath to refresh the list
-//   - redirect back to /admin/feeds with a ?msg= or ?error= flash so
+//   - redirect back to /admin/memory/feeds with a ?msg= or ?error= flash so
 //     the page can render the outcome without a client-side action
 //     state hook (keeps the form invocations as plain `<form action>`
 //     without wrapping in a client component)
@@ -68,7 +68,7 @@ export async function createFeed(fd: FormData): Promise<void> {
     return back({ error: "Couldn't save the feed." });
   }
 
-  revalidatePath("/admin/feeds");
+  revalidatePath("/admin/memory/feeds");
   return back({ msg: `Feed "${name}" created.` });
 }
 
@@ -98,7 +98,7 @@ export async function toggleFeed(fd: FormData): Promise<void> {
         : {}),
     },
   });
-  revalidatePath("/admin/feeds");
+  revalidatePath("/admin/memory/feeds");
   return back({ msg: feed.enabled ? "Disabled." : "Enabled." });
 }
 
@@ -120,7 +120,7 @@ export async function deleteFeed(fd: FormData): Promise<void> {
     console.error("deleteFeed failed", e);
     return back({ error: "Couldn't delete the feed." });
   }
-  revalidatePath("/admin/feeds");
+  revalidatePath("/admin/memory/feeds");
   return back({ msg: "Feed deleted." });
 }
 
@@ -142,7 +142,7 @@ export async function pollFeedNow(fd: FormData): Promise<void> {
     console.error("pollFeedNow failed", e);
     return back({ error: "Poll failed — check server logs." });
   }
-  revalidatePath("/admin/feeds");
+  revalidatePath("/admin/memory/feeds");
   return back({ msg: formatOutcome(outcome) });
 }
 
@@ -170,7 +170,7 @@ function back(flash: { msg?: string; error?: string }): never {
   if (flash.msg) params.set("msg", flash.msg);
   if (flash.error) params.set("error", flash.error);
   const qs = params.toString();
-  redirect(qs ? `/admin/feeds?${qs}` : "/admin/feeds");
+  redirect(qs ? `/admin/memory/feeds?${qs}` : "/admin/memory/feeds");
 }
 
 function isPrismaUniqueViolation(e: unknown): boolean {
