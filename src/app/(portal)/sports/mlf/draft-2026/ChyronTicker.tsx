@@ -4,9 +4,20 @@ import { useEffect, useRef, useState } from "react";
 
 // Broadcast-chyron sponsor ticker above the footer. Diegetic — reads as
 // part of the broadcast booth ("Presented by …") rather than a web ad
-// banner. Text-only this round; image mode arrives in a follow-up once
-// the parallel ad-gen tool ships and DraftSponsor.imageR2Key gets
-// populated.
+// banner. Two render modes:
+//
+//   - TEXT mode (sponsor.imageUrl is null): "PRESENTED BY · BRAND ·
+//     'tagline'" single-line layout. The default until an admin (or
+//     the ad-gen tool) populates DraftSponsor.imageR2Key.
+//   - IMAGE mode (sponsor.imageUrl set): the image fills the slab as a
+//     full-bleed background; chrome (controls) overlays the top-right.
+//     Eyebrow text drops out — the image IS the brand statement; the
+//     section's aria-label + image alt carry semantics for AT.
+//
+// Either mode may carry a sponsor.linkUrl. When set, the brand area
+// (image OR text content) is wrapped in <a target="_blank" rel="noopener
+// noreferrer"> with sr-only "(opens in new tab)" text. Controls stay
+// outside the link so the pause button is always interactive.
 //
 // Rotation:
 //   - Multiple active sponsors: 10s cycle with 200ms opacity crossfade.
@@ -18,6 +29,7 @@ import { useEffect, useRef, useState } from "react";
 
 const NAVY_700 = "#1B3A66";
 const NAVY_900 = "#0B1A33";
+const NAVY_950 = "#070E20";
 const RED_400 = "#E23A52";
 const CREAM_50 = "#F5F1E6";
 const CREAM_200 = "#C6BEAC";
@@ -26,7 +38,14 @@ const CREAM_400 = "#8A8372";
 const ROTATION_MS = 10_000;
 const FADE_MS = 200;
 
-type Sponsor = { name: string; tagline: string | null };
+type Sponsor = {
+  name: string;
+  tagline: string | null;
+  /** Resolved public URL (R2_BASE + imageR2Key) — caller assembles so
+   *  this client component doesn't need the env var. Null = text mode. */
+  imageUrl: string | null;
+  linkUrl: string | null;
+};
 
 export function ChyronTicker({ sponsors }: { sponsors: readonly Sponsor[] }) {
   const [index, setIndex] = useState(0);
@@ -85,58 +104,104 @@ export function ChyronTicker({ sponsors }: { sponsors: readonly Sponsor[] }) {
   if (!active) return null;
 
   const showControls = sponsors.length > 1;
+  const hasImage = !!active.imageUrl;
+  const altText = active.tagline ? `${active.name} — ${active.tagline}` : active.name;
+  const linkSrLabel = `${altText} (opens in new tab)`;
 
   return (
     <section
       ref={containerRef}
-      aria-label="Sponsor"
+      aria-label={`Sponsor: ${active.name}`}
       className="relative flex h-10 items-center gap-3 overflow-hidden border-t px-4 md:h-12 md:gap-4 md:px-8"
       style={{
         borderColor: NAVY_700,
         backgroundColor: `${NAVY_900}E6`,
       }}
     >
-      <span
-        className="shrink-0 text-[9px] font-bold uppercase tracking-[0.26em]"
-        style={{ color: CREAM_400 }}
-      >
-        Presented by
-      </span>
-
-      <span
-        aria-hidden
-        className="hidden h-4 w-px md:block"
-        style={{ backgroundColor: NAVY_700 }}
-      />
-
-      <span
-        key={active.name + safeIndex}
-        className="flex min-w-0 flex-1 items-baseline gap-2 truncate transition-opacity"
-        style={{ transitionDuration: `${FADE_MS}ms` }}
-        aria-live="polite"
-      >
-        <span
-          className="truncate text-[13px] uppercase tracking-[-0.005em] md:text-[15px]"
-          style={{
-            fontFamily: "var(--font-display)",
-            fontWeight: 700,
-            color: CREAM_50,
-          }}
-        >
-          {active.name}
-        </span>
-        {active.tagline ? (
-          <span
-            className="hidden truncate text-[12px] italic md:inline"
-            style={{ color: CREAM_200 }}
+      {hasImage ? (
+        active.linkUrl ? (
+          <a
+            href={active.linkUrl}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="absolute inset-0 z-0 block focus:outline-none"
+            aria-label={linkSrLabel}
           >
-            &ldquo;{active.tagline}&rdquo;
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img
+              key={`img-${safeIndex}-${active.imageUrl}`}
+              src={active.imageUrl!}
+              alt=""
+              aria-hidden
+              className="h-full w-full object-cover transition-opacity"
+              style={{ transitionDuration: `${FADE_MS}ms` }}
+            />
+          </a>
+        ) : (
+          // eslint-disable-next-line @next/next/no-img-element
+          <img
+            key={`img-${safeIndex}-${active.imageUrl}`}
+            src={active.imageUrl!}
+            alt={altText}
+            className="absolute inset-0 z-0 h-full w-full object-cover transition-opacity"
+            style={{ transitionDuration: `${FADE_MS}ms` }}
+          />
+        )
+      ) : (
+        <>
+          <span
+            className="relative z-10 shrink-0 text-[9px] font-bold uppercase tracking-[0.26em]"
+            style={{ color: CREAM_400 }}
+          >
+            Presented by
           </span>
-        ) : null}
-      </span>
+
+          <span
+            aria-hidden
+            className="relative z-10 hidden h-4 w-px md:block"
+            style={{ backgroundColor: NAVY_700 }}
+          />
+
+          {active.linkUrl ? (
+            <a
+              href={active.linkUrl}
+              target="_blank"
+              rel="noopener noreferrer"
+              key={`txt-${safeIndex}-${active.name}`}
+              className="relative z-10 flex min-w-0 flex-1 items-baseline gap-2 truncate transition-opacity hover:brightness-110 focus:outline-none"
+              style={{ transitionDuration: `${FADE_MS}ms` }}
+              aria-label={linkSrLabel}
+            >
+              <TextBrand active={active} />
+            </a>
+          ) : (
+            <span
+              key={`txt-${safeIndex}-${active.name}`}
+              className="relative z-10 flex min-w-0 flex-1 items-baseline gap-2 truncate transition-opacity"
+              style={{ transitionDuration: `${FADE_MS}ms` }}
+              aria-live="polite"
+            >
+              <TextBrand active={active} />
+            </span>
+          )}
+        </>
+      )}
+
+      {hasImage && <div className="relative z-10 flex-1" />}
 
       {showControls && (
-        <div className="flex shrink-0 items-center gap-2">
+        <div
+          className="relative z-10 flex shrink-0 items-center gap-2 rounded-sm"
+          style={
+            hasImage
+              ? {
+                  backgroundColor: `${NAVY_950}CC`,
+                  padding: "2px 6px",
+                  backdropFilter: "blur(2px)",
+                }
+              : undefined
+          }
+        >
           <span
             className="hidden text-[9px] font-bold uppercase tracking-[0.22em] tabular-nums md:inline"
             style={{ color: CREAM_400 }}
@@ -161,5 +226,30 @@ export function ChyronTicker({ sponsors }: { sponsors: readonly Sponsor[] }) {
         </div>
       )}
     </section>
+  );
+}
+
+function TextBrand({ active }: { active: Sponsor }) {
+  return (
+    <>
+      <span
+        className="truncate text-[13px] uppercase tracking-[-0.005em] md:text-[15px]"
+        style={{
+          fontFamily: "var(--font-display)",
+          fontWeight: 700,
+          color: CREAM_50,
+        }}
+      >
+        {active.name}
+      </span>
+      {active.tagline ? (
+        <span
+          className="hidden truncate text-[12px] italic md:inline"
+          style={{ color: CREAM_200 }}
+        >
+          &ldquo;{active.tagline}&rdquo;
+        </span>
+      ) : null}
+    </>
   );
 }
