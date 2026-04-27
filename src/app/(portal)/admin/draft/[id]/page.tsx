@@ -2,7 +2,7 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { prisma } from "@/lib/prisma";
 import { deleteDraft } from "../actions";
-import { openDraft, pauseDraft, resumeDraft, completeDraft, resetDraft } from "./actions";
+import { openDraft, pauseDraft, resumeDraft, completeDraft, resetDraft, undoPick } from "./actions";
 
 // ---------------------------------------------------------------------------
 // /admin/draft/[id] — single-draft landing page.
@@ -46,6 +46,21 @@ export default async function AdminDraftDetail({
   });
 
   if (!draft) notFound();
+
+  // Locked picks list (newest first) — feeds the per-pick Undo UI.
+  const lockedPicks = await prisma.draftPick.findMany({
+    where: { draftId: draft.id, status: "locked" },
+    orderBy: [{ lockedAt: "desc" }, { overallPick: "desc" }],
+    select: {
+      id: true,
+      round: true,
+      pickInRound: true,
+      overallPick: true,
+      lockedAt: true,
+      slot: { select: { teamName: true, user: { select: { displayName: true } } } },
+      player: { select: { fullName: true, position: true, team: true } },
+    },
+  });
 
   return (
     <div className="space-y-8">
@@ -143,6 +158,8 @@ export default async function AdminDraftDetail({
       </section>
 
       <StatusSection draft={draft} />
+
+      <LockedPicksSection draftId={draft.id} picks={lockedPicks} />
 
       <section className="rounded-2xl border border-amber-500/40 bg-amber-950/30 p-5">
         <h3 className="font-display text-base font-semibold text-amber-200">
@@ -327,6 +344,85 @@ function StatusSection({
           </form>
         )}
       </div>
+    </section>
+  );
+}
+
+function LockedPicksSection({
+  draftId,
+  picks,
+}: {
+  draftId: string;
+  picks: Array<{
+    id: string;
+    round: number;
+    pickInRound: number;
+    overallPick: number;
+    lockedAt: Date | null;
+    slot: { teamName: string | null; user: { displayName: string } };
+    player: { fullName: string | null; position: string | null; team: string | null } | null;
+  }>;
+}) {
+  return (
+    <section className="rounded-2xl border border-bone-700 bg-bone-900 p-5">
+      <header className="flex items-baseline justify-between gap-3">
+        <h3 className="font-display text-base font-semibold text-bone-50">
+          Locked picks
+        </h3>
+        <span className="text-[10px] font-semibold uppercase tracking-[0.18em] text-bone-500 tabular-nums">
+          {picks.length} locked · newest first
+        </span>
+      </header>
+      <p className="mt-1 text-xs text-bone-400">
+        Click <span className="font-semibold text-bone-200">Undo</span> to roll a
+        pick back to <code className="rounded bg-bone-800 px-1 py-0.5 font-mono text-[11px]">pending</code>,
+        free its announcer image, and clear its AI reaction. The slot owner
+        becomes the next-on-clock the moment the live draft advances.
+      </p>
+      {picks.length === 0 ? (
+        <p className="mt-4 text-sm italic text-bone-500">
+          No locked picks yet.
+        </p>
+      ) : (
+        <ul className="mt-4 divide-y divide-bone-800 rounded-md border border-bone-800">
+          {picks.map((p) => {
+            const slotLabel = p.slot.teamName?.trim() || p.slot.user.displayName;
+            const playerLabel = p.player?.fullName ?? "(unknown player)";
+            const playerMeta = [p.player?.position, p.player?.team]
+              .filter(Boolean)
+              .join(" · ");
+            return (
+              <li
+                key={p.id}
+                className="flex flex-wrap items-center gap-3 px-4 py-3 text-sm"
+              >
+                <span className="w-12 shrink-0 font-mono text-xs uppercase tracking-[0.16em] text-bone-400 tabular-nums">
+                  {p.round}.{String(p.pickInRound).padStart(2, "0")}
+                </span>
+                <span className="w-32 shrink-0 truncate text-xs font-semibold uppercase tracking-[0.14em] text-bone-200">
+                  {slotLabel}
+                </span>
+                <span className="flex-1 min-w-[200px]">
+                  <span className="font-medium text-bone-50">{playerLabel}</span>
+                  {playerMeta && (
+                    <span className="ml-2 text-xs text-bone-400">{playerMeta}</span>
+                  )}
+                </span>
+                <form action={undoPick} className="shrink-0">
+                  <input type="hidden" name="draftId" value={draftId} />
+                  <input type="hidden" name="pickId" value={p.id} />
+                  <button
+                    type="submit"
+                    className="rounded-md border border-amber-500/60 bg-amber-900/30 px-2.5 py-1 text-xs font-semibold text-amber-200 transition hover:bg-amber-900/50 focus:outline-none focus-visible:ring-2 focus-visible:ring-amber-400"
+                  >
+                    Undo
+                  </button>
+                </form>
+              </li>
+            );
+          })}
+        </ul>
+      )}
     </section>
   );
 }

@@ -314,3 +314,126 @@ export async function resetDraft(fd: FormData): Promise<void> {
   revalidatePath(`/sports/mlf/draft-2026`);
   redirect(`${base}?msg=reset`);
 }
+
+/**
+ * Surgical undo of a single locked pick. Use case: a manager picked the
+ * wrong player, or admin needs to roll back a shadow pre-seed. Less
+ * blunt than `resetDraft`, which nukes every pick.
+ *
+ * Reverses everything `lockPick` did for the target pick:
+ *   * Pick row → status=pending, playerId=null, lockedAt=null,
+ *     lockedById=null, undoneAt=now. The slot's owner gets back
+ *     into the pending queue.
+ *   * Bound DraftAnnouncerImage → consumedPickId=null, returning it to
+ *     the rotation pool.
+ *   * DraftPickReaction row deleted, so re-locking will trigger a
+ *     fresh AI reaction.
+ *
+ * The current on-clock pointer is intentionally NOT moved. If the draft
+ * has already advanced past this pick, that's fine — the next call to
+ * `lockPick` will run `findNextPendingPick`, which orders by
+ * overallPick asc and will return this just-undone pick first. Manager
+ * retro-picks before the live draft advances further.
+ *
+ * Edge case: if the draft was `complete` (final pick was the only
+ * locked one or all 24 are locked), we flip status back to `live` and
+ * put this pick on-clock immediately so the draft doesn't sit in a
+ * dead "complete" state with a pending pick orphaned.
+ *
+ * Not gated by typed-confirm. Undo is fully reversible (admin can just
+ * re-pick), so the friction isn't worth the speed cost during a live
+ * draft.
+ */
+export async function undoPick(fd: FormData): Promise<void> {
+  const admin = await requireAdmin();
+  const draftId = String(fd.get("draftId") ?? "").trim();
+  const pickId = String(fd.get("pickId") ?? "").trim();
+  const base = `/admin/draft/${draftId}`;
+  if (!draftId) flash("/admin/draft", "error", "Missing draft id.");
+  if (!pickId) flash(base, "error", "Missing pick id.");
+
+  const pick = await prisma.draftPick.findUnique({
+    where: { id: pickId },
+    select: {
+      id: true,
+      draftId: true,
+      status: true,
+      overallPick: true,
+      round: true,
+      pickInRound: true,
+      announcerImg: { select: { id: true } },
+      reaction: { select: { id: true } },
+    },
+  });
+  if (!pick) flash(base, "error", "Pick not found.");
+  if (pick.draftId !== draftId) flash(base, "error", "Pick belongs to a different draft.");
+  if (pick.status !== "locked") {
+    flash(base, "error", `Can only undo locked picks (this one is ${pick.status}).`);
+  }
+
+  const draft = await prisma.draftRoom.findUnique({
+    where: { id: draftId },
+    select: { status: true },
+  });
+  if (!draft) flash("/admin/draft", "error", "Draft not found.");
+
+  const wasComplete = draft.status === "complete";
+  const now = new Date();
+
+  await prisma.$transaction([
+    prisma.draftPick.update({
+      where: { id: pick.id },
+      data: {
+        // If the draft was complete, flip this pick straight back to
+        // onClock so the live state is consistent. Otherwise it goes
+        // pending and findNextPendingPick on the next lock will surface
+        // it as the next on-clock.
+        status: wasComplete ? "onClock" : "pending",
+        playerId: null,
+        lockedAt: null,
+        lockedById: null,
+        onClockAt: wasComplete ? now : null,
+        undoneAt: now,
+      },
+    }),
+    ...(pick.announcerImg
+      ? [
+          prisma.draftAnnouncerImage.update({
+            where: { id: pick.announcerImg.id },
+            data: { consumedPickId: null },
+          }),
+        ]
+      : []),
+    ...(pick.reaction
+      ? [
+          prisma.draftPickReaction.delete({
+            where: { id: pick.reaction.id },
+          }),
+        ]
+      : []),
+    ...(wasComplete
+      ? [
+          prisma.draftRoom.update({
+            where: { id: draftId },
+            data: { status: "live", closedAt: null },
+          }),
+        ]
+      : []),
+  ]);
+
+  // Audit breadcrumb in case anything looks off later. Plain log — admin
+  // already has the in-app flash, this is for ops.
+  console.log(
+    `[undoPick] admin=${admin.id} draft=${draftId} pick=${pick.round}.${String(
+      pick.pickInRound,
+    ).padStart(2, "0")} (overall ${pick.overallPick}) undone at ${now.toISOString()}`,
+  );
+
+  revalidatePath(base);
+  revalidatePath(`/sports/mlf/draft-2026`);
+  redirect(
+    `${base}?msg=${encodeURIComponent(
+      `Undid pick ${pick.round}.${String(pick.pickInRound).padStart(2, "0")} — slot owner is back in the queue.`,
+    )}`,
+  );
+}
