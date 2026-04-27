@@ -2,15 +2,10 @@ import { LiveDot } from "./LiveDot";
 import { SponsorPresenter } from "./SponsorPresenter";
 import type { SportsSponsor } from "@prisma/client";
 
-/// Full-bleed hero. Massive viewport-scaling SPORTS wordmark, today's
-/// date in tabular-nums, and a LIVE indicator if any game is currently
-/// live. Mirrors the desktop mockup at mockups/sports-desktop.html and
-/// the condensed mobile variant at mockups/sports-mobile.html.
-///
-/// The wordmark uses `clamp(56px, 18vw, 96px)` on mobile and
-/// `clamp(72px, 14vw, 240px)` on desktop — sized to the viewport, not
-/// a fixed scale. This is the page's actual visual hero per the v3
-/// plan; the mockup section ASCII shows the exact composition.
+/// Section header for /sports. Renders today's date in tabular-nums, a
+/// "Today" wordmark, and a LIVE indicator if any game is currently live.
+/// Branding lives in MlsnHeaderBar (the red top bar); this hero is now
+/// the section-level introduction below it.
 export function SportsHero({
   liveCount,
   totalGames,
@@ -86,12 +81,12 @@ export function SportsHero({
           id="sports-hero-heading"
           className="text-center font-nippo font-bold tracking-tight text-bone-50"
           style={{
-            fontSize: "clamp(56px, 14vw, 240px)",
+            fontSize: "clamp(48px, 10vw, 120px)",
             lineHeight: 0.85,
             letterSpacing: "-0.04em",
           }}
         >
-          SPORTS
+          Today
         </h1>
         <div className="mt-4 flex flex-wrap items-end gap-3 border-t border-bone-800/80 pt-3 md:mt-6 md:gap-6 md:pt-5">
           <div className="flex items-center gap-2">
