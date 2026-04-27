@@ -11,7 +11,6 @@ const ADMIN_TABS = [
   { href: "/admin/memory", label: "Memory" },
   { href: "/admin/calendar", label: "Calendar" },
   { href: "/admin/draft", label: "Draft" },
-  { href: "/admin/usage", label: "Usage" },
 ] as const;
 
 export function AdminSubNav() {

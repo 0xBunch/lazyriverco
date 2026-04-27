@@ -74,5 +74,5 @@ export async function updateMember(formData: FormData): Promise<void> {
     },
   });
 
-  revalidatePath("/admin/members");
+  revalidatePath("/admin/members/roster");
 }

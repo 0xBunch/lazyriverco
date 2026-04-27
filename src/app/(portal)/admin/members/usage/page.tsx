@@ -8,23 +8,19 @@ import {
   BreakdownTable,
   type UsageBreakdownRow,
 } from "./BreakdownTable";
-import {
-  ModelPricingPanel,
-  type ModelPricingRow,
-} from "./ModelPricingPanel";
 
-// /admin/usage — flat dashboard for per-user LLM usage accounting.
-// One server component owns every aggregate: summary cards, per-user
-// table, per-model and per-operation breakdowns, and the editable
-// ModelPricing panel. All six Prisma queries fan out in a single
-// Promise.all so the page renders after the slowest aggregate, not
-// after the sum of them.
+// /admin/members/usage — read-only dashboard for per-user LLM usage
+// accounting. One server component owns every aggregate: summary
+// cards, per-user table, per-model and per-operation breakdowns. All
+// four Prisma queries fan out in a single Promise.all so the page
+// renders after the slowest aggregate, not the sum of them.
 //
 // Range selector is URL-driven (?range=7d|30d|90d|all, default 30d)
 // so the page stays SSR-only and shareable. The cutoff clause is
 // applied identically to every aggregate so the summary and the
-// breakdowns can't disagree. ModelPricing is always fetched in full
-// (no range — rates are current, not historical).
+// breakdowns can't disagree. ModelPricing CRUD lives at
+// /admin/members/pricing — extracted in PR 4 so this surface stays
+// purely a read-only aggregate.
 
 export const dynamic = "force-dynamic";
 
@@ -86,7 +82,6 @@ export default async function AdminUsagePage({
     byUserRaw,
     byModelRaw,
     byOperationRaw,
-    pricingRaw,
   ] = await Promise.all([
     prisma.lLMUsageEvent.aggregate({
       where: whereRange,
@@ -132,9 +127,6 @@ export default async function AdminUsagePage({
         cacheReadTokens: true,
         estimatedCostUsd: true,
       },
-    }),
-    prisma.modelPricing.findMany({
-      orderBy: [{ provider: "asc" }, { model: "asc" }],
     }),
   ]);
 
@@ -190,19 +182,6 @@ export default async function AdminUsagePage({
     }))
     .sort((a, b) => b.estimatedCostUsd - a.estimatedCostUsd);
 
-  const pricingRows: ModelPricingRow[] = pricingRaw.map((p) => ({
-    id: p.id,
-    provider: p.provider,
-    model: p.model,
-    inputPerMTokUsd: p.inputPerMTokUsd,
-    outputPerMTokUsd: p.outputPerMTokUsd,
-    cacheReadPerMTokUsd: p.cacheReadPerMTokUsd,
-    cacheWritePerMTokUsd: p.cacheWritePerMTokUsd,
-    perImageUsd: p.perImageUsd,
-    notes: p.notes,
-    updatedAt: p.updatedAt,
-  }));
-
   return (
     <div className="space-y-6">
       <header>
@@ -233,8 +212,6 @@ export default async function AdminUsagePage({
         <BreakdownTable title="By model" rows={byModel} />
         <BreakdownTable title="By operation" rows={byOperation} />
       </div>
-
-      <ModelPricingPanel rows={pricingRows} />
     </div>
   );
 }
@@ -253,7 +230,7 @@ function RangeSelector({ current }: { current: Range }) {
         return (
           <Link
             key={r}
-            href={`/admin/usage?range=${r}`}
+            href={`/admin/members/usage?range=${r}`}
             aria-current={active ? "page" : undefined}
             className={cn(
               "rounded-full px-3 py-1.5 text-xs font-medium transition-colors",

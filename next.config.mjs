@@ -91,6 +91,21 @@ const nextConfig = {
         destination: "/admin/memory/feeds/:path*",
         permanent: true,
       },
+      // PR 4 of the admin condensation: Usage moves under Members.
+      // /admin/members itself stays as the umbrella (its page.tsx
+      // server-redirects to /admin/members/roster — no next.config
+      // entry needed because the source still resolves to a real
+      // route).
+      {
+        source: "/admin/usage",
+        destination: "/admin/members/usage",
+        permanent: true,
+      },
+      {
+        source: "/admin/usage/:path*",
+        destination: "/admin/members/usage/:path*",
+        permanent: true,
+      },
     ];
   },
   images: {

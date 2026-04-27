@@ -216,7 +216,7 @@ async function runGenerate(playerId: string): Promise<PartnerRow | null> {
       trackedGeminiCall(
         {
           userId: null,
-          // Attribute to media.analyze so /admin/usage surfaces this
+          // Attribute to media.analyze so /admin/members/usage surfaces this
           // alongside the other Gemini-backed background lookups.
           operation: "media.analyze",
           model: PARTNER_MODEL,

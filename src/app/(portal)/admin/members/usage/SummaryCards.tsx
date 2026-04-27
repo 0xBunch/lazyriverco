@@ -1,6 +1,6 @@
 import { formatUsd } from "./_format";
 
-// Four summary cards at the top of /admin/usage. Pure presentational —
+// Four summary cards at the top of /admin/members/usage. Pure presentational —
 // the server page does all the aggregation and passes the already-
 // computed numbers in. No client JS; renders inside the server tree.
 
