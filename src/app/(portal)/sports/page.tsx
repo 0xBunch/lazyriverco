@@ -6,6 +6,7 @@ import { getWagOfTheDay } from "@/lib/sports/wag-rotation";
 import { pickSponsorForToday } from "@/lib/sports/sponsor-rotation";
 import { SportsHero } from "./_components/SportsHero";
 import { WagOfTheDay } from "./_components/WagOfTheDay";
+import { MlfDraftBanner } from "./_components/MlfDraftBanner";
 import { MlfTopThree } from "./_components/MlfTopThree";
 import { TonightStrip } from "./_components/TonightStrip";
 import { HeadlinesRail } from "./_components/HeadlinesRail";
@@ -106,6 +107,7 @@ export default async function SportsLandingPage() {
         <div className="mx-auto grid max-w-7xl grid-cols-1 gap-6 px-4 py-8 md:grid-cols-12 md:gap-6 md:px-6 md:py-12 lg:gap-10 lg:px-10">
           <WagOfTheDay data={wag} isAdmin={isAdmin} />
           <div className="flex flex-col gap-6 md:col-span-5 lg:gap-10">
+            <MlfDraftBanner />
             <MlfTopThree data={mlf} />
             <TonightStrip games={schedule} isAdmin={isAdmin} />
           </div>
