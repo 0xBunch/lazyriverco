@@ -2,7 +2,6 @@ import Link from "next/link";
 import { IconLogout } from "@tabler/icons-react";
 
 import { getCurrentUser } from "@/lib/auth";
-import { ADMIN_NAV_ITEM, MAIN_NAV_ITEMS } from "@/lib/nav";
 import { ConversationSidebarList } from "@/components/ConversationSidebarList";
 import { LazyRiverLogo } from "@/components/LazyRiverLogo";
 import { SidebarNav } from "@/components/SidebarNav";
@@ -59,8 +58,9 @@ export async function Sidebar() {
         </div>
       ) : null}
 
-      {/* Main nav */}
-      <SidebarNav items={MAIN_NAV_ITEMS} />
+      {/* Main nav. Pass a string slot, not the items array — the items
+          carry icon function refs which can't cross the RSC boundary. */}
+      <SidebarNav slot="main" />
 
       {/* Starred + Recents — both sections scroll together inside a single
           lane so the total footprint adapts to how many pins the user has.
@@ -79,9 +79,7 @@ export async function Sidebar() {
       {/* Admin slot — Control Panel sits at the bottom of the nav stack,
           one row above the user footer, so admin tools live next to the
           user account rather than mixed with daily-use tabs. */}
-      {isAdmin ? (
-        <SidebarNav items={[ADMIN_NAV_ITEM]} ariaLabel="Admin navigation" />
-      ) : null}
+      {isAdmin ? <SidebarNav slot="admin" /> : null}
 
       {/* User footer — single row: avatar · name/role · logout icon.
           pb uses env(safe-area-inset-bottom) so the logout button clears
