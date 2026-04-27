@@ -2,8 +2,8 @@ import Link from "next/link";
 
 const CARDS = [
   {
-    href: "/admin/agents",
-    title: "Agents",
+    href: "/admin/ai/personas",
+    title: "Personas",
     body:
       "Edit each agent's persona bible, displayName, and active state. The bible is the single most load-bearing knob — it defines the voice the LLM speaks in.",
   },
@@ -14,8 +14,8 @@ const CARDS = [
       "Curate per-member context: a free-form blurb plus structured fields (city, favorite team). Agents see this for everyone in the conversation.",
   },
   {
-    href: "/admin/relationships",
-    title: "Relationships",
+    href: "/admin/ai/opinions",
+    title: "Opinions",
     body:
       "21 textareas — one per (agent × member) pair. Free-form takes that flavor how each agent talks to each specific member. The depth lever.",
   },
@@ -50,7 +50,7 @@ const CARDS = [
       "Birthdays, cultural moments, trip dates. Auto-injected into agent prompts when the date is within a week. Recurrence support for annual events.",
   },
   {
-    href: "/admin/prompts",
+    href: "/admin/ai/prompts",
     title: "Prompts",
     body:
       "Homepage dropdown groups — the claude.ai-style row beneath the prompt box. Each group (\u201CWrite\u201D, \u201CRoast\u201D) is a button; each item pastes its full prompt text into the input on click.",
@@ -67,11 +67,12 @@ export default function AdminLanding() {
   return (
     <div className="space-y-4">
       <p className="text-sm text-bone-300">
-        Ten things you can curate. Canon, members, and relationships are
+        Ten things you can curate. Canon, members, and opinions are
         always injected. Lore and media are selectively pulled in based on
         conversation topic. Calendar entries auto-appear near their dates.
         Taxonomy shapes how Gemini tags new library uploads. Prompts
-        drives the homepage dropdown suggestions.
+        drives the homepage dropdown suggestions. Personas, Opinions, and
+        Prompts now live under the AI tab in the top nav.
       </p>
       <ul className="grid gap-3 sm:grid-cols-2">
         {CARDS.map((card) => (

@@ -17,7 +17,7 @@ import {
   type AdminPromptsState,
 } from "./actions";
 
-// /admin/prompts registry view. One card per PromptGroup; each card
+// /admin/ai/prompts registry view. One card per PromptGroup; each card
 // lists its PromptSuggestion items with inline edit. Every write goes
 // through a server action so pending states scope to the firing form.
 

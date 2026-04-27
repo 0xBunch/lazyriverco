@@ -51,6 +51,7 @@ First formally tagged release. Rolls up all work since the project's initial com
 - Per-(agent, member) relationships editor (`/admin/relationships`)
 - Clubhouse canon editor (`/admin/canon`) for shared group lore injected into every prompt
 - Prompt groups and prompt suggestions editor (`/admin/prompts`) powering the homepage chip panel
+- _Note: as part of the admin condensation series, these three editors moved to `/admin/ai/{personas,opinions,prompts}`. The original paths above 308-redirect to the new locations._
 
 ### Navigation & mobile
 - Claude.ai-parity mobile and PWA sidebar toggle with safe-area insets for notched devices

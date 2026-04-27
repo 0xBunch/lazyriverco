@@ -2,7 +2,7 @@ import { prisma } from "@/lib/prisma";
 import { requireAdmin } from "@/lib/auth";
 import { PromptRegistry, type PromptGroupRow } from "./PromptRegistry";
 
-// /admin/prompts — curate the dropdown groups shown beneath the homepage
+// /admin/ai/prompts — curate the dropdown groups shown beneath the homepage
 // prompt box. Replaces the old hardcoded SUGGESTION_CHIPS array in
 // ConversationLanding.tsx. Each group is a button; each item has a
 // short label (shown in the dropdown) and a longer prompt text (pasted

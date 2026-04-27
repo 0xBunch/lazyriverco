@@ -126,7 +126,7 @@ export async function createAgent(
       },
     });
 
-    revalidatePath("/admin/agents");
+    revalidatePath("/admin/ai/personas");
     return { ok: true, message: `Created @${name}.` };
   } catch (e) {
     // Prisma P2002 on name unique — surface the real message instead of
@@ -178,7 +178,7 @@ export async function reorderAgent(formData: FormData): Promise<void> {
     { isolationLevel: "Serializable" },
   );
 
-  revalidatePath("/admin/agents");
+  revalidatePath("/admin/ai/personas");
 }
 
 /** Flip the single isDefault row to a new agent. Clear-then-set in one
@@ -201,7 +201,7 @@ export async function setDefaultAgent(formData: FormData): Promise<void> {
     }),
   ]);
 
-  revalidatePath("/admin/agents");
+  revalidatePath("/admin/ai/personas");
 }
 
 export async function updateAgent(
@@ -253,7 +253,7 @@ export async function updateAgent(
       },
     });
 
-    revalidatePath("/admin/agents");
+    revalidatePath("/admin/ai/personas");
     return { ok: true, message: `Saved ${displayName.trim()}.` };
   } catch (e) {
     const msg =

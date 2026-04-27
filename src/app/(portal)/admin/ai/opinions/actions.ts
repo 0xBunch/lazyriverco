@@ -54,5 +54,5 @@ export async function updateRelationship(formData: FormData): Promise<void> {
       });
   }
 
-  revalidatePath("/admin/relationships");
+  revalidatePath("/admin/ai/opinions");
 }
