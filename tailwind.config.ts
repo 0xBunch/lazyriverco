@@ -67,6 +67,10 @@ const config: Config = {
         // point it elsewhere without touching component callsites.
         sans: ["var(--font-sans)", "system-ui", "sans-serif"],
         display: ["var(--font-sans)", "system-ui", "sans-serif"],
+        // Nippo (Fontshare). Geometric display family used by the /sports
+        // wordmark. Scoped to specific callsites — `font-display` stays on
+        // General Sans so other display labels are not affected.
+        nippo: ["var(--font-nippo)", "system-ui", "sans-serif"],
       },
     },
   },

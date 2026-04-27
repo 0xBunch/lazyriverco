@@ -17,6 +17,19 @@ const sans = localFont({
   ],
 });
 
+// Nippo from Fontshare — geometric display cut used for the /sports
+// wordmark. Available weights are 300/400/500/700 (no 600), so callsites
+// must pick a real weight to avoid synthetic-bold rendering.
+const nippo = localFont({
+  variable: "--font-nippo",
+  display: "swap",
+  src: [
+    { path: "./fonts/nippo-400.woff2", weight: "400", style: "normal" },
+    { path: "./fonts/nippo-500.woff2", weight: "500", style: "normal" },
+    { path: "./fonts/nippo-700.woff2", weight: "700", style: "normal" },
+  ],
+});
+
 export const metadata: Metadata = {
   title: {
     default: "The Lazy River Co.",
@@ -53,7 +66,7 @@ export default function RootLayout({
   children: React.ReactNode;
 }) {
   return (
-    <html lang="en" className={sans.variable}>
+    <html lang="en" className={`${sans.variable} ${nippo.variable}`}>
       <body className="bg-bone-950 font-sans text-bone-50 antialiased">
         {children}
       </body>
