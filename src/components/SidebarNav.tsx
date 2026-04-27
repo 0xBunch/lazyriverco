@@ -44,7 +44,6 @@ export function SidebarNav({ slot }: SidebarNavProps) {
           <Link
             key={item.href}
             href={item.href}
-            title={item.label}
             aria-current={active ? "page" : undefined}
             className={cn(
               "group/item relative flex items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium transition-colors",
@@ -66,7 +65,19 @@ export function SidebarNav({ slot }: SidebarNavProps) {
               />
             ) : null}
             <Icon aria-hidden="true" className="h-5 w-5 shrink-0" />
-            <span className="flex-1 group-data-[collapsed]:hidden">
+            <span className="flex-1 group-data-[collapsed]:sr-only">
+              {item.label}
+            </span>
+            <span
+              aria-hidden="true"
+              className={cn(
+                "pointer-events-none absolute left-full top-1/2 z-30 ml-3 -translate-y-1/2 whitespace-nowrap",
+                "rounded-md border border-bone-700/40 bg-bone-800 px-2 py-1 text-xs font-medium text-bone-50 shadow-md",
+                "opacity-0 transition-opacity duration-150 delay-75 motion-reduce:transition-none motion-reduce:delay-0",
+                "hidden group-data-[collapsed]:block",
+                "group-hover/item:opacity-100 group-focus-visible/item:opacity-100",
+              )}
+            >
               {item.label}
             </span>
           </Link>
