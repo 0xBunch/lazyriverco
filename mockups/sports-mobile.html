@@ -1,0 +1,434 @@
+<!doctype html>
+<html lang="en" class="bg-bone-950">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>/sports — mobile mockup</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link rel="preconnect" href="https://api.fontshare.com" crossorigin>
+  <link href="https://api.fontshare.com/v2/css?f[]=general-sans@400,500,600,700&display=swap" rel="stylesheet">
+  <script>
+    tailwind.config = {
+      theme: {
+        extend: {
+          colors: {
+            bone: {50:"#FAF9F5",100:"#EFECDF",200:"#C6C2B5",300:"#9B978D",400:"#6E6B64",500:"#4A4843",600:"#3A3834",700:"#2F2E2C",800:"#252423",900:"#1E1D1C",950:"#141311"},
+            claude: {50:"#FBEEF4",100:"#F7D5E3",200:"#F1B2CB",300:"#E88CB0",400:"#DE6E9B",500:"#D957A3",600:"#B54283",700:"#8E3364",800:"#682447",900:"#41172C",950:"#230C18"},
+            sports: { amber: "#F2C94C" },
+          },
+          fontFamily: {
+            sans: ['"General Sans"', "system-ui", "sans-serif"],
+            display: ['"General Sans"', "system-ui", "sans-serif"],
+          },
+        },
+      },
+    };
+  </script>
+  <style>
+    html, body { font-family: "General Sans", system-ui, sans-serif; }
+    .tabular-nums { font-variant-numeric: tabular-nums; }
+    .label-callsign { font-family: "General Sans", system-ui, sans-serif; font-weight: 600; text-transform: uppercase; letter-spacing: 0.28em; font-size: 10px; }
+    .wordmark { font-weight: 600; letter-spacing: -0.04em; line-height: 0.85; }
+    @keyframes pulse-amber { 0%, 100% { opacity: 1; transform: scale(1); } 50% { opacity: .5; transform: scale(.92); } }
+    .live-dot { animation: pulse-amber 1.4s ease-in-out infinite; }
+    @media (prefers-reduced-motion: reduce) { .live-dot { animation: none; } }
+    /* Hide scrollbar on the highlights snap-row but keep functionality */
+    .no-scrollbar::-webkit-scrollbar { display: none; }
+    .no-scrollbar { scrollbar-width: none; }
+    /* Mockup framing: phone bezel on wide screens; full width on actual mobile */
+    .stage { background:
+      radial-gradient(60% 80% at 30% 20%, rgba(217,87,163,0.06) 0%, transparent 60%),
+      radial-gradient(50% 70% at 80% 90%, rgba(242,201,76,0.04) 0%, transparent 65%),
+      #0A0908;
+      min-height: 100vh; display: flex; flex-direction: column; align-items: center; padding: 24px 0;
+    }
+    .phone {
+      width: min(100%, 414px);
+      background: #141311;
+      border-radius: 36px;
+      overflow: hidden;
+      box-shadow: 0 30px 80px -20px rgba(0,0,0,.7), 0 0 0 1px rgba(110,107,100,.4), 0 0 0 6px #1E1D1C;
+      position: relative;
+    }
+    .phone .notch {
+      position: sticky; top: 0; z-index: 30;
+      height: 36px; background: #141311;
+      display: flex; align-items: center; justify-content: space-between;
+      padding: 12px 22px 0;
+      font-size: 13px; color: #FAF9F5; font-weight: 600;
+      font-variant-numeric: tabular-nums;
+    }
+    .phone .notch::before {
+      content: ""; position: absolute; left: 50%; top: 8px; transform: translateX(-50%);
+      width: 110px; height: 28px; background: #000; border-radius: 18px;
+    }
+    .viewport-meter { position: fixed; top: 8px; right: 8px; z-index: 50; padding: 4px 8px; border-radius: 4px; background: rgba(20,19,17,.85); color: #C6C2B5; font-size: 11px; font-family: ui-monospace, monospace; border: 1px solid #2F2E2C; }
+    @media (max-width: 480px) {
+      .stage { padding: 0; background: #141311; }
+      .phone { width: 100%; border-radius: 0; box-shadow: none; }
+      .phone .notch { display: none; }
+    }
+  </style>
+</head>
+<body class="bg-bone-950 text-bone-50 antialiased">
+  <div class="viewport-meter">MOBILE · ≤ 480px</div>
+
+  <div class="stage">
+    <div class="phone">
+      <!-- Fake iOS status bar so the framing looks like a real device on desktop preview -->
+      <div class="notch">
+        <span>9:41</span>
+        <span style="display:flex; gap:5px; align-items:center; font-size:12px;">
+          <span>·oo</span>
+          <span>5G</span>
+          <span style="display:inline-block; width:22px; height:11px; border:1px solid #FAF9F5; border-radius:3px; position:relative;">
+            <span style="position:absolute; inset:1px 4px 1px 1px; background:#FAF9F5; border-radius:1px;"></span>
+          </span>
+        </span>
+      </div>
+
+      <main class="w-full">
+
+        <!-- ════════════════════════════════════════════════════════════════
+             HERO — full-bleed, condensed (~36vh)
+             ════════════════════════════════════════════════════════════════ -->
+        <section class="relative w-full overflow-hidden flex flex-col justify-end" style="min-height: 38vh;">
+          <div class="absolute inset-0 bg-bone-950"></div>
+          <div class="absolute inset-0 opacity-[0.45]" style="background:
+            radial-gradient(70% 100% at 18% 110%, rgba(217,87,163,0.22) 0%, transparent 60%),
+            radial-gradient(60% 80% at 88% 20%, rgba(242,201,76,0.14) 0%, transparent 65%);"></div>
+          <div class="absolute inset-0 opacity-[0.05]" style="background-image:
+            linear-gradient(to right, #6E6B64 1px, transparent 1px),
+            linear-gradient(to bottom, #6E6B64 1px, transparent 1px); background-size: 40px 40px;"></div>
+
+          <!-- Top callsign + presenter -->
+          <div class="relative pt-6 px-5 flex flex-col gap-2">
+            <div class="flex items-center justify-between">
+              <span class="label-callsign text-bone-300">Sports Desk</span>
+              <span class="label-callsign text-bone-400 tabular-nums">27 APR</span>
+            </div>
+            <div class="flex items-center gap-2">
+              <span class="label-callsign text-bone-500">Presented By</span>
+              <span class="label-callsign text-bone-50">Gatorade</span>
+            </div>
+          </div>
+
+          <!-- Wordmark -->
+          <div class="relative px-5 pb-5 mt-auto">
+            <h1 class="wordmark text-bone-50 font-display" style="font-size: clamp(56px, 18vw, 96px);">SPORTS</h1>
+            <div class="mt-4 flex flex-col gap-2 border-t border-bone-800/80 pt-3">
+              <div class="flex items-center gap-2 text-sm">
+                <span class="live-dot inline-block h-2 w-2 rounded-full bg-sports-amber"></span>
+                <span class="label-callsign text-sports-amber">LIVE</span>
+                <span class="text-bone-200">Mavs vs. Nuggets · Q3</span>
+              </div>
+              <span class="text-xs text-bone-400 tabular-nums">4 games · 8 headlines today</span>
+            </div>
+          </div>
+        </section>
+
+        <!-- Amber rule -->
+        <hr class="border-0 h-px w-full bg-sports-amber/40" />
+
+        <!-- ════════════════════════════════════════════════════════════════
+             WAG OF THE DAY — full-bleed, 4:5
+             ════════════════════════════════════════════════════════════════ -->
+        <article class="relative w-full aspect-[4/5] overflow-hidden bg-bone-900">
+          <div class="absolute inset-0" style="background:
+            radial-gradient(80% 100% at 30% 30%, rgba(217,87,163,0.55) 0%, rgba(20,19,17,0.6) 60%, #141311 100%),
+            linear-gradient(135deg, #41172C 0%, #1E1D1C 60%, #141311 100%);"></div>
+          <div class="absolute inset-0 opacity-[0.20] mix-blend-overlay" style="background-image: radial-gradient(rgba(255,255,255,0.4) 0.5px, transparent 0.5px); background-size: 3px 3px;"></div>
+
+          <div class="absolute top-5 left-5 right-5 flex items-center justify-between">
+            <span class="label-callsign text-sports-amber/90">WAG of the Day</span>
+            <span class="label-callsign text-bone-300 tabular-nums">№ 047</span>
+          </div>
+
+          <div class="absolute inset-x-0 bottom-0 p-5 pt-16 bg-gradient-to-t from-bone-950/95 via-bone-950/65 to-transparent">
+            <h2 class="font-display text-bone-50 text-balance" style="font-size: clamp(32px, 9vw, 44px); font-weight:600; letter-spacing:-0.02em; line-height:0.95;">
+              Ciara Wilson
+            </h2>
+            <p class="mt-2 text-bone-200 text-sm line-clamp-2 text-pretty">
+              Walked into Sunday Night Football looking like she'd just bought the franchise. Russell threw three picks. Nobody noticed.
+            </p>
+            <div class="mt-3 flex items-center gap-2 text-xs">
+              <span class="inline-flex items-center gap-1.5 rounded-full bg-bone-900/70 ring-1 ring-bone-700 px-2.5 py-1 text-bone-100 truncate">
+                Russell Wilson · Steelers
+              </span>
+            </div>
+          </div>
+        </article>
+
+        <!-- Amber rule -->
+        <hr class="border-0 h-px w-full bg-sports-amber/30" />
+
+        <!-- ════════════════════════════════════════════════════════════════
+             MLF · TOP 3 — condensed: rank + manager + W-L only
+             ════════════════════════════════════════════════════════════════ -->
+        <section class="px-5 py-6">
+          <header class="flex items-baseline justify-between mb-3">
+            <h2 class="sr-only">MLF Top 3</h2>
+            <span aria-hidden="true" class="label-callsign text-bone-400">MLF · Wk 8</span>
+            <a href="/sports/mlf" class="text-xs text-claude-300">Standings →</a>
+          </header>
+          <ol class="divide-y divide-bone-800 border-y border-bone-800/80">
+            <li class="flex items-center gap-3 py-3">
+              <span class="font-display text-bone-400 tabular-nums w-5 text-xl font-semibold">1</span>
+              <div class="h-8 w-8 rounded-full bg-claude-900 ring-1 ring-claude-700 grid place-items-center text-claude-200 font-display font-semibold text-xs">KB</div>
+              <div class="flex-1 min-w-0">
+                <p class="text-bone-50 font-display font-semibold text-sm truncate">Bunch's Beach Bums</p>
+              </div>
+              <span class="tabular-nums text-bone-100 text-sm">8–2</span>
+            </li>
+            <li class="flex items-center gap-3 py-3">
+              <span class="font-display text-bone-400 tabular-nums w-5 text-xl font-semibold">2</span>
+              <div class="h-8 w-8 rounded-full bg-bone-800 ring-1 ring-bone-700 grid place-items-center text-bone-100 font-display font-semibold text-xs">DP</div>
+              <div class="flex-1 min-w-0">
+                <p class="text-bone-50 font-display font-semibold text-sm truncate">The Patel Drive</p>
+              </div>
+              <span class="tabular-nums text-bone-100 text-sm">7–3</span>
+            </li>
+            <li class="flex items-center gap-3 py-3">
+              <span class="font-display text-bone-400 tabular-nums w-5 text-xl font-semibold">3</span>
+              <div class="h-8 w-8 rounded-full bg-bone-800 ring-1 ring-bone-700 grid place-items-center text-bone-100 font-display font-semibold text-xs">MD</div>
+              <div class="flex-1 min-w-0">
+                <p class="text-bone-50 font-display font-semibold text-sm truncate">Donovan Discount</p>
+              </div>
+              <span class="tabular-nums text-bone-100 text-sm">7–3</span>
+            </li>
+          </ol>
+        </section>
+
+        <!-- ════════════════════════════════════════════════════════════════
+             TONIGHT — 2 cards (3rd hidden, full slate link)
+             ════════════════════════════════════════════════════════════════ -->
+        <section class="px-5 pb-6">
+          <header class="flex items-baseline justify-between mb-3">
+            <h2 class="sr-only">Tonight</h2>
+            <span aria-hidden="true" class="label-callsign text-bone-400">Tonight · Where to watch</span>
+            <a href="#" class="text-xs text-claude-300">Slate →</a>
+          </header>
+          <ul class="space-y-2.5">
+            <li class="flex items-center gap-3 rounded-sm border border-sports-amber/40 bg-sports-amber/5 p-3">
+              <div class="flex flex-col items-end leading-none gap-0.5 w-12">
+                <span class="font-display font-semibold text-bone-50 text-xs">DAL</span>
+                <span class="font-display font-semibold text-bone-50 text-xs">@ PHI</span>
+              </div>
+              <div class="flex-1 min-w-0">
+                <div class="flex items-center gap-1.5">
+                  <span class="live-dot inline-block h-1.5 w-1.5 rounded-full bg-sports-amber"></span>
+                  <span class="label-callsign text-sports-amber">LIVE Q2 4:11</span>
+                </div>
+                <p class="text-bone-100 text-sm tabular-nums mt-0.5">14 — 10</p>
+              </div>
+              <span class="rounded-full bg-bone-950 ring-1 ring-bone-700 px-2.5 py-0.5 text-[10px] tracking-widest text-bone-100">ESPN</span>
+            </li>
+            <li class="flex items-center gap-3 rounded-sm border border-bone-800 bg-bone-950/40 p-3">
+              <div class="flex flex-col items-end leading-none gap-0.5 w-12">
+                <span class="font-display font-semibold text-bone-50 text-xs">KC</span>
+                <span class="font-display font-semibold text-bone-50 text-xs">@ BUF</span>
+              </div>
+              <div class="flex-1 min-w-0">
+                <span class="label-callsign text-bone-400">Tonight</span>
+                <p class="text-bone-100 text-sm tabular-nums mt-0.5">8:20 PM ET</p>
+              </div>
+              <span class="rounded-full bg-bone-950 ring-1 ring-bone-700 px-2.5 py-0.5 text-[10px] tracking-widest text-bone-100">NBC</span>
+            </li>
+          </ul>
+          <a href="#" class="block mt-3 text-center text-xs text-claude-300 underline underline-offset-4 decoration-claude-700 py-2">+ 1 more game tonight</a>
+        </section>
+
+        <!-- ════════════════════════════════════════════════════════════════
+             BROADCAST BREAK — full-bleed mobile sponsor rail
+             Mirrors src/app/(portal)/sports/mlf/draft-2026/page.tsx:600-660
+             ════════════════════════════════════════════════════════════════ -->
+        <section aria-label="Sponsor break" class="relative w-full border-y border-sports-amber/30 bg-bone-900/50">
+          <div class="absolute inset-0 opacity-[0.08]" style="background:
+            radial-gradient(60% 100% at 50% 50%, rgba(242,201,76,0.6) 0%, transparent 70%);"></div>
+          <div class="relative px-5 py-5 flex flex-col gap-3">
+            <div class="flex items-center gap-2">
+              <span class="label-callsign text-sports-amber/80">Sports</span>
+              <span aria-hidden="true" class="text-bone-700">·</span>
+              <span class="label-callsign text-bone-300">Brought to you by</span>
+            </div>
+            <div class="flex flex-col gap-1">
+              <span class="font-display text-bone-50 uppercase" style="font-size: clamp(28px, 8vw, 36px); font-weight: 700; letter-spacing: -0.01em; line-height: 1;">DraftKings</span>
+              <span class="text-bone-300 italic text-xs">"Crowns get heavier. Bets get bigger."</span>
+            </div>
+            <div class="flex items-center justify-between pt-1">
+              <div class="flex items-center gap-2">
+                <div class="flex items-center gap-1.5" aria-label="Sponsor 2 of 5">
+                  <span class="h-1.5 w-1.5 rounded-full bg-bone-700"></span>
+                  <span class="h-1.5 w-3 rounded-full bg-sports-amber"></span>
+                  <span class="h-1.5 w-1.5 rounded-full bg-bone-700"></span>
+                  <span class="h-1.5 w-1.5 rounded-full bg-bone-700"></span>
+                  <span class="h-1.5 w-1.5 rounded-full bg-bone-700"></span>
+                </div>
+                <span class="label-callsign text-bone-500 tabular-nums">02 / 05</span>
+              </div>
+              <a href="#" class="inline-flex items-center gap-1.5 rounded-full border border-bone-700 bg-bone-950 px-3 py-1.5 text-[10px] uppercase tracking-widest text-bone-100">
+                Visit
+                <span aria-hidden="true">↗</span>
+              </a>
+            </div>
+          </div>
+        </section>
+
+        <!-- ════════════════════════════════════════════════════════════════
+             HEADLINES — 4 cards (5–8 hidden, "+ more" link)
+             ════════════════════════════════════════════════════════════════ -->
+        <section class="px-5 py-6">
+          <header class="flex items-baseline justify-between mb-3">
+            <h2 class="sr-only">Headlines</h2>
+            <span aria-hidden="true" class="label-callsign text-bone-400">Headlines · Today</span>
+            <a href="#" class="text-xs text-claude-300">All →</a>
+          </header>
+          <ul class="divide-y divide-bone-800/80 border-y border-bone-800/80">
+            <li><a href="#" class="group flex items-start gap-3 py-4">
+              <span class="flex-shrink-0 w-20 aspect-[4/3] rounded-sm bg-gradient-to-br from-claude-900 to-bone-950 ring-1 ring-bone-800"></span>
+              <div class="flex-1 min-w-0">
+                <div class="flex items-center gap-1.5 mb-1">
+                  <span class="label-callsign text-bone-400">ESPN</span>
+                  <span class="text-bone-700">·</span>
+                  <span class="text-[11px] text-bone-400 tabular-nums">42m</span>
+                  <span class="ml-1 inline-flex items-center rounded-full bg-bone-900 ring-1 ring-bone-700 px-1.5 py-0.5 text-[9px] tracking-widest text-bone-200">NFL</span>
+                </div>
+                <h3 class="font-display text-sm font-semibold text-bone-50 leading-snug line-clamp-3 text-balance">
+                  Cowboys waive veteran kicker mid-season after fourth missed PAT
+                </h3>
+              </div>
+            </a></li>
+            <li><a href="#" class="group flex items-start gap-3 py-4">
+              <span class="flex-shrink-0 w-20 aspect-[4/3] rounded-sm bg-gradient-to-br from-bone-700 to-bone-950 ring-1 ring-bone-800"></span>
+              <div class="flex-1 min-w-0">
+                <div class="flex items-center gap-1.5 mb-1">
+                  <span class="label-callsign text-bone-400">The Athletic</span>
+                  <span class="text-bone-700">·</span>
+                  <span class="text-[11px] text-bone-400 tabular-nums">1h</span>
+                  <span class="ml-1 inline-flex items-center rounded-full bg-bone-900 ring-1 ring-bone-700 px-1.5 py-0.5 text-[9px] tracking-widest text-bone-200">NBA</span>
+                </div>
+                <h3 class="font-display text-sm font-semibold text-bone-50 leading-snug line-clamp-3 text-balance">
+                  Inside the Mavericks' quiet pivot to a true point-of-attack defense
+                </h3>
+              </div>
+            </a></li>
+            <li><a href="#" class="group flex items-start gap-3 py-4">
+              <span class="flex-shrink-0 w-20 aspect-[4/3] rounded-sm bg-gradient-to-br from-claude-700 to-bone-900 ring-1 ring-bone-800"></span>
+              <div class="flex-1 min-w-0">
+                <div class="flex items-center gap-1.5 mb-1">
+                  <span class="label-callsign text-bone-400">PFT</span>
+                  <span class="text-bone-700">·</span>
+                  <span class="text-[11px] text-bone-400 tabular-nums">2h</span>
+                  <span class="ml-1 inline-flex items-center rounded-full bg-bone-900 ring-1 ring-bone-700 px-1.5 py-0.5 text-[9px] tracking-widest text-bone-200">NFL</span>
+                </div>
+                <h3 class="font-display text-sm font-semibold text-bone-50 leading-snug line-clamp-3 text-balance">
+                  Tua's snap-count spike is the most underreported story in football
+                </h3>
+              </div>
+            </a></li>
+            <li><a href="#" class="group flex items-start gap-3 py-4">
+              <span class="flex-shrink-0 w-20 aspect-[4/3] rounded-sm bg-gradient-to-br from-bone-800 via-claude-950 to-bone-950 ring-1 ring-bone-800"></span>
+              <div class="flex-1 min-w-0">
+                <div class="flex items-center gap-1.5 mb-1">
+                  <span class="label-callsign text-bone-400">B/R</span>
+                  <span class="text-bone-700">·</span>
+                  <span class="text-[11px] text-bone-400 tabular-nums">3h</span>
+                  <span class="ml-1 inline-flex items-center rounded-full bg-bone-900 ring-1 ring-bone-700 px-1.5 py-0.5 text-[9px] tracking-widest text-bone-200">MLB</span>
+                </div>
+                <h3 class="font-display text-sm font-semibold text-bone-50 leading-snug line-clamp-3 text-balance">
+                  Yankees front office signals biggest offseason spend since 2020
+                </h3>
+              </div>
+            </a></li>
+          </ul>
+          <a href="#" class="block mt-4 text-center text-xs text-claude-300 underline underline-offset-4 decoration-claude-700 py-2">+ 4 more headlines</a>
+        </section>
+
+        <!-- Amber rule -->
+        <hr class="border-0 h-px w-full bg-sports-amber/20" />
+
+        <!-- ════════════════════════════════════════════════════════════════
+             HIGHLIGHTS — horizontal snap-scroll, 3 visible at rest
+             ════════════════════════════════════════════════════════════════ -->
+        <section class="py-6">
+          <header class="flex items-baseline justify-between mb-3 px-5">
+            <h2 class="sr-only">Highlights</h2>
+            <span aria-hidden="true" class="label-callsign text-bone-400">Highlights · Swipe →</span>
+            <a href="#" class="text-xs text-claude-300">More →</a>
+          </header>
+          <ul class="no-scrollbar flex gap-3 overflow-x-auto snap-x snap-mandatory pb-1 px-5" style="scroll-padding-left: 20px;">
+            <li class="snap-start flex-shrink-0" style="width: 70%;">
+              <a href="#" class="group block">
+                <span class="relative block aspect-video overflow-hidden rounded-sm ring-1 ring-bone-800 bg-gradient-to-br from-claude-900 via-bone-900 to-bone-950">
+                  <span class="absolute bottom-1.5 right-1.5 rounded-sm bg-bone-950/80 px-1.5 py-0.5 text-[10px] tabular-nums text-bone-100">2:48</span>
+                  <span class="absolute inset-0 grid place-items-center">
+                    <span class="grid place-items-center h-10 w-10 rounded-full bg-bone-950/60 ring-1 ring-bone-50/30 text-bone-50">
+                      <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><path d="M8 5v14l11-7z"/></svg>
+                    </span>
+                  </span>
+                </span>
+                <p class="mt-2 font-display text-bone-100 text-xs font-semibold leading-snug line-clamp-2">Mahomes finds Kelce on 4th & goal</p>
+                <p class="mt-0.5 text-[10px] text-bone-400 tabular-nums">NFL · 1.2M · 4h</p>
+              </a>
+            </li>
+            <li class="snap-start flex-shrink-0" style="width: 70%;">
+              <a href="#" class="group block">
+                <span class="relative block aspect-video overflow-hidden rounded-sm ring-1 ring-bone-800 bg-gradient-to-br from-bone-700 via-bone-900 to-bone-950">
+                  <span class="absolute bottom-1.5 right-1.5 rounded-sm bg-bone-950/80 px-1.5 py-0.5 text-[10px] tabular-nums text-bone-100">1:14</span>
+                  <span class="absolute inset-0 grid place-items-center">
+                    <span class="grid place-items-center h-10 w-10 rounded-full bg-bone-950/60 ring-1 ring-bone-50/30 text-bone-50">
+                      <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><path d="M8 5v14l11-7z"/></svg>
+                    </span>
+                  </span>
+                </span>
+                <p class="mt-2 font-display text-bone-100 text-xs font-semibold leading-snug line-clamp-2">Luka pulls up from the logo with 0.4 left</p>
+                <p class="mt-0.5 text-[10px] text-bone-400 tabular-nums">NBA · 884K · 6h</p>
+              </a>
+            </li>
+            <li class="snap-start flex-shrink-0" style="width: 70%;">
+              <a href="#" class="group block">
+                <span class="relative block aspect-video overflow-hidden rounded-sm ring-1 ring-bone-800 bg-gradient-to-br from-claude-800 via-bone-800 to-bone-950">
+                  <span class="absolute bottom-1.5 right-1.5 rounded-sm bg-bone-950/80 px-1.5 py-0.5 text-[10px] tabular-nums text-bone-100">3:22</span>
+                  <span class="absolute inset-0 grid place-items-center">
+                    <span class="grid place-items-center h-10 w-10 rounded-full bg-bone-950/60 ring-1 ring-bone-50/30 text-bone-50">
+                      <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><path d="M8 5v14l11-7z"/></svg>
+                    </span>
+                  </span>
+                </span>
+                <p class="mt-2 font-display text-bone-100 text-xs font-semibold leading-snug line-clamp-2">Soto's 3-run shot walks it off in extras</p>
+                <p class="mt-0.5 text-[10px] text-bone-400 tabular-nums">MLB · 521K · 9h</p>
+              </a>
+            </li>
+            <li class="snap-start flex-shrink-0" style="width: 70%;">
+              <a href="#" class="group block">
+                <span class="relative block aspect-video overflow-hidden rounded-sm ring-1 ring-bone-800 bg-gradient-to-br from-bone-800 via-claude-950 to-bone-950">
+                  <span class="absolute bottom-1.5 right-1.5 rounded-sm bg-bone-950/80 px-1.5 py-0.5 text-[10px] tabular-nums text-bone-100">0:48</span>
+                  <span class="absolute inset-0 grid place-items-center">
+                    <span class="grid place-items-center h-10 w-10 rounded-full bg-bone-950/60 ring-1 ring-bone-50/30 text-bone-50">
+                      <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><path d="M8 5v14l11-7z"/></svg>
+                    </span>
+                  </span>
+                </span>
+                <p class="mt-2 font-display text-bone-100 text-xs font-semibold leading-snug line-clamp-2">McDavid splits two defenders, roofs it backhand</p>
+                <p class="mt-0.5 text-[10px] text-bone-400 tabular-nums">NHL · 312K · 14h</p>
+              </a>
+            </li>
+          </ul>
+        </section>
+
+        <!-- Footer signoff -->
+        <hr class="border-0 h-px w-full bg-sports-amber/20" />
+        <footer class="px-5 py-6 flex items-center justify-between">
+          <span class="label-callsign text-bone-500">Sports · End of broadcast</span>
+          <span class="label-callsign text-bone-500 tabular-nums">v0</span>
+        </footer>
+
+      </main>
+    </div>
+
+    <p style="margin-top: 16px; font-size: 11px; color: #6E6B64; font-family: ui-monospace, monospace;">
+      Mocked at 414×—. Resize browser below 480px for a true mobile rendering.
+    </p>
+  </div>
+</body>
+</html>

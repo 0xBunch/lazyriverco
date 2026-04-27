@@ -1,0 +1,437 @@
+<!doctype html>
+<html lang="en" class="bg-bone-950">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>/sports — desktop mockup</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link rel="preconnect" href="https://api.fontshare.com" crossorigin>
+  <link href="https://api.fontshare.com/v2/css?f[]=general-sans@400,500,600,700&display=swap" rel="stylesheet">
+  <script>
+    tailwind.config = {
+      theme: {
+        extend: {
+          colors: {
+            bone: {50:"#FAF9F5",100:"#EFECDF",200:"#C6C2B5",300:"#9B978D",400:"#6E6B64",500:"#4A4843",600:"#3A3834",700:"#2F2E2C",800:"#252423",900:"#1E1D1C",950:"#141311"},
+            claude: {50:"#FBEEF4",100:"#F7D5E3",200:"#F1B2CB",300:"#E88CB0",400:"#DE6E9B",500:"#D957A3",600:"#B54283",700:"#8E3364",800:"#682447",900:"#41172C",950:"#230C18"},
+            sports: { amber: "#F2C94C" },
+          },
+          fontFamily: {
+            sans: ['"General Sans"', "system-ui", "sans-serif"],
+            display: ['"General Sans"', "system-ui", "sans-serif"],
+          },
+        },
+      },
+    };
+  </script>
+  <style>
+    html, body { font-family: "General Sans", system-ui, sans-serif; }
+    .tabular-nums { font-variant-numeric: tabular-nums; }
+    .label-callsign { font-family: "General Sans", system-ui, sans-serif; font-weight: 600; text-transform: uppercase; letter-spacing: 0.28em; font-size: 10px; }
+    .wordmark { font-weight: 600; letter-spacing: -0.04em; line-height: 0.85; }
+    @keyframes pulse-amber { 0%, 100% { opacity: 1; transform: scale(1); } 50% { opacity: .5; transform: scale(.92); } }
+    .live-dot { animation: pulse-amber 1.4s ease-in-out infinite; }
+    @media (prefers-reduced-motion: reduce) { .live-dot { animation: none; } }
+    /* Viewport meter for mockup framing only */
+    .viewport-meter { position: fixed; top: 8px; right: 8px; z-index: 50; padding: 4px 8px; border-radius: 4px; background: rgba(20,19,17,.85); color: #C6C2B5; font-size: 11px; font-family: ui-monospace, monospace; border: 1px solid #2F2E2C; }
+  </style>
+</head>
+<body class="bg-bone-950 text-bone-50 antialiased">
+  <div class="viewport-meter">DESKTOP · ≥1280px</div>
+
+  <main class="w-full">
+
+    <!-- ════════════════════════════════════════════════════════════════════
+         HERO — full-bleed, viewport-scaling wordmark, live state
+         ════════════════════════════════════════════════════════════════════ -->
+    <section class="relative w-full min-h-[70vh] overflow-hidden flex flex-col justify-end">
+      <!-- Background field: layered radial + grid texture -->
+      <div class="absolute inset-0 bg-bone-950"></div>
+      <div class="absolute inset-0 opacity-[0.35]" style="background:
+        radial-gradient(60% 80% at 18% 110%, rgba(217,87,163,0.18) 0%, transparent 60%),
+        radial-gradient(50% 70% at 85% 30%, rgba(242,201,76,0.10) 0%, transparent 65%),
+        radial-gradient(40% 60% at 50% 0%, rgba(217,87,163,0.06) 0%, transparent 70%);"></div>
+      <div class="absolute inset-0 opacity-[0.06]" style="background-image:
+        linear-gradient(to right, #6E6B64 1px, transparent 1px),
+        linear-gradient(to bottom, #6E6B64 1px, transparent 1px); background-size: 64px 64px;"></div>
+
+      <!-- Top meta strip -->
+      <div class="relative mx-auto max-w-7xl w-full px-6 lg:px-10 pt-10 flex items-center justify-between">
+        <span class="label-callsign text-bone-300">Lazy River · Sports Desk</span>
+        <div class="flex items-center gap-3">
+          <span class="label-callsign text-bone-500">Presented By</span>
+          <span class="label-callsign text-bone-50">Gatorade</span>
+          <span aria-hidden="true" class="text-bone-700">·</span>
+          <span class="label-callsign text-bone-400 tabular-nums">Mon · 27 Apr 2026 · 8:16 AM CDT</span>
+        </div>
+      </div>
+
+      <!-- Wordmark + live state -->
+      <div class="relative mx-auto max-w-7xl w-full px-6 lg:px-10 pb-10 mt-auto">
+        <h1 class="wordmark text-bone-50 font-display" style="font-size: clamp(72px, 14vw, 240px);">SPORTS</h1>
+        <div class="mt-6 flex flex-wrap items-end gap-6 border-t border-bone-800/80 pt-5">
+          <div class="flex items-center gap-2">
+            <span class="label-callsign text-bone-400">Today</span>
+            <span class="text-bone-100 text-base tabular-nums">4 games · 1 live · 8 headlines</span>
+          </div>
+          <div class="flex items-center gap-2">
+            <span class="live-dot inline-block h-2 w-2 rounded-full bg-sports-amber"></span>
+            <span class="label-callsign text-sports-amber">LIVE</span>
+            <span class="text-bone-200 text-sm">Mavs vs. Nuggets · Q3 · 8:42</span>
+          </div>
+          <a href="#" class="ml-auto inline-flex items-center gap-2 rounded-full border border-bone-700 bg-bone-900/60 px-4 py-2 text-sm text-bone-100 transition-colors hover:border-claude-500 hover:bg-bone-900 focus:outline-none focus-visible:ring-2 focus-visible:ring-claude-500">
+            Open the clubhouse
+            <span aria-hidden="true">→</span>
+          </a>
+        </div>
+      </div>
+    </section>
+
+    <!-- Amber broadcast rule (full-bleed) -->
+    <hr class="border-0 h-px w-full bg-sports-amber/40" />
+
+    <!-- ════════════════════════════════════════════════════════════════════
+         GRID 1 — WAG (cols 1–7) + MLF / TONIGHT stack (cols 8–12)
+         ════════════════════════════════════════════════════════════════════ -->
+    <section class="relative w-full">
+      <div class="mx-auto max-w-7xl px-6 lg:px-10 py-12 grid grid-cols-12 gap-6 lg:gap-10">
+
+        <!-- WAG OF THE DAY ────────────────────────────────────────────────── -->
+        <article class="col-span-7 relative aspect-[7/8] overflow-hidden rounded-sm bg-bone-900 ring-1 ring-bone-800">
+          <!-- Editorial cover image (gradient placeholder; KB swaps for real) -->
+          <div class="absolute inset-0" style="background:
+            radial-gradient(80% 100% at 30% 30%, rgba(217,87,163,0.55) 0%, rgba(20,19,17,0.6) 60%, #141311 100%),
+            linear-gradient(135deg, #41172C 0%, #1E1D1C 60%, #141311 100%);"></div>
+          <!-- Subtle film-grain overlay for editorial feel -->
+          <div class="absolute inset-0 opacity-[0.20] mix-blend-overlay" style="background-image: radial-gradient(rgba(255,255,255,0.4) 0.5px, transparent 0.5px); background-size: 3px 3px;"></div>
+
+          <!-- Top-right callsign -->
+          <div class="absolute top-6 left-6 right-6 flex items-center justify-between">
+            <span class="label-callsign text-sports-amber/90">WAG of the Day</span>
+            <span class="label-callsign text-bone-300 tabular-nums">№ 047</span>
+          </div>
+
+          <!-- Bottom lockup -->
+          <div class="absolute inset-x-0 bottom-0 p-8 lg:p-10 bg-gradient-to-t from-bone-950/95 via-bone-950/60 to-transparent">
+            <h2 class="font-display text-bone-50 text-balance" style="font-size: clamp(36px, 4.5vw, 64px); font-weight:600; letter-spacing:-0.02em; line-height:0.95;">
+              Ciara Wilson
+            </h2>
+            <p class="mt-3 text-bone-200 text-base lg:text-lg max-w-xl text-pretty">
+              Walked into Sunday Night Football looking like she'd just bought the franchise. Russell threw three picks. Nobody noticed.
+            </p>
+            <div class="mt-5 flex items-center gap-4 text-sm">
+              <span class="inline-flex items-center gap-1.5 rounded-full bg-bone-900/70 ring-1 ring-bone-700 px-3 py-1 text-bone-100">
+                <span class="text-bone-400 label-callsign mr-1">Athlete</span>
+                Russell Wilson · QB · Steelers
+              </span>
+              <a href="#" class="text-claude-300 hover:text-claude-200 underline underline-offset-4 decoration-claude-700">@ciara</a>
+            </div>
+          </div>
+        </article>
+
+        <!-- RIGHT COLUMN: MLF + TONIGHT ────────────────────────────────────── -->
+        <div class="col-span-5 flex flex-col gap-6 lg:gap-10">
+
+          <!-- MLF · TOP 3 -->
+          <section class="rounded-sm border border-bone-800 bg-bone-900/40 p-6 lg:p-7">
+            <header class="flex items-baseline justify-between">
+              <h2 class="sr-only">MLF Top 3</h2>
+              <span aria-hidden="true" class="label-callsign text-bone-400">MLF · Top 3 · Wk 8</span>
+              <a href="/sports/mlf" class="text-xs text-claude-300 hover:text-claude-200">Full standings →</a>
+            </header>
+            <ol class="mt-5 divide-y divide-bone-800">
+              <li class="flex items-center gap-4 py-3">
+                <span class="font-display text-bone-400 tabular-nums w-6 text-2xl font-semibold">1</span>
+                <div class="h-9 w-9 rounded-full bg-claude-900 ring-1 ring-claude-700 grid place-items-center text-claude-200 font-display font-semibold">KB</div>
+                <div class="flex-1 min-w-0">
+                  <p class="text-bone-50 font-display font-semibold truncate">Bunch's Beach Bums</p>
+                  <p class="text-xs text-bone-400 truncate">Kyle Bunch</p>
+                </div>
+                <span class="tabular-nums text-bone-100 text-sm">8–2</span>
+                <span class="tabular-nums text-bone-400 text-xs ml-3">1,142.8</span>
+              </li>
+              <li class="flex items-center gap-4 py-3">
+                <span class="font-display text-bone-400 tabular-nums w-6 text-2xl font-semibold">2</span>
+                <div class="h-9 w-9 rounded-full bg-bone-800 ring-1 ring-bone-700 grid place-items-center text-bone-100 font-display font-semibold">DP</div>
+                <div class="flex-1 min-w-0">
+                  <p class="text-bone-50 font-display font-semibold truncate">The Patel Drive</p>
+                  <p class="text-xs text-bone-400 truncate">Devang Patel</p>
+                </div>
+                <span class="tabular-nums text-bone-100 text-sm">7–3</span>
+                <span class="tabular-nums text-bone-400 text-xs ml-3">1,098.4</span>
+              </li>
+              <li class="flex items-center gap-4 py-3">
+                <span class="font-display text-bone-400 tabular-nums w-6 text-2xl font-semibold">3</span>
+                <div class="h-9 w-9 rounded-full bg-bone-800 ring-1 ring-bone-700 grid place-items-center text-bone-100 font-display font-semibold">MD</div>
+                <div class="flex-1 min-w-0">
+                  <p class="text-bone-50 font-display font-semibold truncate">Donovan Discount</p>
+                  <p class="text-xs text-bone-400 truncate">Mike Donovan</p>
+                </div>
+                <span class="tabular-nums text-bone-100 text-sm">7–3</span>
+                <span class="tabular-nums text-bone-400 text-xs ml-3">1,071.2</span>
+              </li>
+            </ol>
+          </section>
+
+          <!-- TONIGHT -->
+          <section class="rounded-sm border border-bone-800 bg-bone-900/40 p-6 lg:p-7">
+            <header class="flex items-baseline justify-between">
+              <h2 class="sr-only">Tonight's Schedule</h2>
+              <span aria-hidden="true" class="label-callsign text-bone-400">Tonight · Where to watch</span>
+              <a href="#" class="text-xs text-claude-300 hover:text-claude-200">Full slate →</a>
+            </header>
+            <ul class="mt-5 space-y-3">
+              <!-- Live game -->
+              <li class="flex items-center gap-4 rounded-sm border border-sports-amber/40 bg-sports-amber/5 p-3">
+                <div class="flex flex-col items-end leading-none gap-1 w-16">
+                  <span class="font-display font-semibold text-bone-50 text-sm">DAL</span>
+                  <span class="font-display font-semibold text-bone-50 text-sm">@ PHI</span>
+                </div>
+                <div class="flex-1 min-w-0">
+                  <div class="flex items-center gap-2">
+                    <span class="live-dot inline-block h-1.5 w-1.5 rounded-full bg-sports-amber"></span>
+                    <span class="label-callsign text-sports-amber">LIVE · Q2 · 4:11</span>
+                  </div>
+                  <p class="text-bone-100 text-sm mt-0.5 tabular-nums">14 — 10</p>
+                </div>
+                <span class="rounded-full bg-bone-950 ring-1 ring-bone-700 px-3 py-1 text-[11px] tracking-widest text-bone-100">ESPN</span>
+              </li>
+              <li class="flex items-center gap-4 rounded-sm border border-bone-800 bg-bone-950/40 p-3">
+                <div class="flex flex-col items-end leading-none gap-1 w-16">
+                  <span class="font-display font-semibold text-bone-50 text-sm">KC</span>
+                  <span class="font-display font-semibold text-bone-50 text-sm">@ BUF</span>
+                </div>
+                <div class="flex-1 min-w-0">
+                  <span class="label-callsign text-bone-400">Tonight</span>
+                  <p class="text-bone-100 text-sm mt-0.5 tabular-nums">8:20 PM ET</p>
+                </div>
+                <span class="rounded-full bg-bone-950 ring-1 ring-bone-700 px-3 py-1 text-[11px] tracking-widest text-bone-100">NBC</span>
+              </li>
+              <li class="flex items-center gap-4 rounded-sm border border-bone-800 bg-bone-950/40 p-3">
+                <div class="flex flex-col items-end leading-none gap-1 w-16">
+                  <span class="font-display font-semibold text-bone-50 text-sm">LAL</span>
+                  <span class="font-display font-semibold text-bone-50 text-sm">@ BOS</span>
+                </div>
+                <div class="flex-1 min-w-0">
+                  <span class="label-callsign text-bone-400">Tonight</span>
+                  <p class="text-bone-100 text-sm mt-0.5 tabular-nums">7:30 PM ET</p>
+                </div>
+                <span class="rounded-full bg-bone-950 ring-1 ring-bone-700 px-3 py-1 text-[11px] tracking-widest text-bone-100">TNT</span>
+              </li>
+            </ul>
+          </section>
+
+        </div>
+      </div>
+    </section>
+
+    <!-- ════════════════════════════════════════════════════════════════════
+         BROADCAST BREAK — full-bleed sponsor rail
+         Mirrors src/app/(portal)/sports/mlf/draft-2026/page.tsx:600-660
+         (SponsorRail). Active dot in sports-amber, dim dots bone-700.
+         ════════════════════════════════════════════════════════════════════ -->
+    <section aria-label="Sponsor break" class="relative w-full border-y border-sports-amber/30 bg-bone-900/50">
+      <div class="absolute inset-0 opacity-[0.06]" style="background:
+        radial-gradient(60% 100% at 50% 50%, rgba(242,201,76,0.6) 0%, transparent 70%);"></div>
+      <div class="relative mx-auto max-w-7xl px-6 lg:px-10 py-8 lg:py-10 grid grid-cols-12 gap-6 lg:gap-10 items-center">
+        <!-- Left: presenter callsign + brand lockup -->
+        <div class="col-span-7 flex flex-col gap-2">
+          <div class="flex items-center gap-2">
+            <span class="label-callsign text-sports-amber/80">Lazy River Sports</span>
+            <span aria-hidden="true" class="text-bone-700">·</span>
+            <span class="label-callsign text-bone-300">Brought to you by</span>
+          </div>
+          <div class="flex items-baseline gap-4 flex-wrap">
+            <span class="font-display text-bone-50 uppercase" style="font-size: clamp(28px, 3.6vw, 48px); font-weight: 700; letter-spacing: -0.01em; line-height: 1;">DraftKings</span>
+            <span class="text-bone-300 italic text-sm lg:text-base">"Crowns get heavier. Bets get bigger."</span>
+          </div>
+        </div>
+        <!-- Right: rotation dots + CTA -->
+        <div class="col-span-5 flex items-center justify-end gap-5">
+          <div class="flex items-center gap-3">
+            <span class="label-callsign text-bone-500">Rotation</span>
+            <div class="flex items-center gap-1.5" aria-label="Sponsor 2 of 5">
+              <span class="h-1.5 w-1.5 rounded-full bg-bone-700"></span>
+              <span class="h-1.5 w-3 rounded-full bg-sports-amber"></span>
+              <span class="h-1.5 w-1.5 rounded-full bg-bone-700"></span>
+              <span class="h-1.5 w-1.5 rounded-full bg-bone-700"></span>
+              <span class="h-1.5 w-1.5 rounded-full bg-bone-700"></span>
+            </div>
+            <span class="label-callsign text-bone-400 tabular-nums">02 / 05</span>
+          </div>
+          <a href="#" class="inline-flex items-center gap-2 rounded-full border border-bone-700 bg-bone-950 px-4 py-2 text-xs uppercase tracking-widest text-bone-100 hover:border-sports-amber/60 hover:text-sports-amber transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-claude-500">
+            Visit
+            <span aria-hidden="true">↗</span>
+          </a>
+        </div>
+      </div>
+    </section>
+
+    <!-- ════════════════════════════════════════════════════════════════════
+         GRID 2 — Headlines (cols 1–8) + Highlights (cols 9–12)
+         ════════════════════════════════════════════════════════════════════ -->
+    <section class="relative w-full">
+      <div class="mx-auto max-w-7xl px-6 lg:px-10 py-12 grid grid-cols-12 gap-6 lg:gap-10">
+
+        <!-- HEADLINES ──────────────────────────────────────────────────────── -->
+        <section class="col-span-8">
+          <header class="flex items-baseline justify-between mb-6">
+            <h2 class="sr-only">Headlines</h2>
+            <span aria-hidden="true" class="label-callsign text-bone-400">Headlines · Curated this morning</span>
+            <a href="#" class="text-xs text-claude-300 hover:text-claude-200">All sports news →</a>
+          </header>
+          <ul class="divide-y divide-bone-800/80 border-y border-bone-800/80">
+            <!-- Headline card pattern × 8 -->
+            <li><a href="#" class="group flex items-start gap-5 py-5 hover:bg-bone-900/30 -mx-2 px-2 rounded-sm transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-claude-500">
+              <span class="hidden sm:block flex-shrink-0 w-32 aspect-[4/3] rounded-sm bg-gradient-to-br from-claude-900 to-bone-950 ring-1 ring-bone-800"></span>
+              <div class="flex-1 min-w-0">
+                <div class="flex items-center gap-2 mb-1.5">
+                  <span class="label-callsign text-bone-400">ESPN</span>
+                  <span class="text-bone-700">·</span>
+                  <span class="text-xs text-bone-400 tabular-nums">42 min ago</span>
+                  <span class="ml-2 inline-flex items-center rounded-full bg-bone-900 ring-1 ring-bone-700 px-2 py-0.5 text-[10px] tracking-widest text-bone-200">NFL</span>
+                </div>
+                <h3 class="font-display text-lg lg:text-xl font-semibold text-bone-50 group-hover:text-claude-100 text-balance">
+                  Cowboys waive veteran kicker mid-season after fourth missed PAT
+                </h3>
+                <p class="mt-2 text-sm text-bone-300 line-clamp-2 text-pretty">Dan Quinn says decision was "performance-based, not personal" as Dallas brings in two free agents for tryouts ahead of Sunday's NFC East showdown.</p>
+              </div>
+            </a></li>
+            <li><a href="#" class="group flex items-start gap-5 py-5 hover:bg-bone-900/30 -mx-2 px-2 rounded-sm transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-claude-500">
+              <span class="hidden sm:block flex-shrink-0 w-32 aspect-[4/3] rounded-sm bg-gradient-to-br from-bone-700 to-bone-950 ring-1 ring-bone-800"></span>
+              <div class="flex-1 min-w-0">
+                <div class="flex items-center gap-2 mb-1.5">
+                  <span class="label-callsign text-bone-400">The Athletic</span>
+                  <span class="text-bone-700">·</span>
+                  <span class="text-xs text-bone-400 tabular-nums">1 hr ago</span>
+                  <span class="ml-2 inline-flex items-center rounded-full bg-bone-900 ring-1 ring-bone-700 px-2 py-0.5 text-[10px] tracking-widest text-bone-200">NBA</span>
+                </div>
+                <h3 class="font-display text-lg lg:text-xl font-semibold text-bone-50 group-hover:text-claude-100 text-balance">
+                  Inside the Mavericks' quiet pivot to a true point-of-attack defense
+                </h3>
+                <p class="mt-2 text-sm text-bone-300 line-clamp-2 text-pretty">Jason Kidd's late-season scheme tweak has Dallas suddenly looking like the team that ran to the Finals — and the league's offenses are scrambling to adapt.</p>
+              </div>
+            </a></li>
+            <li><a href="#" class="group flex items-start gap-5 py-5 hover:bg-bone-900/30 -mx-2 px-2 rounded-sm transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-claude-500">
+              <span class="hidden sm:block flex-shrink-0 w-32 aspect-[4/3] rounded-sm bg-gradient-to-br from-claude-700 to-bone-900 ring-1 ring-bone-800"></span>
+              <div class="flex-1 min-w-0">
+                <div class="flex items-center gap-2 mb-1.5">
+                  <span class="label-callsign text-bone-400">PFT</span>
+                  <span class="text-bone-700">·</span>
+                  <span class="text-xs text-bone-400 tabular-nums">2 hrs ago</span>
+                  <span class="ml-2 inline-flex items-center rounded-full bg-bone-900 ring-1 ring-bone-700 px-2 py-0.5 text-[10px] tracking-widest text-bone-200">NFL</span>
+                </div>
+                <h3 class="font-display text-lg lg:text-xl font-semibold text-bone-50 group-hover:text-claude-100 text-balance">
+                  Tua's snap-count spike is the most underreported story in football
+                </h3>
+                <p class="mt-2 text-sm text-bone-300 line-clamp-2 text-pretty">Mike Florio breaks down why Miami's QB has played 92% of offensive snaps post-bye despite earlier concussion protocol concerns.</p>
+              </div>
+            </a></li>
+            <li><a href="#" class="group flex items-start gap-5 py-5 hover:bg-bone-900/30 -mx-2 px-2 rounded-sm transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-claude-500">
+              <span class="hidden sm:block flex-shrink-0 w-32 aspect-[4/3] rounded-sm bg-gradient-to-br from-bone-800 via-claude-950 to-bone-950 ring-1 ring-bone-800"></span>
+              <div class="flex-1 min-w-0">
+                <div class="flex items-center gap-2 mb-1.5">
+                  <span class="label-callsign text-bone-400">Bleacher Report</span>
+                  <span class="text-bone-700">·</span>
+                  <span class="text-xs text-bone-400 tabular-nums">3 hrs ago</span>
+                  <span class="ml-2 inline-flex items-center rounded-full bg-bone-900 ring-1 ring-bone-700 px-2 py-0.5 text-[10px] tracking-widest text-bone-200">MLB</span>
+                </div>
+                <h3 class="font-display text-lg lg:text-xl font-semibold text-bone-50 group-hover:text-claude-100 text-balance">
+                  Yankees front office signals biggest offseason spend since 2020
+                </h3>
+                <p class="mt-2 text-sm text-bone-300 line-clamp-2 text-pretty">Sources tell BR that Brian Cashman has been authorized to pursue a top-tier starter and a lefty bat — and that ownership's patience has hit its limit.</p>
+              </div>
+            </a></li>
+            <li><a href="#" class="group flex items-start gap-5 py-5 hover:bg-bone-900/30 -mx-2 px-2 rounded-sm transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-claude-500">
+              <span class="hidden sm:block flex-shrink-0 w-32 aspect-[4/3] rounded-sm bg-gradient-to-br from-bone-900 to-claude-900 ring-1 ring-bone-800"></span>
+              <div class="flex-1 min-w-0">
+                <div class="flex items-center gap-2 mb-1.5">
+                  <span class="label-callsign text-bone-400">ESPN</span>
+                  <span class="text-bone-700">·</span>
+                  <span class="text-xs text-bone-400 tabular-nums">4 hrs ago</span>
+                  <span class="ml-2 inline-flex items-center rounded-full bg-bone-900 ring-1 ring-bone-700 px-2 py-0.5 text-[10px] tracking-widest text-bone-200">NHL</span>
+                </div>
+                <h3 class="font-display text-lg lg:text-xl font-semibold text-bone-50 group-hover:text-claude-100 text-balance">
+                  Connor McDavid's empty-net hat trick was the loudest quiet game of the year
+                </h3>
+                <p class="mt-2 text-sm text-bone-300 line-clamp-2 text-pretty">No fights, no scrums, no back-and-forth — and the Oilers' captain still left with a goal, an assist, and the conn-smythe whispers louder than ever.</p>
+              </div>
+            </a></li>
+          </ul>
+        </section>
+
+        <!-- HIGHLIGHTS ─────────────────────────────────────────────────────── -->
+        <section class="col-span-4">
+          <header class="flex items-baseline justify-between mb-6">
+            <h2 class="sr-only">Highlights</h2>
+            <span aria-hidden="true" class="label-callsign text-bone-400">Highlights · YouTube</span>
+            <a href="#" class="text-xs text-claude-300 hover:text-claude-200">More →</a>
+          </header>
+          <ul class="space-y-4">
+            <!-- Highlight thumbnail card × 6 -->
+            <li><a href="#" class="group block focus:outline-none focus-visible:ring-2 focus-visible:ring-claude-500 rounded-sm">
+              <span class="relative block aspect-video overflow-hidden rounded-sm ring-1 ring-bone-800 bg-gradient-to-br from-claude-900 via-bone-900 to-bone-950">
+                <span class="absolute bottom-2 right-2 rounded-sm bg-bone-950/80 px-2 py-0.5 text-[11px] tabular-nums text-bone-100">2:48</span>
+                <span class="absolute inset-0 grid place-items-center">
+                  <span class="grid place-items-center h-12 w-12 rounded-full bg-bone-950/60 ring-1 ring-bone-50/30 text-bone-50 group-hover:bg-claude-500/90 group-hover:ring-claude-300 transition-all">
+                    <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor"><path d="M8 5v14l11-7z"/></svg>
+                  </span>
+                </span>
+              </span>
+              <p class="mt-2.5 font-display text-bone-100 text-sm font-semibold leading-snug line-clamp-2 group-hover:text-claude-100">Mahomes finds Kelce on 4th & goal — entire stadium loses its mind</p>
+              <p class="mt-1 text-xs text-bone-400 tabular-nums">NFL · 1.2M views · 4 hrs ago</p>
+            </a></li>
+            <li><a href="#" class="group block focus:outline-none focus-visible:ring-2 focus-visible:ring-claude-500 rounded-sm">
+              <span class="relative block aspect-video overflow-hidden rounded-sm ring-1 ring-bone-800 bg-gradient-to-br from-bone-700 via-bone-900 to-bone-950">
+                <span class="absolute bottom-2 right-2 rounded-sm bg-bone-950/80 px-2 py-0.5 text-[11px] tabular-nums text-bone-100">1:14</span>
+                <span class="absolute inset-0 grid place-items-center">
+                  <span class="grid place-items-center h-12 w-12 rounded-full bg-bone-950/60 ring-1 ring-bone-50/30 text-bone-50 group-hover:bg-claude-500/90 group-hover:ring-claude-300 transition-all">
+                    <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor"><path d="M8 5v14l11-7z"/></svg>
+                  </span>
+                </span>
+              </span>
+              <p class="mt-2.5 font-display text-bone-100 text-sm font-semibold leading-snug line-clamp-2 group-hover:text-claude-100">Luka pulls up from the logo with 0.4 seconds left</p>
+              <p class="mt-1 text-xs text-bone-400 tabular-nums">NBA · 884K views · 6 hrs ago</p>
+            </a></li>
+            <li><a href="#" class="group block focus:outline-none focus-visible:ring-2 focus-visible:ring-claude-500 rounded-sm">
+              <span class="relative block aspect-video overflow-hidden rounded-sm ring-1 ring-bone-800 bg-gradient-to-br from-claude-800 via-bone-800 to-bone-950">
+                <span class="absolute bottom-2 right-2 rounded-sm bg-bone-950/80 px-2 py-0.5 text-[11px] tabular-nums text-bone-100">3:22</span>
+                <span class="absolute inset-0 grid place-items-center">
+                  <span class="grid place-items-center h-12 w-12 rounded-full bg-bone-950/60 ring-1 ring-bone-50/30 text-bone-50 group-hover:bg-claude-500/90 group-hover:ring-claude-300 transition-all">
+                    <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor"><path d="M8 5v14l11-7z"/></svg>
+                  </span>
+                </span>
+              </span>
+              <p class="mt-2.5 font-display text-bone-100 text-sm font-semibold leading-snug line-clamp-2 group-hover:text-claude-100">Soto's 3-run shot walks it off in extras — Yankee Stadium erupts</p>
+              <p class="mt-1 text-xs text-bone-400 tabular-nums">MLB · 521K views · 9 hrs ago</p>
+            </a></li>
+            <li><a href="#" class="group block focus:outline-none focus-visible:ring-2 focus-visible:ring-claude-500 rounded-sm">
+              <span class="relative block aspect-video overflow-hidden rounded-sm ring-1 ring-bone-800 bg-gradient-to-br from-bone-800 via-claude-950 to-bone-950">
+                <span class="absolute bottom-2 right-2 rounded-sm bg-bone-950/80 px-2 py-0.5 text-[11px] tabular-nums text-bone-100">0:48</span>
+                <span class="absolute inset-0 grid place-items-center">
+                  <span class="grid place-items-center h-12 w-12 rounded-full bg-bone-950/60 ring-1 ring-bone-50/30 text-bone-50 group-hover:bg-claude-500/90 group-hover:ring-claude-300 transition-all">
+                    <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor"><path d="M8 5v14l11-7z"/></svg>
+                  </span>
+                </span>
+              </span>
+              <p class="mt-2.5 font-display text-bone-100 text-sm font-semibold leading-snug line-clamp-2 group-hover:text-claude-100">McDavid splits two defenders, roofs it backhand</p>
+              <p class="mt-1 text-xs text-bone-400 tabular-nums">NHL · 312K views · 14 hrs ago</p>
+            </a></li>
+          </ul>
+        </section>
+
+      </div>
+    </section>
+
+    <!-- Amber broadcast rule + footer signoff -->
+    <hr class="border-0 h-px w-full bg-sports-amber/20" />
+    <footer class="w-full">
+      <div class="mx-auto max-w-7xl px-6 lg:px-10 py-10 flex items-center justify-between">
+        <span class="label-callsign text-bone-500">Lazy River · Sports · End of broadcast</span>
+        <span class="label-callsign text-bone-500 tabular-nums">v0 · 27 Apr 2026</span>
+      </div>
+    </footer>
+
+  </main>
+</body>
+</html>
