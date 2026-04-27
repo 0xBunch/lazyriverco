@@ -76,17 +76,23 @@ export async function Sidebar() {
         </div>
       ) : null}
 
-      {/* Admin slot — Control Panel sits at the bottom of the nav stack,
-          one row above the user footer, so admin tools live next to the
-          user account rather than mixed with daily-use tabs. */}
-      {isAdmin ? <SidebarNav slot="admin" /> : null}
-
-      {/* User footer — single row: avatar · name/role · logout icon.
-          pb uses env(safe-area-inset-bottom) so the logout button clears
-          the iOS home indicator in standalone PWA mode. Resolves to 0
-          elsewhere (Android/desktop). */}
+      {/* Bottom group — admin slot + user footer travel together, anchored
+          to the bottom of the rail. mt-auto on the wrapper handles the
+          collapsed case (where Recents is hidden and there's no flex-1
+          element above to push everything down). Expanded case is unaffected
+          because Recents already consumes the middle space. */}
       {user ? (
-        <div className="mt-auto border-t border-bone-700 px-3 pb-[calc(env(safe-area-inset-bottom)+0.75rem)] pt-3 group-data-[collapsed]:px-1 group-data-[collapsed]:pb-[calc(env(safe-area-inset-bottom)+0.5rem)] group-data-[collapsed]:pt-2">
+        <div className="mt-auto">
+          {/* Admin slot — Control Panel sits one row above the user footer,
+              so admin tools live next to the user account rather than mixed
+              with daily-use tabs. */}
+          {isAdmin ? <SidebarNav slot="admin" /> : null}
+
+          {/* User footer — single row: avatar · name/role · logout icon.
+              pb uses env(safe-area-inset-bottom) so the logout button clears
+              the iOS home indicator in standalone PWA mode. Resolves to 0
+              elsewhere (Android/desktop). */}
+          <div className="border-t border-bone-700 px-3 pb-[calc(env(safe-area-inset-bottom)+0.75rem)] pt-3 group-data-[collapsed]:px-1 group-data-[collapsed]:pb-[calc(env(safe-area-inset-bottom)+0.5rem)] group-data-[collapsed]:pt-2">
           <div className="flex items-center gap-3 px-2 group-data-[collapsed]:justify-center group-data-[collapsed]:px-0">
             {/* Avatar — always visible */}
             <div
@@ -119,6 +125,7 @@ export async function Sidebar() {
                 <IconLogout aria-hidden="true" className="h-4 w-4" />
               </button>
             </form>
+          </div>
           </div>
         </div>
       ) : null}
