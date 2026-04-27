@@ -84,7 +84,7 @@ export function SportsHero({
       <div className="relative mx-auto mt-auto w-full max-w-7xl px-4 pb-6 md:px-6 md:pb-10 lg:px-10">
         <h1
           id="sports-hero-heading"
-          className="font-display font-semibold tracking-tight text-bone-50"
+          className="text-center font-nippo font-bold tracking-tight text-bone-50"
           style={{
             fontSize: "clamp(56px, 14vw, 240px)",
             lineHeight: 0.85,
