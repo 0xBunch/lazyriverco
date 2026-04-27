@@ -2,7 +2,11 @@ import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
 import { getCurrentUser } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
-import { setNewsItemTags } from "./actions";
+import {
+  deleteNewsItem,
+  setNewsItemTags,
+  toggleNewsItemHidden,
+} from "./actions";
 import { SPORTS_NEWS_TAGS } from "@/lib/sports/news-tags";
 
 export const dynamic = "force-dynamic";
@@ -27,8 +31,12 @@ export default async function SportsNewsDetail({
 
   // Item must exist and belong to a SPORTS feed — leak check so a
   // direct /sports/news/[GENERAL-id] URL doesn't surface library
-  // items on the sports surface.
-  if (!item || item.feed.category !== "SPORTS" || item.hidden) {
+  // items on the sports surface. Hidden items 404 for non-admins;
+  // admins can still view (and unhide) them.
+  if (!item || item.feed.category !== "SPORTS") {
+    notFound();
+  }
+  if (item.hidden && !isAdmin) {
     notFound();
   }
 
@@ -173,46 +181,89 @@ export default async function SportsNewsDetail({
           </a>
         </div>
 
-        {/* Admin tag editor */}
+        {/* Admin block — tags + visibility + delete */}
         {isAdmin && (
-          <section className="mt-10 rounded-2xl border border-bone-800 bg-bone-900/40 p-5">
-            <h2 className="font-display text-[10px] font-semibold uppercase tracking-[0.28em] text-bone-400">
-              Admin · Tags
-            </h2>
-            <form action={setNewsItemTags} className="mt-3 space-y-3">
-              <input type="hidden" name="id" value={item.id} />
-              <div className="flex flex-wrap gap-2">
-                {SPORTS_NEWS_TAGS.map((tag) => {
-                  const checked = item.tags.includes(tag);
-                  return (
-                    <label
-                      key={tag}
-                      className={
-                        checked
-                          ? "inline-flex cursor-pointer items-center gap-1.5 rounded-full bg-claude-900 px-3 py-1 text-xs text-claude-100 ring-1 ring-claude-700"
-                          : "inline-flex cursor-pointer items-center gap-1.5 rounded-full bg-bone-900 px-3 py-1 text-xs text-bone-300 ring-1 ring-bone-800 hover:bg-bone-800 hover:text-bone-100"
-                      }
-                    >
-                      <input
-                        type="checkbox"
-                        name="tags"
-                        value={tag}
-                        defaultChecked={checked}
-                        className="sr-only peer"
-                      />
-                      <span aria-hidden="true">{checked ? "✓" : "+"}</span>
-                      <span>{tag}</span>
-                    </label>
-                  );
-                })}
+          <section className="mt-10 space-y-6 rounded-2xl border border-bone-800 bg-bone-900/40 p-5">
+            {item.hidden && (
+              <p className="rounded-md border border-amber-700/50 bg-amber-900/20 px-3 py-2 text-xs text-amber-200">
+                <span className="font-semibold">Hidden</span> — not visible
+                on the public /sports landing or news index. Use Unhide
+                below to put it back on the list.
+              </p>
+            )}
+
+            <div>
+              <h2 className="font-display text-[10px] font-semibold uppercase tracking-[0.28em] text-bone-400">
+                Admin · Tags
+              </h2>
+              <form action={setNewsItemTags} className="mt-3 space-y-3">
+                <input type="hidden" name="id" value={item.id} />
+                <div className="flex flex-wrap gap-2">
+                  {SPORTS_NEWS_TAGS.map((tag) => {
+                    const checked = item.tags.includes(tag);
+                    return (
+                      <label
+                        key={tag}
+                        className={
+                          checked
+                            ? "inline-flex cursor-pointer items-center gap-1.5 rounded-full bg-claude-900 px-3 py-1 text-xs text-claude-100 ring-1 ring-claude-700"
+                            : "inline-flex cursor-pointer items-center gap-1.5 rounded-full bg-bone-900 px-3 py-1 text-xs text-bone-300 ring-1 ring-bone-800 hover:bg-bone-800 hover:text-bone-100"
+                        }
+                      >
+                        <input
+                          type="checkbox"
+                          name="tags"
+                          value={tag}
+                          defaultChecked={checked}
+                          className="sr-only peer"
+                        />
+                        <span aria-hidden="true">{checked ? "✓" : "+"}</span>
+                        <span>{tag}</span>
+                      </label>
+                    );
+                  })}
+                </div>
+                <button
+                  type="submit"
+                  className="rounded-lg bg-claude-600 px-4 py-2 text-sm font-medium text-bone-50 hover:bg-claude-500"
+                >
+                  Save tags
+                </button>
+              </form>
+            </div>
+
+            <div className="border-t border-bone-800 pt-5">
+              <h2 className="font-display text-[10px] font-semibold uppercase tracking-[0.28em] text-bone-400">
+                Admin · Remove
+              </h2>
+              <p className="mt-2 text-xs text-bone-400">
+                <strong className="font-semibold text-bone-200">Hide</strong>{" "}
+                pulls the story from the public list but keeps the row —
+                reversible. <strong className="font-semibold text-bone-200">Delete</strong>{" "}
+                drops it permanently; the next poll may re-insert it if
+                the source still surfaces it.
+              </p>
+              <div className="mt-3 flex flex-wrap gap-2">
+                <form action={toggleNewsItemHidden}>
+                  <input type="hidden" name="id" value={item.id} />
+                  <button
+                    type="submit"
+                    className="rounded-md border border-bone-700 bg-bone-800 px-3 py-1.5 text-xs font-medium text-bone-100 hover:bg-bone-700"
+                  >
+                    {item.hidden ? "Unhide" : "Hide from public list"}
+                  </button>
+                </form>
+                <form action={deleteNewsItem}>
+                  <input type="hidden" name="id" value={item.id} />
+                  <button
+                    type="submit"
+                    className="rounded-md border border-red-900/50 bg-red-950/40 px-3 py-1.5 text-xs font-medium text-red-200 hover:bg-red-900/60"
+                  >
+                    Delete permanently
+                  </button>
+                </form>
               </div>
-              <button
-                type="submit"
-                className="rounded-lg bg-claude-600 px-4 py-2 text-sm font-medium text-bone-50 hover:bg-claude-500"
-              >
-                Save tags
-              </button>
-            </form>
+            </div>
           </section>
         )}
 

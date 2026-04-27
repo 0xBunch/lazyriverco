@@ -35,6 +35,63 @@ export async function setNewsItemTags(fd: FormData): Promise<void> {
   return back(id, { msg: tags.length === 0 ? "Tags cleared." : `Saved ${tags.length} tag${tags.length === 1 ? "" : "s"}.` });
 }
 
+/**
+ * Toggle hidden flag on a NewsItem. Admin-only. Hidden items are
+ * filtered out of the public /sports HeadlinesRail and /sports/news
+ * index. Detail page still resolves so admins can flip them back.
+ */
+export async function toggleNewsItemHidden(fd: FormData): Promise<void> {
+  await requireAdmin();
+
+  const id = (fd.get("id") ?? "").toString();
+  if (!id) return back(id, { error: "Missing item id." });
+
+  const item = await prisma.newsItem.findUnique({
+    where: { id },
+    select: { hidden: true, title: true },
+  });
+  if (!item) return back(id, { error: "Item not found." });
+
+  await prisma.newsItem.update({
+    where: { id },
+    data: { hidden: !item.hidden },
+  });
+  revalidatePath(`/sports/news/${id}`);
+  revalidatePath("/sports/news");
+  revalidatePath("/sports");
+  return back(id, {
+    msg: item.hidden ? "Unhidden — back on the public list." : "Hidden from the public list.",
+  });
+}
+
+/**
+ * Hard delete a NewsItem. Admin-only. Use sparingly — for items that
+ * shouldn't have been polled at all (spam, duplicates the dedup
+ * missed). Soft-hide via toggleNewsItemHidden is the usual path.
+ *
+ * After delete, redirect to the index since the detail URL will 404.
+ */
+export async function deleteNewsItem(fd: FormData): Promise<void> {
+  await requireAdmin();
+
+  const id = (fd.get("id") ?? "").toString();
+  if (!id) {
+    const params = new URLSearchParams({ error: "Missing item id." });
+    redirect(`/sports/news?${params.toString()}`);
+  }
+
+  try {
+    await prisma.newsItem.delete({ where: { id } });
+  } catch (e) {
+    console.error("deleteNewsItem failed", e);
+    return back(id, { error: "Couldn't delete the item." });
+  }
+  revalidatePath("/sports/news");
+  revalidatePath("/sports");
+  const params = new URLSearchParams({ msg: "Story deleted." });
+  redirect(`/sports/news?${params.toString()}`);
+}
+
 function back(
   id: string,
   flash: { msg?: string; error?: string },
