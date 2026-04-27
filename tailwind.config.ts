@@ -58,6 +58,15 @@ const config: Config = {
         sports: {
           amber: "#F2C94C",
         },
+        // MLSN red — ESPN-adjacent. Scoped to the sports section's top
+        // header bar (MlsnHeaderBar). 500 is the bar surface (~5.7:1 vs
+        // white, AA pass). 700 is the hover / active band, 900 is the
+        // bottom-border separator.
+        mlsn: {
+          500: "#D00026",
+          700: "#A30020",
+          900: "#7A0018",
+        },
       },
       fontFamily: {
         // General Sans (Fontshare, free). Humanist-geometric hybrid with
