@@ -38,7 +38,16 @@ const MAX_ITEMS_PER_POLL = 50;
 const ERROR_MESSAGE_CAP = 2000;
 const BREAKER_THRESHOLD = 5;
 const BACKOFF_MAX_MIN = 24 * 60;
-const UA = "LazyRiverBot/1.0 (+https://lazyriver.co)";
+// Mozilla/5.0 prefix bypasses naive UA-based bot filters that some
+// CDNs (CloudFront, Cloudflare) use to silently 200-and-empty bot
+// requests. We still identify as LazyRiverBot for any host that wants
+// to allow/block us deliberately, just under the standard
+// browser-compatibility framing. Triggered by the 2026-04-27 ESPN
+// incident: same URL + same fetch + same headers from a residential
+// IP returned 18.7KB of valid RSS; from Railway's outbound the
+// response body was 0 bytes.
+const UA =
+  "Mozilla/5.0 (compatible; LazyRiverBot/1.0; +https://lazyriver.co)";
 
 const parser = new Parser({
   timeout: FETCH_TIMEOUT_MS,
@@ -235,6 +244,19 @@ async function fetchFeedBody(url: string): Promise<string> {
   const text = await res.text();
   if (text.length > MAX_FEED_BYTES) {
     throw new Error(`Feed body exceeds ${MAX_FEED_BYTES} bytes`);
+  }
+  // Empty body is almost always a CDN bot-block returning 200 + 0
+  // bytes (CloudFront / Cloudflare's stealth pattern). Throw with the
+  // response shape so the failure is attributed to fetch, not parse,
+  // and the admin sees actionable info instead of the parser's
+  // opaque "Unable to parse XML." downstream.
+  if (text.length === 0) {
+    const ct = res.headers.get("content-type") ?? "—";
+    const cl = res.headers.get("content-length") ?? "—";
+    const ce = res.headers.get("content-encoding") ?? "—";
+    throw new Error(
+      `Empty body (status=${res.status}, content-type=${ct}, content-length=${cl}, content-encoding=${ce}) — likely UA/bot filter or geo block`,
+    );
   }
   return text;
 }
