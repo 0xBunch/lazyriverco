@@ -345,6 +345,61 @@ export async function getWagOfTheDay(date = startOfUtcDay()): Promise<{ wag: Spo
 
 Empty state UX: admin sees "No WAG scheduled for today — open admin queue →". Non-admin sees a quiet "On break today." Schedule a week at a time via `/admin/sports/wags/queue`.
 
+### How WAGs get into `SportsWag` (the population question)
+
+The schema is the easy part. Building a curated roster of 30+ entries by hand is not. Verified the existing partner-photo pipeline at [src/lib/player-partner.ts:175-247](../src/lib/player-partner.ts) — the Gemini + Wikipedia + Google Search grounding pipeline takes `fullName, position, team` strings. The Sleeper coupling is **only** the player-lookup at lines 190-202 that resolves those strings from a Sleeper player ID. Everything below that point is name-based already.
+
+**Population strategy: extract the name-based core, layer Sleeper lookup on top.**
+
+```ts
+// New: src/lib/player-partner.ts (extract from runGenerate, lines 209+)
+export async function generatePartnerByName(
+  fullName: string,
+  sport: SportTag,        // for the prompt — "NFL receiver" vs "NBA point guard"
+  team?: string | null,
+): Promise<PartnerRow | null> {
+  // Identical Gemini call to runGenerate, but driven by free-form athlete
+  // metadata instead of a Sleeper row. Returns the same PartnerRow shape.
+}
+
+// Existing generatePlayerPartner becomes a thin wrapper:
+async function runGenerate(playerId: string): Promise<PartnerRow | null> {
+  // ...existing cache check...
+  const player = await prisma.sleeperPlayer.findUnique({ where: { playerId }, select: {...} });
+  if (!player) return null;
+  return generatePartnerByName(player.fullName, "NFL", player.team);
+}
+```
+
+**Admin form wiring** at `/admin/sports/wags`:
+
+1. KB types `athleteName` (and selects `sport` + optional `team`).
+2. KB clicks "Find partner" → POST to a new server action `findPartnerByName({ athleteName, sport, team })`.
+3. Server action: `assertWithinLimit(user.id, "sports.wag.find", { maxPerMinute: 10, maxPerDay: 60 })` (mirrors the existing rate limit at [src/app/api/sleeper/players/[playerId]/partner/route.ts:78-80](../src/app/api/sleeper/players/\[playerId\]/partner/route.ts)). Then calls `generatePartnerByName(athleteName, sport, team)`.
+4. Response auto-fills `name` (partner's name), `imageUrl`, `instagramUrl` on the form. KB confirms or edits, hits Save → `SportsWag` row created.
+5. KB schedules the WAG to a specific date via `/admin/sports/wags/queue`.
+
+For NFL athletes already in `SleeperPlayer`, KB can optionally type the athlete name and the form looks them up first — pre-populating `team` and using the cached `PlayerPartnerInfo` if present. Pure ergonomics; not load-bearing.
+
+**Cost check (per CLAUDE.md AI API rule):**
+
+- Model: same as existing partner pipeline (`PARTNER_MODEL` constant in `src/lib/player-partner.ts`). No new model added.
+- Per-call cost: identical to today's WAGFINDER call. Already visible in `/admin/usage` under `media.analyze` operation.
+- Volume: KB-triggered only (button click). Rate-limited at 10/min, 60/day per user. Realistic volume for building a roster: ~30 calls over a week. Trivial.
+- No loops, no cron-triggered AI, no fire-and-forget. Same risk profile as the shipped Apr 21 feature.
+
+**Risks specific to this approach:**
+
+| Risk | Mitigation |
+|---|---|
+| `generatePartnerByName` extraction regresses the existing `/sports/mlf` partner card | Refactor lands in its own commit on PR 1's branch. Verify by hitting the existing player-profile partner button before/after — same PartnerRow returned for the same input. |
+| Gemini results for non-NFL athletes (NBA/MLB stars) are lower quality | The model has solid coverage on top-tier athletes across sports. KB confirms each result before saving — the form is human-in-the-loop, not auto-commit. Bad result = KB edits or discards. |
+| Image-proxy host allow-list rejects partner photos from non-Wikipedia sources | Same risk flagged elsewhere. Verified at PR 1 implementation by trying a non-Wikipedia URL through the proxy. Extend allow-list if needed. |
+
+**Alternative considered and rejected:** pure-manual entry (paste image URL + IG handle by hand). Tedious enough that the WAG roster never reaches 30+ entries, and a thin queue means "On break today" is the default state. Rejected per product-assassin's editorial-commit principle: a feature that exists but has nothing to show is worse than no feature.
+
+**Out of scope for PR 1:** bulk seed script. KB curates 5-10 entries via the admin form to validate the pipeline, then a follow-up PR can add a "seed roster from a list of athlete names" admin action if KB wants to front-load.
+
 ### Page wiring
 
 `src/app/(portal)/sports/page.tsx` — server component, `force-dynamic`. Single batch of parallel reads:
@@ -433,20 +488,22 @@ All admin pages: `requireAdmin`. Each has `actions.ts` with Zod validation. **No
 | File | Action |
 |---|---|
 | `prisma/schema.prisma` | modify — 4 sports models + 1 enum (`ScheduleStatus`) + PR 0 columns/enums on Feed/NewsItem |
-| `prisma/migrations/<ts>_sports_landing/migration.sql` | create — includes raw CHECK + PR 0 SQL |
+| `prisma/migrations/<ts>_sports_landing/migration.sql` | create — transactional file (catalog ops + CHECK) |
+| `prisma/migrations/<ts>_sports_landing_index/migration.sql` | create — non-transactional file (CONCURRENTLY index) |
 | `tailwind.config.ts` | modify — add `colors.sports.amber` |
 | `src/app/(portal)/sports/page.tsx` | rewrite |
 | `src/app/(portal)/sports/_components/{SportsHero,WagOfTheDay,MlfTopThree,TonightStrip,HeadlinesRail,HighlightsGrid,SectionHeader,LiveDot,SponsorPresenter,SponsorBreakRail}.tsx` | create — 10 components |
 | `src/lib/sports/{wag-rotation,youtube,og-fetch}.ts` | create |
 | `src/lib/sleeper/standings.ts` | create — extract `getTopN` |
-| `src/app/(portal)/admin/sports/wags/page.tsx` + `_components/*` + `actions.ts` | create |
+| `src/lib/player-partner.ts` | modify — extract `generatePartnerByName(fullName, sport, team)` from `runGenerate`; existing `generatePlayerPartner` becomes a thin wrapper |
+| `src/app/(portal)/admin/sports/wags/page.tsx` + `_components/*` + `actions.ts` | create — `actions.ts` exposes `findPartnerByName({athleteName, sport, team})` server action |
 | `src/app/(portal)/admin/sports/wags/queue/page.tsx` + `_components/*` + `actions.ts` | create |
 | `src/app/(portal)/admin/sports/highlights/page.tsx` + `_components/*` + `actions.ts` | create |
 | `src/app/(portal)/admin/sports/schedule/page.tsx` + `_components/*` + `actions.ts` | create |
 | `src/app/(portal)/admin/sports/sponsors/page.tsx` + `_components/*` + `actions.ts` | create |
 | `src/components/AdminSubNav.tsx` | modify — add Sports tab group |
 
-PR 1 footprint: ~25 new files, 3 modified.
+PR 1 footprint: ~25 new files, 4 modified (added `src/lib/player-partner.ts` to extract the name-based core).
 
 ### Verification (PR 1)
 
