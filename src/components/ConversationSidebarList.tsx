@@ -1,3 +1,4 @@
+import { IconDots } from "@tabler/icons-react";
 import { prisma } from "@/lib/prisma";
 import { getCurrentUser } from "@/lib/auth";
 
@@ -16,7 +17,7 @@ export async function ConversationSidebarList() {
     // Capped — the "All chats" link below routes to /chats for the
     // full management view (search, archive, etc.). Don't bump this
     // without rethinking that overflow.
-    take: 15,
+    take: 10,
     select: {
       id: true,
       title: true,
@@ -49,9 +50,10 @@ export async function ConversationSidebarList() {
       </ul>
       <a
         href="/chats"
-        className="mx-1 mt-3 block rounded-md px-3 py-1.5 text-[0.75rem] text-bone-400 transition-colors hover:bg-bone-800/60 hover:text-bone-100"
+        className="mx-1 mt-1 flex items-center gap-2 rounded-md border border-bone-700 px-3 py-1.5 text-[0.75rem] text-bone-400 transition-colors hover:border-bone-500 hover:bg-bone-800/40 hover:text-bone-100 focus:outline-none focus-visible:ring-2 focus-visible:ring-claude-500 focus-visible:ring-offset-2 focus-visible:ring-offset-bone-950"
       >
-        All chats
+        <IconDots aria-hidden="true" className="h-4 w-4 shrink-0" />
+        <span>All chats</span>
       </a>
     </nav>
   );
