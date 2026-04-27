@@ -15,9 +15,7 @@ const RED_900 = "#4A0914";
 const CREAM_50 = "#F5F1E6";
 const CREAM_200 = "#C6BEAC";
 
-const FONT_VARS: React.CSSProperties = {
-  ["--font-display" as string]: "'Clash Display', 'Space Grotesk', system-ui, sans-serif",
-};
+const DISPLAY_STACK = "'Clash Display', 'Space Grotesk', system-ui, sans-serif";
 
 export function MlfDraftBanner() {
   if (!isDraft2026Enabled()) return null;
@@ -27,7 +25,7 @@ export function MlfDraftBanner() {
       href="/sports/mlf/draft-2026"
       aria-label="MLF Rookie Draft 2026 — open draft room"
       className="group relative block overflow-hidden rounded-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-claude-500 focus-visible:ring-offset-2 focus-visible:ring-offset-bone-950"
-      style={{ backgroundColor: NAVY_950, ...FONT_VARS }}
+      style={{ backgroundColor: NAVY_950 }}
     >
       <span
         aria-hidden
@@ -49,6 +47,7 @@ export function MlfDraftBanner() {
             alt=""
             width={1024}
             height={1024}
+            sizes="56px"
             className="h-12 w-12 drop-shadow-[0_8px_16px_rgba(0,0,0,0.5)] md:h-14 md:w-14"
           />
         </div>
@@ -56,21 +55,22 @@ export function MlfDraftBanner() {
         <div className="flex min-w-0 flex-1 flex-col gap-1.5">
           <span
             className="text-[10px] font-bold uppercase tracking-[0.26em]"
-            style={{ color: CREAM_200, fontFamily: "var(--font-display)" }}
+            style={{ color: CREAM_200, fontFamily: DISPLAY_STACK }}
           >
-            MLF Draft · 2026 Rookie Class
+            Rookie Class
           </span>
           <h2
             className="text-balance text-[20px] leading-[0.92] tracking-[-0.01em] md:text-[22px]"
             style={{
-              fontFamily: "var(--font-display)",
+              fontFamily: DISPLAY_STACK,
               fontWeight: 800,
               color: CREAM_50,
               textTransform: "uppercase",
             }}
           >
-            Enter the draft room{" "}
-            <span style={{ color: RED_500, fontWeight: 900 }}>/</span>
+            MLF Rookie Draft{" "}
+            <span style={{ color: RED_500, fontWeight: 900 }}>/</span>{" "}
+            <span style={{ color: CREAM_200 }}>2026</span>
           </h2>
         </div>
 
