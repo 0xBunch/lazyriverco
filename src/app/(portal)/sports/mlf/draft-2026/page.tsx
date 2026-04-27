@@ -6,10 +6,10 @@ import { isDraft2026Enabled } from "@/lib/draft-flags";
 import { formatCaption } from "@/lib/draft";
 import { ClockCountdown } from "./ClockCountdown";
 import { BigBoardControls } from "./BigBoardControls";
+import { ChyronTicker } from "./ChyronTicker";
 import { CommishDock } from "./CommishDock";
-import { ConfirmLockPickButton } from "./ConfirmLockPickButton";
 import { Dossier } from "./Dossier";
-import { SponsorCarousel } from "./SponsorCarousel";
+import { SnakeBoardWithReactions } from "./SnakeBoardWithReactions";
 
 export const metadata = {
   title: "MLF Rookie Draft 2026",
@@ -231,12 +231,7 @@ export default async function DraftPage({
             onDeck={onDeck}
             pickClockSec={draft.pickClockSec}
           />
-          <SponsorCarousel
-            sponsors={draft.sponsors.map((s) => ({
-              name: s.name,
-              tagline: s.tagline,
-            }))}
-          />
+          <GoodellBox compact latestLocked={latestLocked} />
         </section>
 
         <section
@@ -256,16 +251,17 @@ export default async function DraftPage({
           {selectedPlayerId && <Dossier playerId={selectedPlayerId} />}
         </section>
 
-        <DraftBoard
+        <SnakeBoardWithReactions
           picks={picks}
           totalSlots={draft.totalSlots}
         />
 
-        <section className="px-8 pb-8">
-          <GoodellBox latestLocked={latestLocked} />
-        </section>
-
-        <ReactionsFeed picks={picks} />
+        <ChyronTicker
+          sponsors={draft.sponsors.map((s) => ({
+            name: s.name,
+            tagline: s.tagline,
+          }))}
+        />
 
         <Footer season={draft.season} />
       </main>
@@ -355,7 +351,7 @@ function TopBar({
       style={{ borderColor: NAVY_700, backgroundColor: `${NAVY_900}E6` }}
     >
       <Link
-        href="/"
+        href="/sports"
         className="group flex items-center gap-2 text-[10px] font-semibold tracking-[0.16em] transition md:gap-3 md:text-[11px]"
         style={{ color: CREAM_200 }}
       >
@@ -366,8 +362,7 @@ function TopBar({
           ←
         </span>
         <span className="uppercase" style={{ color: CREAM_200 }}>
-          <span className="md:hidden">Lazy River</span>
-          <span className="hidden md:inline">Back to Lazy River</span>
+          Lazy River Sports
         </span>
       </Link>
 
@@ -628,122 +623,10 @@ function OnClockPanel({
 // Draft Board (snake grid)
 // ---------------------------------------------------------------------------
 
-function DraftBoard({
-  picks,
-  totalSlots,
-}: {
-  picks: PickDetail[];
-  totalSlots: number;
-}) {
-  if (picks.length === 0) return null;
-
-  const byRound = new Map<number, PickDetail[]>();
-  for (const p of picks) {
-    const list = byRound.get(p.round) ?? [];
-    list.push(p);
-    byRound.set(p.round, list);
-  }
-
-  return (
-    <section className="px-4 pb-8 md:px-8">
-      <div className="mb-4 flex flex-wrap items-baseline gap-x-3 gap-y-1">
-        <h2 className="text-[11px] font-bold uppercase tracking-[0.22em]" style={{ color: CREAM_200 }}>
-          Draft Board
-        </h2>
-        <span className="text-[10px] font-bold uppercase tracking-[0.22em]" style={{ color: CREAM_400 }}>
-          · Snake · 3 rounds × {totalSlots} managers
-        </span>
-        <span
-          className="ml-auto text-[9px] font-semibold italic md:hidden"
-          style={{ color: CREAM_400 }}
-        >
-          swipe to see all picks →
-        </span>
-      </div>
-      <div className="flex flex-col gap-2">
-        {[...byRound.entries()]
-          .sort(([a], [b]) => a - b)
-          .map(([round, rp]) => (
-            <div
-              key={round}
-              className="-mx-4 overflow-x-auto px-4 pb-1 md:mx-0 md:overflow-visible md:px-0 md:pb-0"
-            >
-              <div
-                className="grid gap-2 md:gap-2"
-                style={{ gridTemplateColumns: `repeat(${rp.length}, minmax(96px, 1fr))` }}
-              >
-                {rp
-                  .sort((a, b) => a.pickInRound - b.pickInRound)
-                  .map((p) => (
-                    <SnakeCell key={p.id} pick={p} />
-                  ))}
-              </div>
-            </div>
-          ))}
-      </div>
-    </section>
-  );
-}
-
-function SnakeCell({ pick }: { pick: PickDetail }) {
-  const isCurrent = pick.status === "onClock";
-  const isTaken = pick.status === "locked";
-  const bg = isCurrent ? `${RED_900}99` : isTaken ? NAVY_800 : `${NAVY_900}80`;
-  const border = isCurrent ? RED_500 : NAVY_700;
-
-  return (
-    <div
-      className="flex min-h-[64px] flex-col gap-1 rounded-sm border px-3 py-2.5"
-      style={{
-        backgroundColor: bg,
-        borderColor: border,
-        boxShadow: isCurrent ? `0 0 0 1px ${RED_900}` : undefined,
-      }}
-    >
-      <div className="flex items-baseline gap-2">
-        <span
-          className="tabular-nums"
-          style={{
-            fontFamily: "var(--font-display)",
-            fontWeight: 700,
-            fontSize: 12,
-            color: isCurrent ? RED_400 : CREAM_400,
-            letterSpacing: "0.04em",
-          }}
-        >
-          {pick.round}.{String(pick.pickInRound).padStart(2, "0")}
-        </span>
-        <span
-          className="text-[9px] font-bold uppercase tracking-[0.18em]"
-          style={{ color: isCurrent ? RED_400 : CREAM_200 }}
-        >
-          {pick.slot.user.displayName}
-        </span>
-      </div>
-      {isCurrent ? (
-        <span className="text-[11px] font-bold uppercase tracking-[0.18em]" style={{ color: RED_400 }}>
-          ◉ On the clock
-        </span>
-      ) : isTaken && pick.player?.fullName ? (
-        <span
-          className="leading-tight"
-          style={{
-            fontFamily: "var(--font-display)",
-            fontWeight: 700,
-            fontSize: 16,
-            color: CREAM_50,
-            letterSpacing: "-0.01em",
-            textTransform: "uppercase",
-          }}
-        >
-          {pick.player.fullName}
-        </span>
-      ) : (
-        <span style={{ color: CREAM_400, fontSize: 12 }}>—</span>
-      )}
-    </div>
-  );
-}
+// ---------------------------------------------------------------------------
+// Snake-grid Draft Board moved to ./SnakeBoardWithReactions.tsx (client;
+// owns the click-to-expand reaction popovers + sr-only fallback list).
+// ---------------------------------------------------------------------------
 
 // ---------------------------------------------------------------------------
 // Goodell box — most recent locked pick with consumed announcer image
@@ -751,6 +634,7 @@ function SnakeCell({ pick }: { pick: PickDetail }) {
 
 function GoodellBox({
   latestLocked,
+  compact = false,
 }: {
   latestLocked:
     | {
@@ -764,6 +648,10 @@ function GoodellBox({
         lockedAt: Date | null;
       }
     | null;
+  /** Compact mode: image stays prominent (rotating announcer photos are
+   *  the personality slot), caption demotes to Satoshi italic so the live
+   *  on-clock timer wins the row hierarchy. Used in the top-right slot. */
+  compact?: boolean;
 }) {
   if (!latestLocked || !latestLocked.player?.fullName) {
     return (
@@ -789,13 +677,36 @@ function GoodellBox({
       ? `${R2_BASE.replace(/\/+$/, "")}/${latestLocked.announcerImg.r2Key}`
       : null;
 
+  // Compact: tighter image, demoted caption. Sits beside the on-clock
+  // panel so the live timer is the loudest thing on that row.
+  const imageWrapClass = compact
+    ? "relative flex h-[140px] w-full shrink-0 items-center justify-center overflow-hidden border-b md:h-[140px] md:w-[140px] md:border-b-0 md:border-r"
+    : "relative flex h-[160px] w-full shrink-0 items-center justify-center overflow-hidden border-b md:h-[220px] md:w-[260px] md:border-b-0 md:border-r";
+  const captionClass = compact
+    ? "leading-[1.4]"
+    : "text-[18px] leading-[1.2] tracking-[-0.005em] md:text-[26px]";
+  const captionStyle: React.CSSProperties = compact
+    ? {
+        fontFamily: "var(--font-ui)",
+        fontStyle: "italic",
+        fontWeight: 500,
+        fontSize: 17,
+        color: CREAM_50,
+      }
+    : {
+        fontFamily: "var(--font-display)",
+        fontWeight: 700,
+        color: CREAM_50,
+        textTransform: "uppercase",
+      };
+
   return (
     <div
       className="flex flex-col overflow-hidden rounded-sm border md:flex-row"
       style={{ borderColor: NAVY_700, backgroundColor: `${NAVY_900}CC` }}
     >
       <div
-        className="relative flex h-[160px] w-full shrink-0 items-center justify-center overflow-hidden border-b md:h-[220px] md:w-[260px] md:border-b-0 md:border-r"
+        className={imageWrapClass}
         style={{
           borderColor: NAVY_700,
           background: `linear-gradient(180deg, ${NAVY_700} 0%, ${NAVY_950} 100%)`,
@@ -810,7 +721,7 @@ function GoodellBox({
           />
         ) : (
           <div className="flex flex-col items-center gap-2 text-center">
-            <MLFShield className="h-20 w-auto opacity-80" />
+            <MLFShield className={compact ? "h-14 w-auto opacity-80" : "h-20 w-auto opacity-80"} />
             <span
               className="text-[9px] font-bold uppercase tracking-[0.2em]"
               style={{ color: CREAM_400 }}
@@ -821,25 +732,21 @@ function GoodellBox({
         )}
       </div>
 
-      <div className="flex flex-1 flex-col justify-center gap-3 px-5 py-5 md:px-7 md:py-6">
-        <div className="flex items-center gap-3">
-          <MLFShield className="h-6 w-auto" />
+      <div className={
+        compact
+          ? "flex flex-1 flex-col justify-center gap-2 px-4 py-4"
+          : "flex flex-1 flex-col justify-center gap-3 px-5 py-5 md:px-7 md:py-6"
+      }>
+        <div className="flex items-center gap-2">
+          {!compact && <MLFShield className="h-6 w-auto" />}
           <span
             className="text-[9px] font-bold uppercase tracking-[0.26em]"
             style={{ color: RED_400 }}
           >
-            At the podium · Pick {latestLocked.overallPick}
+            At the podium · Pick {String(latestLocked.overallPick).padStart(2, "0")}
           </span>
         </div>
-        <p
-          className="text-[18px] leading-[1.2] tracking-[-0.005em] md:text-[26px]"
-          style={{
-            fontFamily: "var(--font-display)",
-            fontWeight: 700,
-            color: CREAM_50,
-            textTransform: "uppercase",
-          }}
-        >
+        <p className={captionClass} style={captionStyle}>
           &ldquo;{caption}&rdquo;
         </p>
       </div>
@@ -850,83 +757,10 @@ function GoodellBox({
 // ---------------------------------------------------------------------------
 
 // ---------------------------------------------------------------------------
-// Reactions feed — latest locked picks with their AI-generated one-liners.
+// Pick reactions moved to per-cell click-to-expand popovers in
+// SnakeBoardWithReactions.tsx (with an sr-only fallback list rendered
+// inside the same component for screen-reader skim).
 // ---------------------------------------------------------------------------
-
-function ReactionsFeed({ picks }: { picks: PickDetail[] }) {
-  const lockedDesc = picks
-    .filter((p) => p.status === "locked" && p.player?.fullName)
-    .sort((a, b) => (b.lockedAt?.getTime() ?? 0) - (a.lockedAt?.getTime() ?? 0))
-    .slice(0, 6);
-
-  if (lockedDesc.length === 0) return null;
-
-  return (
-    <section className="px-4 pb-10 md:px-8">
-      <div className="mb-4 flex items-center gap-3">
-        <h2 className="text-[11px] font-bold uppercase tracking-[0.22em]" style={{ color: CREAM_200 }}>
-          Pick Reactions
-        </h2>
-        <span
-          className="rounded-sm px-1.5 py-0.5 text-[8px] font-bold uppercase tracking-[0.18em]"
-          style={{ backgroundColor: `${RED_900}CC`, color: RED_400 }}
-        >
-          Live
-        </span>
-      </div>
-      <ul
-        className="divide-y rounded-sm border"
-        style={{ borderColor: NAVY_700, backgroundColor: `${NAVY_900}CC`, /* use border color for divider */ }}
-      >
-        {lockedDesc.map((p) => {
-          const mgr = p.slot.teamName?.trim() || p.slot.user.displayName;
-          return (
-            <li
-              key={p.id}
-              className="flex items-start gap-3 border-t first:border-t-0 px-4 py-3 md:gap-4 md:px-5"
-              style={{ borderColor: `${NAVY_700}80` }}
-            >
-              <span
-                className="mt-0.5 w-14 shrink-0 text-[10px] font-bold uppercase tracking-[0.18em] tabular-nums"
-                style={{ color: CREAM_400 }}
-              >
-                {p.round}.{String(p.pickInRound).padStart(2, "0")}
-              </span>
-              <span className="flex-1">
-                <span className="block text-[11px] font-bold uppercase tracking-[0.16em]" style={{ color: CREAM_200 }}>
-                  {mgr}
-                  <span style={{ color: CREAM_400 }}> took </span>
-                  <span style={{ color: CREAM_50 }}>{p.player?.fullName}</span>
-                  {p.player?.team && (
-                    <>
-                      <span style={{ color: CREAM_400 }}> · </span>
-                      <span style={{ color: CREAM_200 }}>{p.player.team}</span>
-                    </>
-                  )}
-                </span>
-                {p.reaction?.body ? (
-                  <span
-                    className="mt-1 block text-[13px] leading-[1.45]"
-                    style={{ color: CREAM_50 }}
-                  >
-                    {p.reaction.body}
-                  </span>
-                ) : (
-                  <span
-                    className="mt-1 block text-[12px] italic"
-                    style={{ color: CREAM_400 }}
-                  >
-                    [ reaction queued… ]
-                  </span>
-                )}
-              </span>
-            </li>
-          );
-        })}
-      </ul>
-    </section>
-  );
-}
 
 function Footer({ season }: { season: string }) {
   return (
