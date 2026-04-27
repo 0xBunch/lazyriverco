@@ -341,7 +341,7 @@ export function ConversationLanding({
           full-width panel (Claude-style tab swap). Picking an item
           pastes its full prompt text into the textarea above and
           collapses the panel. Bar hides entirely when no active groups
-          exist (admin-curated via /admin/prompts). */}
+          exist (admin-curated via /admin/ai/prompts). */}
       <PromptGroupBar
         groups={promptGroups}
         onPick={(prompt) => setContent(prompt)}

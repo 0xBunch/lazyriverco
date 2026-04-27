@@ -11,7 +11,7 @@
 // Names stored in the DB are the Tabler export name WITHOUT the "Icon"
 // prefix ("BallFootball", not "IconBallFootball") — shorter strings,
 // avoids the prefix-stutter. Server-side validation (parseIconName in
-// admin/prompts/actions.ts) uses Object.hasOwn against this map so a
+// admin/ai/prompts/actions.ts) uses Object.hasOwn against this map so a
 // malicious "toString" or "constructor" value can't sneak through.
 //
 // Icons are grouped into categories for the admin picker UI. Categories

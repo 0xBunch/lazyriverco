@@ -13,7 +13,7 @@ import { upsertTagRegistry } from "@/lib/tag-registry";
 // so client forms can bind via `useFormState(action, null)` and surface
 // validation / error messages inline instead of through Next's
 // anonymized digest error boundary. Same pattern we retrofit into
-// admin/agents alongside this PR — see those actions for the full
+// admin/ai/personas alongside this PR — see those actions for the full
 // rationale, short version: throws become digests in prod, returns
 // become real messages.
 

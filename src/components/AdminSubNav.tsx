@@ -6,9 +6,8 @@ import { cn } from "@/lib/utils";
 
 const ADMIN_TABS = [
   { href: "/admin", label: "Overview" },
-  { href: "/admin/agents", label: "Agents" },
+  { href: "/admin/ai", label: "AI" },
   { href: "/admin/members", label: "Members" },
-  { href: "/admin/relationships", label: "Relationships" },
   { href: "/admin/canon", label: "Canon" },
   { href: "/admin/lore", label: "Lore" },
   { href: "/admin/library", label: "Library" },
@@ -16,7 +15,6 @@ const ADMIN_TABS = [
   { href: "/admin/calendar", label: "Calendar" },
   { href: "/admin/feeds", label: "Feeds" },
   { href: "/admin/draft", label: "Draft" },
-  { href: "/admin/prompts", label: "Prompts" },
   { href: "/admin/usage", label: "Usage" },
 ] as const;
 

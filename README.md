@@ -95,7 +95,7 @@ The Prisma schema (`prisma/schema.prisma`) defines 36 models. The load-bearing o
 - **`Character`** — AI persona. Stores `systemPrompt`, `model`, `dialogueMode`, `isDefault` (one-row partial unique index), `triggerKeywords`, `activeModules`.
 - **`Conversation` + `Message`** — per-user thread bound to a single character. Messages live on `Conversation` OR on the legacy `Channel` (with a CHECK constraint enforcing exactly one).
 - **`Channel`** — legacy group chat. v1 has one channel (`#mensleague`), schema is multi-channel-ready.
-- **`AgentRelationship`** — narrative text describing "what character X thinks of member Y," edited in `/admin/relationships`.
+- **`AgentRelationship`** — narrative text describing "what character X thinks of member Y," edited in `/admin/ai/opinions`.
 - **`ClubhouseCanon`** — shared group lore injected into every agent prompt.
 - **`Media`** — R2-backed photo or video. Holds `key`, `aiAnalysisNote`, `tags[]`.
 - **`CalendarEntry` + `CalendarEntryMedia`** — trip/event with markdown body and ordered media, one designated cover per entry.
