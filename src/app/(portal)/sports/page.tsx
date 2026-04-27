@@ -33,12 +33,12 @@ export default async function SportsDashboardPage() {
   if (!user) redirect("/start");
 
   return (
-    <div className="mx-auto max-w-5xl px-4 py-6 md:px-6 md:py-10">
-      <header className="mb-8 md:mb-10">
-        <h1 className="font-display text-3xl font-semibold tracking-tight text-bone-50 text-balance md:text-4xl">
+    <div className="mx-auto max-w-6xl px-4 py-8 pt-20 md:pt-8">
+      <header className="mb-6">
+        <h1 className="font-display text-3xl font-semibold tracking-tight text-bone-50 text-balance">
           Sports
         </h1>
-        <p className="mt-2 text-sm text-bone-300 text-pretty">
+        <p className="mt-1 text-sm text-bone-300 text-pretty">
           Every league, roster, and box score the clubhouse cares about. More
           sports arrive as we wire them up.
         </p>

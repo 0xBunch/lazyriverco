@@ -47,7 +47,7 @@ export default async function PlayerProfilePage({
   }
 
   return (
-    <div className="mx-auto max-w-5xl px-4 py-6 md:px-6 md:py-10">
+    <div className="mx-auto max-w-6xl px-4 py-8 pt-20 md:pt-8">
       <nav className="mb-4 text-sm text-bone-400">
         <Link
           href="/sports/mlf"
