@@ -160,10 +160,20 @@ async function runPoll(feed: Feed, startedAt: Date): Promise<PollOutcome> {
     parsed = await parser.parseString(body);
   } catch (e) {
     const message = e instanceof Error ? e.message : String(e);
-    await recordFailure(feed, message.slice(0, ERROR_MESSAGE_CAP));
+    // Diagnostic enrichment — rss-parser's "Unable to parse XML." is
+    // opaque on its own. Capture the first 240 chars of body, with
+    // control chars stripped, so we can tell at a glance whether the
+    // parser was handed HTML, gzip garbage, a CDN error page, or just
+    // truncated content. Total stays under ERROR_MESSAGE_CAP.
+    const preview = body
+      .slice(0, 240)
+      .replace(/[\x00-\x1f\x7f]/g, "·")
+      .trim();
+    const enriched = `${message} | body[${body.length}B, 0:240]: ${preview}`;
+    await recordFailure(feed, enriched.slice(0, ERROR_MESSAGE_CAP));
     const err: PollError = {
       stage: "parse",
-      message: message.slice(0, ERROR_MESSAGE_CAP),
+      message: enriched.slice(0, ERROR_MESSAGE_CAP),
       sourceUrl: feed.url,
     };
     await writeLog(feed.id, startedAt, "failure", { errors: [err] });
