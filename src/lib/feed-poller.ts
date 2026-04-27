@@ -3,7 +3,7 @@ import Parser from "rss-parser";
 import { Prisma } from "@prisma/client";
 import type { Feed } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
-import { safeFetch, UnsafeUrlError } from "@/lib/safe-fetch";
+import { assertUrlSafePublic, UnsafeUrlError } from "@/lib/safe-fetch";
 import { ingestUrl, IngestError } from "@/lib/ingest";
 import { persistIngest } from "@/lib/ingest/persist";
 import {
@@ -28,9 +28,14 @@ import {
 //   - window hasn't elapsed → `skipped: too-soon` (no log row).
 //
 // The rss-parser library is only a *parser* here. We do the fetch
-// ourselves via safeFetch so the SSRF guards + byte caps + per-call
-// timeout still apply. Passing rss-parser a URL would bypass all of
-// that.
+// ourselves with plain fetch + an SSRF preflight (assertUrlSafePublic),
+// matching the proven pattern in KB's showrunner project
+// (01_Work/WAS/showrunner/packages/shared/src/wire/rss.ts). The
+// earlier safeFetch wrapper combined `redirect: "manual"` with
+// `cache: "no-store"`, and one CDN (ESPN's CloudFront) responded to
+// that combination with 200 OK + 0-byte body — silent stealth block.
+// Plain fetch with default redirect/cache behavior matches what
+// every working RSS reader sends, so CDNs treat the request normally.
 
 const FETCH_TIMEOUT_MS = 10_000;
 const MAX_FEED_BYTES = 4 * 1024 * 1024;
@@ -234,31 +239,57 @@ async function runPoll(feed: Feed, startedAt: Date): Promise<PollOutcome> {
 // Fetch
 
 async function fetchFeedBody(url: string): Promise<string> {
-  const res = await safeFetch(url, {
-    timeoutMs: FETCH_TIMEOUT_MS,
-    accept: "application/rss+xml,application/atom+xml,application/xml,text/xml,*/*;q=0.1",
-    userAgent: UA,
-  });
-  // Cap response size — a malicious or misconfigured feed that streams
-  // forever shouldn't be able to pin our memory.
-  const text = await res.text();
-  if (text.length > MAX_FEED_BYTES) {
-    throw new Error(`Feed body exceeds ${MAX_FEED_BYTES} bytes`);
+  // Pattern ported from KB's showrunner project
+  // (01_Work/WAS/showrunner/packages/shared/src/wire/rss.ts), which
+  // has been polling RSS reliably in prod against the same kinds of
+  // CDNs that broke our prior wrapped path. The earlier safeFetch
+  // wrapper paired `redirect: "manual"` with `cache: "no-store"` and
+  // returned a 200 OK with 0-byte body for ESPN's CloudFront — the
+  // combination of those two flags is the suspect.
+  //
+  // SSRF protection is preserved via assertUrlSafePublic, which runs
+  // the same hostname → IP → blocklist check safeFetch does, just
+  // without performing the fetch itself. The TOCTOU window between
+  // the lookup and the fetch matches the documented gap in
+  // safe-fetch.ts; acceptable at the 7-user private-app scale.
+  await assertUrlSafePublic(url);
+
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), FETCH_TIMEOUT_MS);
+  try {
+    const res = await fetch(url, {
+      signal: controller.signal,
+      headers: {
+        "User-Agent": UA,
+        Accept: "application/rss+xml, application/xml, text/xml",
+      },
+    });
+    if (!res.ok) {
+      throw new Error(`Upstream returned ${res.status}`);
+    }
+    // Cap response size — a malicious or misconfigured feed that streams
+    // forever shouldn't be able to pin our memory.
+    const text = await res.text();
+    if (text.length > MAX_FEED_BYTES) {
+      throw new Error(`Feed body exceeds ${MAX_FEED_BYTES} bytes`);
+    }
+    // Empty body is almost always a CDN bot-block returning 200 + 0
+    // bytes (CloudFront / Cloudflare's stealth pattern). Throw with
+    // the response shape so the failure is attributed to fetch, not
+    // parse, and the admin sees actionable info instead of the
+    // parser's opaque "Unable to parse XML." downstream.
+    if (text.length === 0) {
+      const ct = res.headers.get("content-type") ?? "—";
+      const cl = res.headers.get("content-length") ?? "—";
+      const ce = res.headers.get("content-encoding") ?? "—";
+      throw new Error(
+        `Empty body (status=${res.status}, content-type=${ct}, content-length=${cl}, content-encoding=${ce}) — likely UA/bot filter or geo block`,
+      );
+    }
+    return text;
+  } finally {
+    clearTimeout(timer);
   }
-  // Empty body is almost always a CDN bot-block returning 200 + 0
-  // bytes (CloudFront / Cloudflare's stealth pattern). Throw with the
-  // response shape so the failure is attributed to fetch, not parse,
-  // and the admin sees actionable info instead of the parser's
-  // opaque "Unable to parse XML." downstream.
-  if (text.length === 0) {
-    const ct = res.headers.get("content-type") ?? "—";
-    const cl = res.headers.get("content-length") ?? "—";
-    const ce = res.headers.get("content-encoding") ?? "—";
-    throw new Error(
-      `Empty body (status=${res.status}, content-type=${ct}, content-length=${cl}, content-encoding=${ce}) — likely UA/bot filter or geo block`,
-    );
-  }
-  return text;
 }
 
 // ---------------------------------------------------------------------------
