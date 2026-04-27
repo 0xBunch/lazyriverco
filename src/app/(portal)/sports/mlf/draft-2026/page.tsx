@@ -6,6 +6,7 @@ import { isDraft2026Enabled } from "@/lib/draft-flags";
 import { formatCaption } from "@/lib/draft";
 import { ClockCountdown } from "./ClockCountdown";
 import { BigBoardControls } from "./BigBoardControls";
+import { CommishDock } from "./CommishDock";
 import { ConfirmLockPickButton } from "./ConfirmLockPickButton";
 import { Dossier } from "./Dossier";
 import { SponsorCarousel } from "./SponsorCarousel";
@@ -268,6 +269,12 @@ export default async function DraftPage({
 
         <Footer season={draft.season} />
       </main>
+      {isAdmin && (
+        <CommishDock
+          draftId={draft.id}
+          status={draft.status as "live" | "paused"}
+        />
+      )}
     </div>
   );
 }

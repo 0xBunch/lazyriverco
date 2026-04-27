@@ -3,7 +3,7 @@
 import { redirect } from "next/navigation";
 import { revalidatePath } from "next/cache";
 import { prisma } from "@/lib/prisma";
-import { getCurrentUser } from "@/lib/auth";
+import { getCurrentUser, requireAdmin } from "@/lib/auth";
 import { generateDraftPickReaction } from "@/lib/sleeper-ai";
 import { findNextPendingPick } from "@/lib/draft";
 
@@ -12,6 +12,61 @@ const ROUTE = "/sports/mlf/draft-2026";
 function flash(key: "msg" | "error", value: string): never {
   const q = new URLSearchParams({ [key]: value }).toString();
   redirect(`${ROUTE}?${q}`);
+}
+
+/**
+ * Pause the live draft from the inline commish dock on
+ * `/sports/mlf/draft-2026`. Functionally identical to
+ * `pauseDraft` in the admin actions, but redirects back to the live
+ * page (admin's pauseDraft sends them to `/admin/sports/mlf/draft/[id]`
+ * which is wrong when they're already on the live page).
+ */
+export async function pauseDraftFromLive(fd: FormData): Promise<void> {
+  await requireAdmin();
+  const draftId = String(fd.get("draftId") ?? "").trim();
+  if (!draftId) flash("error", "Missing draft id.");
+
+  const draft = await prisma.draftRoom.findUnique({
+    where: { id: draftId },
+    select: { status: true },
+  });
+  if (!draft) flash("error", "Draft not found.");
+  if (draft.status !== "live") {
+    flash("error", `Can only pause a live draft (currently ${draft.status}).`);
+  }
+
+  await prisma.draftRoom.update({
+    where: { id: draftId },
+    data: { status: "paused" },
+  });
+  revalidatePath(ROUTE);
+  redirect(`${ROUTE}?msg=paused`);
+}
+
+/**
+ * Resume the paused draft from the inline commish dock. Mirror of
+ * `pauseDraftFromLive` — redirects to the live page on success.
+ */
+export async function resumeDraftFromLive(fd: FormData): Promise<void> {
+  await requireAdmin();
+  const draftId = String(fd.get("draftId") ?? "").trim();
+  if (!draftId) flash("error", "Missing draft id.");
+
+  const draft = await prisma.draftRoom.findUnique({
+    where: { id: draftId },
+    select: { status: true },
+  });
+  if (!draft) flash("error", "Draft not found.");
+  if (draft.status !== "paused") {
+    flash("error", `Can only resume a paused draft (currently ${draft.status}).`);
+  }
+
+  await prisma.draftRoom.update({
+    where: { id: draftId },
+    data: { status: "live" },
+  });
+  revalidatePath(ROUTE);
+  redirect(`${ROUTE}?msg=resumed`);
 }
 
 /**
