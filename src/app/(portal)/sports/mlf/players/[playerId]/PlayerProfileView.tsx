@@ -81,10 +81,10 @@ function HeaderBlock({ profile }: { profile: PlayerProfile }) {
         </div>
       )}
       <div className="min-w-0 flex-1">
-        <h1 className="font-display text-2xl font-semibold tracking-tight text-bone-50 text-balance">
+        <h1 className="font-display text-3xl font-semibold tracking-tight text-bone-50 text-balance md:text-4xl">
           {profile.fullName}
         </h1>
-        <p className="mt-1 flex flex-wrap items-center gap-x-2 gap-y-1 text-sm text-bone-300">
+        <p className="mt-2 flex flex-wrap items-center gap-x-2 gap-y-1 text-sm text-bone-300">
           {profile.position ? <span>{profile.position}</span> : null}
           {profile.team ? (
             <>
