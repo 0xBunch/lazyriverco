@@ -62,13 +62,13 @@ export function SleeperOverview({ initial, narrative, isAdmin }: Props) {
   );
 
   return (
-    <div className="flex flex-col gap-5 px-4 py-6 md:px-6 md:py-8">
+    <div className="mx-auto flex max-w-5xl flex-col gap-5 px-4 py-6 md:px-6 md:py-10">
       <header className="flex flex-wrap items-end justify-between gap-3">
         <div className="min-w-0">
-          <h1 className="font-display text-2xl font-semibold tracking-tight text-bone-50 text-balance">
+          <h1 className="font-display text-3xl font-semibold tracking-tight text-bone-50 text-balance md:text-4xl">
             {data.leagueName}
           </h1>
-          <p className="mt-1 text-sm text-bone-300 text-pretty">
+          <p className="mt-2 text-sm text-bone-300 text-pretty">
             {isRecap
               ? `${data.season} final standings · ${data.nflSeason} hasn't kicked off yet · synced ${lastSyncedRelative}`
               : `${data.season} season · NFL Week ${data.currentWeek} · synced ${lastSyncedRelative}`}
