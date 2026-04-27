@@ -106,6 +106,21 @@ const nextConfig = {
         destination: "/admin/members/usage/:path*",
         permanent: true,
       },
+      // PR 5 of the admin condensation: Draft moves under
+      // /admin/sports/mlf/* alongside future sports apps and MLF
+      // surfaces. The draft tree has nested subroutes (/[id]/setup,
+      // /pool, /images, /sponsors) so :path* is load-bearing here, not
+      // just defensive.
+      {
+        source: "/admin/draft",
+        destination: "/admin/sports/mlf/draft",
+        permanent: true,
+      },
+      {
+        source: "/admin/draft/:path*",
+        destination: "/admin/sports/mlf/draft/:path*",
+        permanent: true,
+      },
     ];
   },
   images: {

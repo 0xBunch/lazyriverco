@@ -4,7 +4,7 @@
 //
 // Gates:
 //   * `/sports/mlf/draft-2026` page — returns "not yet open" when false.
-//   * `/admin/draft` shell — admin can always reach it (admin-gated higher up),
+//   * `/admin/sports/mlf/draft` shell — admin can always reach it (admin-gated higher up),
 //     but the "Open draft" action short-circuits when flag is false so nothing
 //     goes live accidentally mid-build.
 //   * MLF page CTA card for the draft — hidden when flag is false.

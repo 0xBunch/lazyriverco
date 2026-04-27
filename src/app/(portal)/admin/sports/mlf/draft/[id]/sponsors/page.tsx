@@ -34,7 +34,7 @@ export default async function SponsorsPage({
     <div className="space-y-6">
       <header className="flex flex-col gap-2">
         <Link
-          href={`/admin/draft/${draft.id}`}
+          href={`/admin/sports/mlf/draft/${draft.id}`}
           className="text-xs uppercase tracking-[0.18em] text-bone-400 hover:text-bone-200"
         >
           ← {draft.name}

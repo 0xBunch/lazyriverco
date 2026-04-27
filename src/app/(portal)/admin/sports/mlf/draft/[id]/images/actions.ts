@@ -21,9 +21,9 @@ export async function uploadAnnouncerImage(fd: FormData): Promise<void> {
   const draftId = String(fd.get("draftId") ?? "").trim();
   const label = String(fd.get("label") ?? "").trim() || null;
   const file = fd.get("image");
-  const base = `/admin/draft/${draftId}/images`;
+  const base = `/admin/sports/mlf/draft/${draftId}/images`;
 
-  if (!draftId) flash("/admin/draft", "error", "Missing draft id.");
+  if (!draftId) flash("/admin/sports/mlf/draft", "error", "Missing draft id.");
   if (!(file instanceof File)) flash(base, "error", "No file uploaded.");
   if (!isAllowedContentType(file.type)) {
     flash(base, "error", `File type "${file.type || "unknown"}" not allowed.`);
@@ -58,7 +58,7 @@ export async function deleteAnnouncerImage(fd: FormData): Promise<void> {
   await requireAdmin();
   const id = String(fd.get("id") ?? "").trim();
   const draftId = String(fd.get("draftId") ?? "").trim();
-  const base = `/admin/draft/${draftId}/images`;
+  const base = `/admin/sports/mlf/draft/${draftId}/images`;
   if (!id) flash(base, "error", "Missing image id.");
   // Just remove the DB row; R2 object stays (admin-only garbage is tolerable).
   await prisma.draftAnnouncerImage.delete({ where: { id } });
@@ -69,8 +69,8 @@ export async function deleteAnnouncerImage(fd: FormData): Promise<void> {
 export async function resetRotation(fd: FormData): Promise<void> {
   await requireAdmin();
   const draftId = String(fd.get("draftId") ?? "").trim();
-  const base = `/admin/draft/${draftId}/images`;
-  if (!draftId) flash("/admin/draft", "error", "Missing draft id.");
+  const base = `/admin/sports/mlf/draft/${draftId}/images`;
+  if (!draftId) flash("/admin/sports/mlf/draft", "error", "Missing draft id.");
 
   const updated = await prisma.draftAnnouncerImage.updateMany({
     where: { draftId, consumedPickId: { not: null } },

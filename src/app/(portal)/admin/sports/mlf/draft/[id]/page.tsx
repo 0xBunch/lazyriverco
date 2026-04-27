@@ -5,17 +5,17 @@ import { deleteDraft } from "../actions";
 import { openDraft, pauseDraft, resumeDraft, completeDraft, resetDraft, undoPick } from "./actions";
 
 // ---------------------------------------------------------------------------
-// /admin/draft/[id] — single-draft landing page.
+// /admin/sports/mlf/draft/[id] — single-draft landing page.
 //
 // v1 scope: show top-level config + counts + a destructive "delete" action
 // (gated by typing DELETE). Setup sub-surfaces (slots, pool, images,
 // sponsors, live cockpit) are hinted but ship in follow-up PRs:
 //
-//   /admin/draft/[id]/setup    — slot-to-user mapping, team-name overrides
-//   /admin/draft/[id]/pool     — rookie pool add/remove
-//   /admin/draft/[id]/images   — Goodell image pool uploads
-//   /admin/draft/[id]/sponsors — sponsor rotation entries
-//   /admin/draft/[id]/live     — commissioner cockpit (undo, skip, etc.)
+//   /admin/sports/mlf/draft/[id]/setup    — slot-to-user mapping, team-name overrides
+//   /admin/sports/mlf/draft/[id]/pool     — rookie pool add/remove
+//   /admin/sports/mlf/draft/[id]/images   — Goodell image pool uploads
+//   /admin/sports/mlf/draft/[id]/sponsors — sponsor rotation entries
+//   /admin/sports/mlf/draft/[id]/live     — commissioner cockpit (undo, skip, etc.)
 // ---------------------------------------------------------------------------
 
 type Search = {
@@ -66,7 +66,7 @@ export default async function AdminDraftDetail({
     <div className="space-y-8">
       <header className="flex flex-col gap-2">
         <Link
-          href="/admin/draft"
+          href="/admin/sports/mlf/draft"
           className="text-xs uppercase tracking-[0.18em] text-bone-400 hover:text-bone-200"
         >
           ← All drafts
@@ -135,22 +135,22 @@ export default async function AdminDraftDetail({
         </h3>
         <ul className="mt-3 grid gap-2 text-sm sm:grid-cols-2">
           <SubLink
-            href={`/admin/draft/${draft.id}/setup`}
+            href={`/admin/sports/mlf/draft/${draft.id}/setup`}
             title="Slots"
             body={`${draft._count.slots} / ${draft.totalSlots} assigned`}
           />
           <SubLink
-            href={`/admin/draft/${draft.id}/pool`}
+            href={`/admin/sports/mlf/draft/${draft.id}/pool`}
             title="Rookie pool"
             body={`${draft._count.pool} rookies staged`}
           />
           <SubLink
-            href={`/admin/draft/${draft.id}/images`}
+            href={`/admin/sports/mlf/draft/${draft.id}/images`}
             title="Announcer images"
             body={`${draft._count.announcerImgs} uploaded`}
           />
           <SubLink
-            href={`/admin/draft/${draft.id}/sponsors`}
+            href={`/admin/sports/mlf/draft/${draft.id}/sponsors`}
             title="Sponsors"
             body={`${draft._count.sponsors} on rotation`}
           />
