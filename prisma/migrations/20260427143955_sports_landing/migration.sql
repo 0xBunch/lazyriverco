@@ -14,12 +14,22 @@ SET lock_timeout      = '3s';
 SET statement_timeout = '30s';
 
 -- ── New enums ─────────────────────────────────────────────────────────────
--- IF NOT EXISTS requires PG ≥ 15 (Railway runs 15/16). Idempotency
--- matters: a half-applied migration leaves orphaned types, and a re-run
--- with bare CREATE TYPE fails on duplicate.
-CREATE TYPE IF NOT EXISTS "FeedCategory"   AS ENUM ('GENERAL', 'SPORTS');
-CREATE TYPE IF NOT EXISTS "SportTag"       AS ENUM ('NFL', 'NBA', 'MLB', 'NHL', 'MLS', 'UFC');
-CREATE TYPE IF NOT EXISTS "ScheduleStatus" AS ENUM ('SCHEDULED', 'LIVE', 'FINAL', 'POSTPONED');
+-- Postgres has no `CREATE TYPE IF NOT EXISTS` syntax (verified against
+-- PG 15/16/17 docs after the original draft of this migration aborted
+-- with `ERROR: syntax error at or near "NOT"` at position 945).
+-- The portable idempotent shape is a DO block that catches duplicate_object.
+-- Same effect — re-runnable without 42710 errors after a partial apply.
+DO $$ BEGIN
+  CREATE TYPE "FeedCategory"   AS ENUM ('GENERAL', 'SPORTS');
+EXCEPTION WHEN duplicate_object THEN null; END $$;
+
+DO $$ BEGIN
+  CREATE TYPE "SportTag"       AS ENUM ('NFL', 'NBA', 'MLB', 'NHL', 'MLS', 'UFC');
+EXCEPTION WHEN duplicate_object THEN null; END $$;
+
+DO $$ BEGIN
+  CREATE TYPE "ScheduleStatus" AS ENUM ('SCHEDULED', 'LIVE', 'FINAL', 'POSTPONED');
+EXCEPTION WHEN duplicate_object THEN null; END $$;
 
 -- ── Extend shipped Feed/NewsItem ──────────────────────────────────────────
 -- Feed.category NOT NULL DEFAULT 'GENERAL'. PG ≥ 11 stores the default in
