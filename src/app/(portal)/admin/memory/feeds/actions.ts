@@ -5,7 +5,7 @@ import { revalidatePath } from "next/cache";
 import { prisma } from "@/lib/prisma";
 import { requireAdmin } from "@/lib/auth";
 import { pollFeed } from "@/lib/feed-poller";
-import type { FeedKind } from "@prisma/client";
+import type { FeedCategory, FeedKind, SportTag } from "@prisma/client";
 
 // Admin actions for /admin/memory/feeds. All actions follow the same shape:
 //   - require ADMIN (middleware + role check — belt + suspenders)
@@ -23,6 +23,8 @@ import type { FeedKind } from "@prisma/client";
 const MAX_NAME = 80;
 const MAX_URL = 2048;
 const VALID_KINDS = ["NEWS", "MEDIA"] as const satisfies readonly FeedKind[];
+const VALID_CATEGORIES = ["GENERAL", "SPORTS"] as const satisfies readonly FeedCategory[];
+const VALID_SPORTS = ["NFL", "NBA", "MLB", "NHL", "MLS", "UFC"] as const satisfies readonly SportTag[];
 
 // ---------------------------------------------------------------------------
 
@@ -32,6 +34,8 @@ export async function createFeed(fd: FormData): Promise<void> {
   const name = (fd.get("name") ?? "").toString().trim().slice(0, MAX_NAME);
   const url = (fd.get("url") ?? "").toString().trim().slice(0, MAX_URL);
   const kindRaw = (fd.get("kind") ?? "").toString();
+  const categoryRaw = (fd.get("category") ?? "GENERAL").toString();
+  const sportRaw = (fd.get("sport") ?? "").toString();
   const pollIntervalMin = Number(fd.get("pollIntervalMin") ?? 30);
 
   if (!name) return back({ error: "Name is required." });
@@ -41,6 +45,19 @@ export async function createFeed(fd: FormData): Promise<void> {
   }
   if (!VALID_KINDS.includes(kindRaw as FeedKind)) {
     return back({ error: "Kind must be NEWS or MEDIA." });
+  }
+  if (!VALID_CATEGORIES.includes(categoryRaw as FeedCategory)) {
+    return back({ error: "Category must be GENERAL or SPORTS." });
+  }
+  // Sport is optional. Empty string → null. Any non-empty value must
+  // parse to a valid SportTag. Auto-clear when category=GENERAL (sport
+  // is only meaningful for SPORTS feeds).
+  let sport: SportTag | null = null;
+  if (categoryRaw === "SPORTS" && sportRaw !== "") {
+    if (!VALID_SPORTS.includes(sportRaw as SportTag)) {
+      return back({ error: "Sport must be one of NFL/NBA/MLB/NHL/MLS/UFC." });
+    }
+    sport = sportRaw as SportTag;
   }
   if (
     !Number.isFinite(pollIntervalMin) ||
@@ -56,6 +73,8 @@ export async function createFeed(fd: FormData): Promise<void> {
         name,
         url,
         kind: kindRaw as FeedKind,
+        category: categoryRaw as FeedCategory,
+        sport,
         pollIntervalMin,
         ownerId: admin.id,
       },
@@ -70,6 +89,48 @@ export async function createFeed(fd: FormData): Promise<void> {
 
   revalidatePath("/admin/memory/feeds");
   return back({ msg: `Feed "${name}" created.` });
+}
+
+// ---------------------------------------------------------------------------
+
+export async function setFeedTags(fd: FormData): Promise<void> {
+  await requireAdmin();
+
+  const id = (fd.get("id") ?? "").toString();
+  const categoryRaw = (fd.get("category") ?? "").toString();
+  const sportRaw = (fd.get("sport") ?? "").toString();
+  if (!id) return back({ error: "Missing feed id." });
+  if (!VALID_CATEGORIES.includes(categoryRaw as FeedCategory)) {
+    return back({ error: "Category must be GENERAL or SPORTS." });
+  }
+  // Empty string = clear sport. Anything else must be a valid SportTag.
+  const sport: SportTag | null =
+    sportRaw === ""
+      ? null
+      : VALID_SPORTS.includes(sportRaw as SportTag)
+        ? (sportRaw as SportTag)
+        : null;
+  if (sportRaw !== "" && sport === null) {
+    return back({ error: "Sport must be one of NFL/NBA/MLB/NHL/MLS/UFC." });
+  }
+
+  await prisma.feed.update({
+    where: { id },
+    data: {
+      category: categoryRaw as FeedCategory,
+      // Clear sport when category flips to GENERAL — keeps the data
+      // model honest (sport is only meaningful for SPORTS feeds, and
+      // the poller propagates feed.sport → NewsItem.sport).
+      sport: categoryRaw === "GENERAL" ? null : sport,
+    },
+  });
+  revalidatePath("/admin/memory/feeds");
+  return back({
+    msg:
+      sport && categoryRaw === "SPORTS"
+        ? `Tagged ${categoryRaw} · ${sport}.`
+        : `Tagged ${categoryRaw}.`,
+  });
 }
 
 // ---------------------------------------------------------------------------

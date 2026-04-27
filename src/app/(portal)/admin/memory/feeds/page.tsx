@@ -5,6 +5,7 @@ import {
   createFeed,
   deleteFeed,
   pollFeedNow,
+  setFeedTags,
   toggleFeed,
 } from "./actions";
 
@@ -59,7 +60,7 @@ export default async function AdminFeedsPage({
         <p className="font-display text-sm font-semibold text-bone-50">
           Add a feed
         </p>
-        <div className="grid gap-3 sm:grid-cols-[1fr_1fr_auto_auto]">
+        <div className="grid gap-3 sm:grid-cols-2">
           <input
             name="name"
             placeholder="Name (e.g. The Athletic — NFL)"
@@ -75,13 +76,39 @@ export default async function AdminFeedsPage({
             maxLength={2048}
             className="rounded-lg border border-bone-700 bg-bone-950 px-3 py-2 text-sm text-bone-50 placeholder-bone-500 focus:border-claude-500 focus:outline-none focus:ring-1 focus:ring-claude-500"
           />
+        </div>
+        <div className="grid gap-3 sm:grid-cols-[auto_auto_auto_auto_1fr]">
           <select
             name="kind"
             defaultValue="NEWS"
+            aria-label="Feed kind"
             className="rounded-lg border border-bone-700 bg-bone-950 px-3 py-2 text-sm text-bone-50 focus:border-claude-500 focus:outline-none focus:ring-1 focus:ring-claude-500"
           >
             <option value="NEWS">NEWS</option>
             <option value="MEDIA">MEDIA</option>
+          </select>
+          <select
+            name="category"
+            defaultValue="GENERAL"
+            aria-label="Feed category"
+            className="rounded-lg border border-bone-700 bg-bone-950 px-3 py-2 text-sm text-bone-50 focus:border-claude-500 focus:outline-none focus:ring-1 focus:ring-claude-500"
+          >
+            <option value="GENERAL">GENERAL</option>
+            <option value="SPORTS">SPORTS</option>
+          </select>
+          <select
+            name="sport"
+            defaultValue=""
+            aria-label="Sport tag (optional, applied when category=SPORTS)"
+            className="rounded-lg border border-bone-700 bg-bone-950 px-3 py-2 text-sm text-bone-50 focus:border-claude-500 focus:outline-none focus:ring-1 focus:ring-claude-500"
+          >
+            <option value="">— No sport —</option>
+            <option value="NFL">NFL</option>
+            <option value="NBA">NBA</option>
+            <option value="MLB">MLB</option>
+            <option value="NHL">NHL</option>
+            <option value="MLS">MLS</option>
+            <option value="UFC">UFC</option>
           </select>
           <input
             name="pollIntervalMin"
@@ -140,6 +167,16 @@ export default async function AdminFeedsPage({
                   />
                   <span className="rounded-md bg-bone-800 px-2 py-0.5 text-[0.7rem] font-mono text-bone-300">
                     {feed.kind}
+                  </span>
+                  <span
+                    className={
+                      feed.category === "SPORTS"
+                        ? "rounded-md bg-sports-amber/15 px-2 py-0.5 text-[0.7rem] font-mono text-sports-amber"
+                        : "rounded-md bg-bone-800 px-2 py-0.5 text-[0.7rem] font-mono text-bone-400"
+                    }
+                  >
+                    {feed.category}
+                    {feed.sport ? ` · ${feed.sport}` : ""}
                   </span>
                   <p className="font-display text-base font-semibold text-bone-50">
                     {feed.name}
@@ -205,6 +242,38 @@ export default async function AdminFeedsPage({
                       className="rounded-md border border-bone-700 bg-bone-800 px-3 py-1.5 text-xs font-medium text-bone-100 hover:bg-bone-700"
                     >
                       {feed.enabled ? "Disable" : "Enable"}
+                    </button>
+                  </form>
+                  <form action={setFeedTags} className="flex items-center gap-1">
+                    <input type="hidden" name="id" value={feed.id} />
+                    <select
+                      name="category"
+                      defaultValue={feed.category}
+                      aria-label="Category"
+                      className="rounded-md border border-bone-700 bg-bone-800 px-2 py-1 text-xs text-bone-100 focus:outline-none focus:ring-1 focus:ring-claude-500"
+                    >
+                      <option value="GENERAL">GENERAL</option>
+                      <option value="SPORTS">SPORTS</option>
+                    </select>
+                    <select
+                      name="sport"
+                      defaultValue={feed.sport ?? ""}
+                      aria-label="Sport tag"
+                      className="rounded-md border border-bone-700 bg-bone-800 px-2 py-1 text-xs text-bone-100 focus:outline-none focus:ring-1 focus:ring-claude-500"
+                    >
+                      <option value="">— No sport —</option>
+                      <option value="NFL">NFL</option>
+                      <option value="NBA">NBA</option>
+                      <option value="MLB">MLB</option>
+                      <option value="NHL">NHL</option>
+                      <option value="MLS">MLS</option>
+                      <option value="UFC">UFC</option>
+                    </select>
+                    <button
+                      type="submit"
+                      className="rounded-md border border-bone-700 bg-bone-800 px-3 py-1.5 text-xs font-medium text-bone-100 hover:bg-bone-700"
+                    >
+                      Save tags
                     </button>
                   </form>
                   <form action={deleteFeed}>
