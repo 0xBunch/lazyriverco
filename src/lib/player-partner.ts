@@ -172,42 +172,45 @@ export function generatePlayerPartner(
   return promise;
 }
 
-async function runGenerate(playerId: string): Promise<PartnerRow | null> {
+/// Pure name-based partner lookup. Runs the Gemini + Google Search +
+/// Wikipedia pipeline against an arbitrary athlete name (Sleeper or
+/// not). Returns the validated + image-augmented payload — does NOT
+/// persist. The caller decides where to store it:
+///
+///   - `runGenerate` (this file) writes to PlayerPartnerInfo keyed on
+///     Sleeper playerId, used by /sports/mlf player profiles.
+///   - The /admin/sports/wags admin form writes to SportsWag keyed on
+///     wagId, used by the /sports landing's WAG of the Day.
+///
+/// Caller is responsible for cache lookup before calling — this
+/// function always burns a Gemini call.
+export type PartnerLookupResult = {
+  name: string | null;
+  relationship: PartnerRelationship;
+  notableFact: string | null;
+  imageUrl: string | null;
+  sourceUrl: string | null;
+  instagramHandle: string | null;
+  confidence: "low" | "medium" | "high";
+};
+
+export async function generatePartnerByName(
+  fullName: string,
+  opts: {
+    sport?: string;
+    position?: string | null;
+    team?: string | null;
+    /// Used only for log breadcrumbs when the call fails. Doesn't affect
+    /// the prompt or the result.
+    logKey?: string;
+  } = {},
+): Promise<PartnerLookupResult | null> {
   if (!isPartnersEnabled()) return null;
+  if (!fullName.trim()) return null;
 
-  // Manual trigger semantics: if a NON-not_found row exists we reuse it
-  // (avoids hammering Gemini on repeat clicks). A cached not_found row,
-  // however, counts as "user asked us to try again" — we delete it and
-  // re-run the pipeline. Keeps the "re-roll" affordance simple.
-  const cached = await getPlayerPartner(playerId);
-  if (cached && cached.relationship !== "not_found") return cached;
-  if (cached?.relationship === "not_found") {
-    await prisma.playerPartnerInfo.delete({ where: { playerId } }).catch(() => {
-      /* race with another in-flight generator is benign */
-    });
-  }
-
-  const player = await prisma.sleeperPlayer.findUnique({
-    where: { playerId },
-    select: {
-      playerId: true,
-      fullName: true,
-      firstName: true,
-      lastName: true,
-      position: true,
-      team: true,
-      active: true,
-    },
-  });
-  if (!player) return null;
-
-  const fullName =
-    player.fullName ??
-    [player.firstName, player.lastName].filter(Boolean).join(" ").trim();
-  if (!fullName) return null;
-
+  const sport = opts.sport ?? "NFL";
   const systemInstruction = buildSystemPrompt();
-  const userPrompt = buildUserPrompt(fullName, player.position, player.team);
+  const userPrompt = buildUserPrompt(fullName, opts.position ?? null, opts.team ?? null, sport);
 
   let replyText = "";
   try {
@@ -247,7 +250,7 @@ async function runGenerate(playerId: string): Promise<PartnerRow | null> {
     replyText = response.text ?? "";
   } catch (err) {
     console.warn(
-      `[player-partner] Gemini call failed for ${playerId}:`,
+      `[player-partner] Gemini call failed for ${opts.logKey ?? fullName}:`,
       err instanceof Error ? err.message : err,
     );
     return null;
@@ -266,8 +269,7 @@ async function runGenerate(playerId: string): Promise<PartnerRow | null> {
     imageUrl = await fetchWikipediaThumbnail(validated.name).catch(() => null);
   }
 
-  const writeRow = {
-    playerId,
+  return {
     name: validated.name,
     relationship: validated.relationship,
     notableFact: validated.notableFact,
@@ -275,6 +277,60 @@ async function runGenerate(playerId: string): Promise<PartnerRow | null> {
     sourceUrl: validated.sourceUrl,
     instagramHandle: validated.instagramHandle,
     confidence: validated.confidence,
+  };
+}
+
+async function runGenerate(playerId: string): Promise<PartnerRow | null> {
+  if (!isPartnersEnabled()) return null;
+
+  // Manual trigger semantics: if a NON-not_found row exists we reuse it
+  // (avoids hammering Gemini on repeat clicks). A cached not_found row,
+  // however, counts as "user asked us to try again" — we delete it and
+  // re-run the pipeline. Keeps the "re-roll" affordance simple.
+  const cached = await getPlayerPartner(playerId);
+  if (cached && cached.relationship !== "not_found") return cached;
+  if (cached?.relationship === "not_found") {
+    await prisma.playerPartnerInfo.delete({ where: { playerId } }).catch(() => {
+      /* race with another in-flight generator is benign */
+    });
+  }
+
+  const player = await prisma.sleeperPlayer.findUnique({
+    where: { playerId },
+    select: {
+      playerId: true,
+      fullName: true,
+      firstName: true,
+      lastName: true,
+      position: true,
+      team: true,
+      active: true,
+    },
+  });
+  if (!player) return null;
+
+  const fullName =
+    player.fullName ??
+    [player.firstName, player.lastName].filter(Boolean).join(" ").trim();
+  if (!fullName) return null;
+
+  const result = await generatePartnerByName(fullName, {
+    sport: "NFL",
+    position: player.position,
+    team: player.team,
+    logKey: playerId,
+  });
+  if (!result) return null;
+
+  const writeRow = {
+    playerId,
+    name: result.name,
+    relationship: result.relationship,
+    notableFact: result.notableFact,
+    imageUrl: result.imageUrl,
+    sourceUrl: result.sourceUrl,
+    instagramHandle: result.instagramHandle,
+    confidence: result.confidence,
   };
 
   try {
@@ -325,15 +381,16 @@ function buildUserPrompt(
   fullName: string,
   position: string | null,
   team: string | null,
+  sport: string = "NFL",
 ): string {
   const context = [
-    `NFL player: ${fullName}`,
+    `${sport} athlete: ${fullName}`,
     position ? `Position: ${position}` : null,
     team ? `Team: ${team}` : null,
   ]
     .filter(Boolean)
     .join("\n");
-  return `${context}\n\nLook up this player's current, publicly-known partner and return the JSON object per the system instructions.`;
+  return `${context}\n\nLook up this athlete's current, publicly-known partner and return the JSON object per the system instructions.`;
 }
 
 function extractJsonText(raw: string): unknown {

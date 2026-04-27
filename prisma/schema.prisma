@@ -985,6 +985,11 @@ model Feed {
   name                    String
   url                     String        @unique
   kind                    FeedKind
+  /// Editorial category. GENERAL feeds power the library /news surface;
+  /// SPORTS feeds power the /sports landing's headlines rail. Defaults
+  /// to GENERAL — feeds shipped before the sports landing migration
+  /// keep their existing semantics.
+  category                FeedCategory  @default(GENERAL)
   enabled                 Boolean       @default(true)
   /// Minimum minutes between polls. Enforced by a CHECK constraint in
   /// the migration (5..1440). Exponential backoff on failure multiplies
@@ -1033,6 +1038,28 @@ enum FeedKind {
   MEDIA
 }
 
+/// Editorial category for a Feed. Drives where the feed's items surface:
+/// GENERAL → library /news (when that route ships), SPORTS → /sports
+/// landing's HeadlinesRail. Sport-specific tagging on individual items
+/// lives on NewsItem.sport, since one SPORTS feed can carry multiple
+/// leagues (e.g., ESPN top stories).
+enum FeedCategory {
+  GENERAL
+  SPORTS
+}
+
+/// Sport tag for SPORTS-category content. Used by NewsItem.sport (when
+/// feed.category = SPORTS), SportsWag, SportsHighlight, SportsScheduleGame.
+/// Add new leagues here as they're needed; downstream UIs filter by tag.
+enum SportTag {
+  NFL
+  NBA
+  MLB
+  NHL
+  MLS
+  UFC
+}
+
 /// One RSS entry from a NEWS-kind feed. Dedupe key is `sourceUrl`
 /// (normalized via src/lib/feed-types.ts: normalizeUrl). `guid` is the
 /// RSS <guid> when present — used as a secondary dedup inside a feed
@@ -1066,11 +1093,17 @@ model NewsItem {
   /// Admin hide toggle. The /news grid filters hidden=false; the admin
   /// item browser shows everything.
   hidden      Boolean   @default(false)
+  /// Sport tag, populated only when the parent Feed has category=SPORTS.
+  /// Library (GENERAL) feeds leave this null. Drives per-sport filtering
+  /// on the /sports HeadlinesRail.
+  sport       SportTag?
 
   // Keyset pagination on /news: ORDER BY publishedAt DESC, id DESC.
   @@index([publishedAt(sort: Desc), id(sort: Desc)])
   // Per-feed item list on /admin/feeds/[id].
   @@index([feedId, publishedAt(sort: Desc)])
+  // Sports HeadlinesRail query path (sport + recency).
+  @@index([sport, publishedAt(sort: Desc)])
   // Secondary dedupe: same feed, same <guid> = same item even if URLs
   // differ by tracking params we didn't strip. Null guids allowed many
   // (Postgres null != null in compound unique).
@@ -1365,4 +1398,151 @@ model DraftShadowPick {
 
   @@unique([draftId, slotId, round])
   @@index([draftId, slotId])
+}
+
+// ---------------------------------------------------------------------------
+// /sports landing redesign — see docs/sports-landing-redesign.md.
+//
+// Five surface modules: Headlines (NewsItem WHERE feed.category=SPORTS),
+// WAG of the Day (SportsWag + SportsWagFeature), MLF Top 3 (Sleeper),
+// TONIGHT (SportsScheduleGame), Highlights (SportsHighlight). Plus
+// rotating sponsor (SportsSponsor) shown in two surfaces — hero presenter
+// line + mid-page broadcast-break rail.
+//
+// Headlines and MLF reuse shipped infrastructure. The four models below
+// are everything net-new for the landing.
+
+/// Curated cross-sport WAG roster. Population path: admin form at
+/// /admin/sports/wags with a "Find partner" button that calls the
+/// generatePartnerByName helper extracted from src/lib/player-partner.ts.
+/// Human-in-the-loop — the Gemini result auto-fills the form, KB confirms
+/// or edits before save.
+model SportsWag {
+  id           String             @id @default(uuid())
+  /// Partner's full name as displayed.
+  name         String
+  /// Athlete the partner is associated with — display field, not a FK.
+  /// Free-form so non-Sleeper athletes (NBA/MLB/NHL/MMA) work too.
+  athleteName  String
+  sport        SportTag
+  team         String?
+  /// External image URL. Until the image proxy's host allow-list is
+  /// extended (verified at PR 1 implementation), favor R2-uploaded URLs
+  /// to keep next/image happy.
+  imageUrl     String
+  /// Instagram handle without the @. Matches the existing
+  /// PlayerPartnerInfo convention.
+  instagramUrl String?
+  /// Editorial 1-liner shown beneath the name lockup.
+  caption      String?            @db.VarChar(280)
+  /// Soft delete. Hidden WAGs don't render even if scheduled.
+  hidden       Boolean            @default(false)
+  createdAt    DateTime           @default(now())
+  updatedAt    DateTime           @updatedAt
+
+  features     SportsWagFeature[]
+
+  @@index([hidden])
+}
+
+/// Editorial schedule pinning a SportsWag to a calendar date. One WAG per
+/// day, enforced by the unique constraint on featureDate. No fallback
+/// hash-pick — when no row exists for today, the page shows "On break
+/// today" rather than rolling a random pick.
+model SportsWagFeature {
+  id          String    @id @default(uuid())
+  wagId       String
+  wag         SportsWag @relation(fields: [wagId], references: [id], onDelete: Cascade)
+  /// UTC date. The /sports landing reads `where: { featureDate: today }`.
+  featureDate DateTime  @db.Date
+  /// Optional override of SportsWag.caption for this feature. Lets the
+  /// same WAG be scheduled multiple times with different editorial copy.
+  caption     String?   @db.VarChar(280)
+
+  @@unique([featureDate])
+  @@index([featureDate])
+}
+
+/// YouTube highlight clip. Populated by /admin/sports/highlights (paste a
+/// YouTube URL, oEmbed populates title/channel/thumb). PR 3 adds an
+/// automated polling cron that watches a configured set of channels.
+model SportsHighlight {
+  id             String   @id @default(uuid())
+  youtubeVideoId String   @unique
+  title          String
+  channel        String
+  /// YouTube thumbnail URL (i.ytimg.com/…/hqdefault.jpg). Allow-list this
+  /// host in next.config.mjs at PR 1 implementation.
+  thumbUrl       String
+  durationSec    Int?
+  publishedAt    DateTime
+  sport          SportTag
+  hidden         Boolean  @default(false)
+  /// Editorial pin — higher sortOrder wins. Ties broken by publishedAt.
+  sortOrder      Int      @default(0)
+  createdAt      DateTime @default(now())
+
+  @@index([hidden, publishedAt(sort: Desc)])
+}
+
+/// Scheduled game with where-to-watch info. Populated manually in PR 1
+/// via /admin/sports/schedule. PR 4 adds a TheSportsDB / ESPN cron that
+/// upserts via heuristic match on (sport, teams, gameTime ±6h).
+model SportsScheduleGame {
+  id          String         @id @default(uuid())
+  sport       SportTag
+  awayTeam    String
+  homeTeam    String
+  awayLogoUrl String?
+  homeLogoUrl String?
+  gameTime    DateTime
+  network     String?
+  watchUrl    String?
+  status      ScheduleStatus @default(SCHEDULED)
+  /// External provider ID (TheSportsDB or ESPN), populated by PR 4 sync.
+  /// Admin-entered rows leave this null; PR 4's heuristic merge fills it
+  /// when the synced row matches an existing manual entry.
+  externalId  String?
+  hidden      Boolean        @default(false)
+  createdAt   DateTime       @default(now())
+  updatedAt   DateTime       @updatedAt
+
+  /// NULLs distinct in Postgres → admin (null externalId) and synced rows
+  /// for the same game can coexist briefly until PR 4's merge runs.
+  @@unique([sport, externalId])
+  @@index([hidden, gameTime])
+  @@index([sport, gameTime])
+  /// Helper for PR 4's heuristic merge: find a manual row matching teams +
+  /// game window before inserting a synced duplicate.
+  @@index([sport, awayTeam, homeTeam, gameTime])
+}
+
+/// Rotating fake sponsor for the /sports landing. Mirrors DraftSponsor
+/// (line 1325) but scoped to the landing rather than a draft event.
+/// Active sponsors rotate by date hash — the same brand shows all day,
+/// then advances at UTC midnight.
+model SportsSponsor {
+  id           String   @id @default(uuid())
+  name         String
+  /// Italic 1-liner displayed in quotes beneath the brand name.
+  tagline      String?  @db.VarChar(140)
+  /// Optional click-through URL. Mockups use # for fake-ad mode.
+  href         String?
+  active       Boolean  @default(true)
+  /// Sort order within active set. Drives stable rotation across days.
+  displayOrder Int      @default(0)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  @@index([active, displayOrder])
+}
+
+/// Game status for SportsScheduleGame. SCHEDULED → LIVE → FINAL is the
+/// happy path. POSTPONED is the rare exception. PR 4's live updater
+/// flips status during game windows.
+enum ScheduleStatus {
+  SCHEDULED
+  LIVE
+  FINAL
+  POSTPONED
 }

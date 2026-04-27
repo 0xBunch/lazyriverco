@@ -50,6 +50,14 @@ const config: Config = {
           900: "#41172C",
           950: "#230C18",
         },
+        // Scoped to /sports/* — broadcast-state amber. Used ONLY for live
+        // indicators (LiveDot, "TONIGHT" pills, "LIVE" status). Pink
+        // (claude-500) stays for focus rings and primary CTAs; amber
+        // never fills a non-live affordance. See
+        // docs/sports-landing-redesign.md §"Visual direction".
+        sports: {
+          amber: "#F2C94C",
+        },
       },
       fontFamily: {
         // General Sans (Fontshare, free). Humanist-geometric hybrid with
