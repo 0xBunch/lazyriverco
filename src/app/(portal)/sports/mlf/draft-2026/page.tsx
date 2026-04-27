@@ -5,7 +5,9 @@ import { getCurrentUser } from "@/lib/auth";
 import { isDraft2026Enabled } from "@/lib/draft-flags";
 import { formatCaption } from "@/lib/draft";
 import { ClockCountdown } from "./ClockCountdown";
+import { BigBoardControls } from "./BigBoardControls";
 import { ConfirmLockPickButton } from "./ConfirmLockPickButton";
+import { Dossier } from "./Dossier";
 import { SponsorCarousel } from "./SponsorCarousel";
 
 export const metadata = {
@@ -89,7 +91,7 @@ function nextElevenAmCentral(): Date {
 export default async function DraftPage({
   searchParams,
 }: {
-  searchParams: { msg?: string; error?: string };
+  searchParams: { msg?: string; error?: string; selected?: string };
 }) {
   const user = await getCurrentUser();
   const enabled = isDraft2026Enabled();
@@ -193,6 +195,7 @@ export default async function DraftPage({
   const isAdmin = user?.role === "ADMIN";
   const picksLocked = picks.filter((p) => p.status === "locked").length;
   const total = draft.totalRounds * draft.totalSlots;
+  const selectedPlayerId = searchParams.selected?.trim() || null;
 
   return (
     <div
@@ -235,12 +238,22 @@ export default async function DraftPage({
           />
         </section>
 
-        <BigBoard
-          pool={availablePool}
-          youreOnClock={youreOnClock}
-          isAdmin={!!isAdmin}
-          onClockPickId={onClock?.id ?? null}
-        />
+        <section
+          className={
+            selectedPlayerId
+              ? "mx-4 mb-8 grid gap-4 md:mx-8 md:grid-cols-[minmax(0,1.6fr)_minmax(0,1fr)] md:gap-5"
+              : "mx-4 mb-8 md:mx-8"
+          }
+        >
+          <BigBoardControls
+            pool={availablePool}
+            youreOnClock={youreOnClock}
+            isAdmin={!!isAdmin}
+            onClockPickId={onClock?.id ?? null}
+            selectedPlayerId={selectedPlayerId}
+          />
+          {selectedPlayerId && <Dossier playerId={selectedPlayerId} />}
+        </section>
 
         <DraftBoard
           picks={picks}
@@ -600,148 +613,9 @@ function OnClockPanel({
 }
 
 // ---------------------------------------------------------------------------
-// Big Board
+// Big Board interior moved to ./BigBoardControls.tsx (client; search +
+// position filter + sort, optional ?selected= companion to <Dossier />).
 // ---------------------------------------------------------------------------
-
-function BigBoard({
-  pool,
-  youreOnClock,
-  isAdmin,
-  onClockPickId,
-}: {
-  pool: Array<{
-    id: string;
-    playerId: string;
-    player: {
-      playerId: string;
-      fullName: string | null;
-      position: string | null;
-      team: string | null;
-    };
-  }>;
-  youreOnClock: boolean;
-  isAdmin: boolean;
-  onClockPickId: string | null;
-}) {
-  return (
-    <section
-      className="mx-4 mb-8 overflow-hidden rounded-sm border md:mx-8"
-      style={{ borderColor: NAVY_700, backgroundColor: `${NAVY_900}CC` }}
-    >
-      <div className="flex flex-wrap items-center gap-3 border-b px-4 py-3 md:gap-5" style={{ borderColor: NAVY_700 }}>
-        <h2 className="text-[11px] font-bold uppercase tracking-[0.22em]" style={{ color: CREAM_200 }}>
-          Big Board
-        </h2>
-        <span className="hidden h-3.5 w-px md:block" style={{ backgroundColor: NAVY_600 }} />
-        <span className="text-[10px] font-bold uppercase tracking-[0.22em]" style={{ color: CREAM_400 }}>
-          {pool.length} available
-        </span>
-        <div className="hidden flex-1 md:block" />
-        {youreOnClock && (
-          <span
-            className="ml-auto rounded-sm px-2 py-1 text-[10px] font-bold uppercase tracking-[0.18em] md:ml-0"
-            style={{ backgroundColor: RED_900, color: RED_400 }}
-          >
-            Your pick
-          </span>
-        )}
-        {isAdmin && !youreOnClock && onClockPickId && (
-          <span
-            className="ml-auto rounded-sm px-2 py-1 text-[10px] font-bold uppercase tracking-[0.18em] md:ml-0"
-            style={{ backgroundColor: NAVY_800, color: CREAM_200 }}
-          >
-            Admin · pick on-behalf
-          </span>
-        )}
-      </div>
-      {pool.length === 0 ? (
-        <p className="px-4 py-6 italic text-sm" style={{ color: CREAM_400 }}>
-          Pool is empty. Seed it from the admin.
-        </p>
-      ) : (
-        <div>
-          {pool.map((row, idx) => (
-            <PoolRow
-              key={row.id}
-              rank={idx + 1}
-              player={row.player}
-              youCanPick={(youreOnClock || isAdmin) && !!onClockPickId}
-              onClockPickId={onClockPickId}
-              alt={idx % 2 !== 0}
-            />
-          ))}
-        </div>
-      )}
-    </section>
-  );
-}
-
-function PoolRow({
-  rank,
-  player,
-  youCanPick,
-  onClockPickId,
-  alt,
-}: {
-  rank: number;
-  player: {
-    playerId: string;
-    fullName: string | null;
-    position: string | null;
-    team: string | null;
-  };
-  youCanPick: boolean;
-  onClockPickId: string | null;
-  alt: boolean;
-}) {
-  const name = player.fullName ?? player.playerId;
-  return (
-    <div
-      className="grid grid-cols-[28px_1fr_auto] items-center gap-3 border-b px-3 py-3 text-[13px] tabular-nums transition duration-150 md:grid-cols-[40px_minmax(0,2fr)_50px_50px_140px] md:px-4 md:py-2.5 md:hover:translate-x-px"
-      style={{
-        borderColor: `${NAVY_700}40`,
-        backgroundColor: alt ? `${NAVY_800}55` : "transparent",
-      }}
-    >
-      <span className="text-[11px] md:text-[13px]" style={{ color: CREAM_400 }}>
-        {String(rank).padStart(2, "0")}
-      </span>
-      <div className="min-w-0">
-        <div className="truncate font-semibold" style={{ color: CREAM_50 }}>
-          {name}
-        </div>
-        {/* Inline meta on mobile only — POS · NFL beneath the name. */}
-        <div
-          className="mt-0.5 flex items-center gap-2 text-[10px] font-semibold uppercase tracking-[0.14em] md:hidden"
-          style={{ color: CREAM_200 }}
-        >
-          <span>{player.position ?? "?"}</span>
-          <span style={{ color: CREAM_400 }}>·</span>
-          <span>{player.team ?? "FA"}</span>
-        </div>
-      </div>
-      <span className="hidden font-semibold md:inline" style={{ color: CREAM_200 }}>
-        {player.position ?? "?"}
-      </span>
-      <span className="hidden font-semibold md:inline" style={{ color: CREAM_200 }}>
-        {player.team ?? "FA"}
-      </span>
-      <div className="flex items-center justify-end">
-        {youCanPick && onClockPickId ? (
-          <ConfirmLockPickButton
-            pickId={onClockPickId}
-            playerId={player.playerId}
-            playerName={name}
-            position={player.position}
-            team={player.team}
-          />
-        ) : (
-          <span style={{ color: CREAM_400, fontSize: 11 }}>→</span>
-        )}
-      </div>
-    </div>
-  );
-}
 
 // ---------------------------------------------------------------------------
 // Draft Board (snake grid)
