@@ -132,6 +132,7 @@ DraftPickReaction
 | `resumeDraft(fd)` | `paused → live`. |
 | `completeDraft(fd)` | `live → complete` + sets `closedAt`. |
 | `resetDraft(fd)` | Wipes DraftPick rows (cascades reactions), nulls `consumedPickId` on all images, resets DraftRoom to `status=setup` with `openedAt=null`/`closedAt=null`. **Preserves** slots, pool, sponsors, images, shadow picks, scouting reports. Gated by typing literal "RESET". |
+| `undoPick(fd)` | Surgical undo of a single locked pick. Sets it back to `status=pending` (or `onClock` if the draft was `complete`), clears `playerId`/`lockedAt`/`lockedById`, frees the bound announcer image (`consumedPickId=null`), deletes the AI reaction row, stamps `undoneAt=now`. Slot owner becomes next-on-clock the moment the live draft advances (via `findNextPendingPick`'s `overallPick asc` ordering). No typed-confirm — undo is fully reversible. UI: "Undo" button on each row of the **Locked picks** section on `/admin/draft/[id]`. |
 
 ### Admin — subdir actions
 
@@ -380,9 +381,10 @@ the old one quietly drops out of the public route.
 
 ## 13. Known limitations + future work
 
-- **No live cockpit (Phase 4).** Admin can't undo/skip/reassign mid-draft from
-  a dedicated UI yet. The cockpit was scoped but not built; reset is the
-  blunt-instrument workaround.
+- **Live cockpit partial (Phase 4).** Admin **can** undo any locked pick from
+  `/admin/draft/[id]` (Locked picks section → Undo button). Skip, reassign,
+  and pick-on-behalf are not yet built — reset is still the blunt-instrument
+  workaround for those.
 - **No `/results` archive (Phase 4).** Once a draft is `complete`, the public
   page renders a placeholder.
 - **No polling on the public page.** Updates require a refresh. The plan
