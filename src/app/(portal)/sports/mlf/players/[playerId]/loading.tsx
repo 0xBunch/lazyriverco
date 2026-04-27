@@ -1,6 +1,6 @@
 export default function PlayerProfileLoading() {
   return (
-    <div className="mx-auto max-w-4xl px-4 py-6 md:px-6 md:py-8">
+    <div className="mx-auto max-w-5xl px-4 py-6 md:px-6 md:py-10">
       <div className="mb-4 h-4 w-16 animate-pulse rounded bg-bone-800/60" />
       <div className="space-y-3">
         <div className="h-7 w-64 animate-pulse rounded bg-bone-800" />
