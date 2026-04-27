@@ -1,9 +1,14 @@
+import Link from "next/link";
 import { SectionHeader } from "./SectionHeader";
 
 /// Headlines rail. Renders 8 cards on desktop, 4 on mobile (rest hidden
 /// via `md:` reveal). Each card has a thumbnail (OG image when
 /// available, gradient placeholder otherwise), source pill, sport tag
-/// pill, relative timestamp, headline, and 2-line excerpt.
+/// pill, relative timestamp, headline, 2-line excerpt, and tag pills.
+///
+/// Cards link to `/sports/news/[id]` — the detail page on the in-app
+/// surface. The "All →" trailing link goes to `/sports/news` (the
+/// paginated index with tag filter chips).
 ///
 /// Reads from the shipped NewsItem table where the parent feed has
 /// category=SPORTS. Empty state explains how to seed feeds — admin
@@ -13,12 +18,12 @@ export type HeadlineItem = {
   id: string;
   title: string;
   excerpt: string | null;
-  originalUrl: string;
   publishedAt: Date | null;
   ingestedAt: Date;
   ogImageUrl: string | null;
   sport: string | null;
   feedName: string;
+  tags: string[];
 };
 
 export function HeadlinesRail({
@@ -34,14 +39,12 @@ export function HeadlinesRail({
         label="Headlines · Curated"
         srTitle="Sports headlines"
         trailing={
-          isAdmin ? (
-            <a
-              href="/admin/memory/feeds"
-              className="text-xs text-claude-300 transition-colors hover:text-claude-200 focus:outline-none focus-visible:ring-2 focus-visible:ring-claude-500"
-            >
-              Manage feeds →
-            </a>
-          ) : null
+          <Link
+            href="/sports/news"
+            className="text-xs text-claude-300 transition-colors hover:text-claude-200 focus:outline-none focus-visible:ring-2 focus-visible:ring-claude-500"
+          >
+            All news →
+          </Link>
         }
       />
       {items.length === 0 ? (
@@ -82,11 +85,12 @@ export function HeadlinesRail({
 function HeadlineCard({ item }: { item: HeadlineItem }) {
   const when = item.publishedAt ?? item.ingestedAt;
   const relative = formatRelative(when);
+  // Show at most 2 tag pills inline — more would crowd the card. The
+  // detail page has the full set.
+  const visibleTags = item.tags.slice(0, 2);
   return (
-    <a
-      href={item.originalUrl}
-      target="_blank"
-      rel="noopener noreferrer"
+    <Link
+      href={`/sports/news/${item.id}`}
       className="group -mx-2 flex items-start gap-3 rounded-sm px-2 py-4 transition-colors hover:bg-bone-900/30 focus:outline-none focus-visible:ring-2 focus-visible:ring-claude-500 md:gap-5 md:py-5"
     >
       <Thumbnail src={item.ogImageUrl} />
@@ -106,6 +110,14 @@ function HeadlineCard({ item }: { item: HeadlineItem }) {
               {item.sport}
             </span>
           ) : null}
+          {visibleTags.map((t) => (
+            <span
+              key={t}
+              className="hidden items-center rounded-full bg-bone-900 px-1.5 py-0.5 text-[9px] tracking-widest text-bone-300 ring-1 ring-bone-800 md:inline-flex md:px-2 md:text-[10px]"
+            >
+              {t}
+            </span>
+          ))}
         </div>
         <h3 className="font-display text-sm font-semibold text-balance leading-snug text-bone-50 group-hover:text-claude-100 md:text-lg lg:text-xl">
           {item.title}
@@ -116,7 +128,7 @@ function HeadlineCard({ item }: { item: HeadlineItem }) {
           </p>
         ) : null}
       </div>
-    </a>
+    </Link>
   );
 }
 

@@ -82,12 +82,12 @@ export default async function SportsLandingPage() {
     id: row.id,
     title: row.title,
     excerpt: row.excerpt,
-    originalUrl: row.originalUrl,
     publishedAt: row.publishedAt,
     ingestedAt: row.ingestedAt,
     ogImageUrl: row.ogImageUrl,
     sport: row.sport,
     feedName: row.feed.name,
+    tags: row.tags,
   }));
 
   return (
