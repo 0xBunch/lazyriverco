@@ -4,6 +4,8 @@ import { Prisma } from "@prisma/client";
 import type { Feed } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import { assertUrlSafePublic, UnsafeUrlError } from "@/lib/safe-fetch";
+import { fetchOgImage } from "@/lib/og-image";
+import { autoTagNewsItem } from "@/lib/sports/news-tags";
 import { ingestUrl, IngestError } from "@/lib/ingest";
 import { persistIngest } from "@/lib/ingest/persist";
 import {
@@ -329,6 +331,7 @@ async function writeNewsItems(
     publishedAt: Date | null;
     ogImageUrl: string | null;
     sport: typeof inheritedSport;
+    tags: string[];
   }> = [];
   const errors: PollError[] = [];
   // The "latest item" candidate across everything we tried to insert.
@@ -345,17 +348,27 @@ async function writeNewsItems(
       }
       const sourceUrl = normalizeUrl(link);
       const publishedAt = parsePubDate(item.isoDate ?? item.pubDate);
+      const title = (item.title?.trim() || "Untitled").slice(0, 500);
+      const excerpt = (item.contentSnippet ?? item.summary ?? null)?.slice(0, 1000) ?? null;
+      // Auto-tag from the keyword map. SPORTS-category items get the
+      // /sports/news editorial tags; GENERAL items leave the array
+      // empty (the keyword map is sport-flavored, no generic tags).
+      const tags =
+        feed.category === "SPORTS"
+          ? (autoTagNewsItem(title, excerpt) as unknown as string[])
+          : [];
       rows.push({
         feedId: feed.id,
         sourceUrl,
         originalUrl: link,
         guid: item.guid?.trim() || null,
-        title: (item.title?.trim() || "Untitled").slice(0, 500),
-        excerpt: (item.contentSnippet ?? item.summary ?? null)?.slice(0, 1000) ?? null,
+        title,
+        excerpt,
         author: item.creator?.trim() || null,
         publishedAt,
         ogImageUrl: extractImage(item),
         sport: inheritedSport,
+        tags,
       });
       const bucket = publishedAt ?? new Date();
       if (!latestAt || bucket > latestAt) latestAt = bucket;
@@ -372,6 +385,23 @@ async function writeNewsItems(
 
   if (rows.length === 0) {
     return { inserted: 0, errors, latestAt: null };
+  }
+
+  // OG-image enrichment for items where the RSS itself didn't carry a
+  // media:thumbnail (ESPN doesn't, most stripped feeds don't). Bounded
+  // concurrency so a feed with 30 items doesn't fan out 30 parallel
+  // outbound HTTPs. fetchOgImage never throws — null is the
+  // "couldn't get one, leave as is" signal.
+  const OG_CONCURRENCY = 4;
+  const itemsNeedingOg = rows.filter((r) => !r.ogImageUrl);
+  for (let i = 0; i < itemsNeedingOg.length; i += OG_CONCURRENCY) {
+    const batch = itemsNeedingOg.slice(i, i + OG_CONCURRENCY);
+    await Promise.all(
+      batch.map(async (row) => {
+        const og = await fetchOgImage(row.originalUrl);
+        if (og) row.ogImageUrl = og;
+      }),
+    );
   }
 
   // createMany + skipDuplicates handles both the sourceUrl unique

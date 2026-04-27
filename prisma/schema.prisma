@@ -1103,6 +1103,12 @@ model NewsItem {
   /// Library (GENERAL) feeds leave this null. Drives per-sport filtering
   /// on the /sports HeadlinesRail.
   sport       SportTag?
+  /// Editorial tags. Preset list lives in src/lib/sports/news-tags.ts;
+  /// the poller auto-applies tags via keyword match against title +
+  /// excerpt at insert time. Admin can override per-item later.
+  /// Postgres text[] with a GIN index for the @> contains queries the
+  /// /sports/news filter uses.
+  tags        String[]  @default([])
 
   // Keyset pagination on /news: ORDER BY publishedAt DESC, id DESC.
   @@index([publishedAt(sort: Desc), id(sort: Desc)])
@@ -1110,6 +1116,8 @@ model NewsItem {
   @@index([feedId, publishedAt(sort: Desc)])
   // Sports HeadlinesRail query path (sport + recency).
   @@index([sport, publishedAt(sort: Desc)])
+  // Tag filter on /sports/news — GIN index for `tags @> ARRAY[...]`.
+  @@index([tags], type: Gin)
   // Secondary dedupe: same feed, same <guid> = same item even if URLs
   // differ by tracking params we didn't strip. Null guids allowed many
   // (Postgres null != null in compound unique).
