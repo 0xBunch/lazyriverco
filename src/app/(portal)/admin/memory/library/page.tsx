@@ -7,7 +7,7 @@ import {
 } from "@/components/AdminLibraryTable";
 import { AdminBulkUploader } from "@/components/AdminBulkUploader";
 
-// /admin/library — commissioner surface. The member-facing /library reads
+// /admin/memory/library — commissioner surface. The member-facing /library reads
 // the same rows but filters to status=READY + hiddenFromGrid=false. This
 // page deliberately shows ALL rows (including DELETED + PENDING) so the
 // commissioner can see the full picture. Deleted rows are visually muted

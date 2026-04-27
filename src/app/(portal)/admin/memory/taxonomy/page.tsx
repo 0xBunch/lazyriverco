@@ -2,7 +2,7 @@ import { prisma } from "@/lib/prisma";
 import { requireAdmin } from "@/lib/auth";
 import { TagRegistry, type BucketOption, type TagRow } from "./TagRegistry";
 
-// /admin/taxonomy (v1.5) — tag registry admin.
+// /admin/memory/taxonomy (v1.5) — tag registry admin.
 //
 // Every slug that appears in Media.tags, Media.aiTags, or was curated
 // via this page has a row in the Tag table. The page shows EVERY tag
@@ -134,7 +134,7 @@ export default async function AdminTaxonomyPage() {
         Reassigning into banned also strips the slug from every library
         item. Existing items aren&apos;t retroactively re-tagged when a
         tag joins a preferred bucket — trigger a re-analyze from
-        /admin/library or <code>pnpm backfill:ai-tags</code> for that.
+        /admin/memory/library or <code>pnpm backfill:ai-tags</code> for that.
       </p>
     </div>
   );

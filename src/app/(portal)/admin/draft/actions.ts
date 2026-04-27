@@ -5,7 +5,7 @@ import { revalidatePath } from "next/cache";
 import { prisma } from "@/lib/prisma";
 import { requireAdmin } from "@/lib/auth";
 
-// Admin actions for /admin/draft. Matches the /admin/feeds pattern —
+// Admin actions for /admin/draft. Matches the /admin/memory/feeds pattern —
 // plain `<form action={...}>` server actions with ?msg= / ?error= flash
 // redirects so the page can render the outcome without client state.
 //

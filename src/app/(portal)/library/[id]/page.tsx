@@ -245,7 +245,7 @@ export default async function LibraryItemPage({
       {canHide ? (
         <p className="mt-12 text-xs italic text-bone-300">
           {viewer.role === "ADMIN"
-            ? "Commissioner can bulk-hide or delete in /admin/library."
+            ? "Commissioner can bulk-hide or delete in /admin/memory/library."
             : "You uploaded this. Admin tools coming soon for self-hide."}
         </p>
       ) : null}

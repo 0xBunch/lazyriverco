@@ -39,6 +39,58 @@ const nextConfig = {
         destination: "/admin/ai/prompts/:path*",
         permanent: true,
       },
+      // PR 3 of the admin condensation: Memory umbrella absorbs canon,
+      // lore, library, taxonomy, feeds.
+      {
+        source: "/admin/canon",
+        destination: "/admin/memory/canon",
+        permanent: true,
+      },
+      {
+        source: "/admin/canon/:path*",
+        destination: "/admin/memory/canon/:path*",
+        permanent: true,
+      },
+      {
+        source: "/admin/lore",
+        destination: "/admin/memory/lore",
+        permanent: true,
+      },
+      {
+        source: "/admin/lore/:path*",
+        destination: "/admin/memory/lore/:path*",
+        permanent: true,
+      },
+      {
+        source: "/admin/library",
+        destination: "/admin/memory/library",
+        permanent: true,
+      },
+      {
+        source: "/admin/library/:path*",
+        destination: "/admin/memory/library/:path*",
+        permanent: true,
+      },
+      {
+        source: "/admin/taxonomy",
+        destination: "/admin/memory/taxonomy",
+        permanent: true,
+      },
+      {
+        source: "/admin/taxonomy/:path*",
+        destination: "/admin/memory/taxonomy/:path*",
+        permanent: true,
+      },
+      {
+        source: "/admin/feeds",
+        destination: "/admin/memory/feeds",
+        permanent: true,
+      },
+      {
+        source: "/admin/feeds/:path*",
+        destination: "/admin/memory/feeds/:path*",
+        permanent: true,
+      },
     ];
   },
   images: {

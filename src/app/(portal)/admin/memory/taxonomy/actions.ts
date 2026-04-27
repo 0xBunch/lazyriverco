@@ -10,7 +10,7 @@ import {
   type BucketForClassify,
 } from "@/lib/classify-tag-bucket";
 
-// Tag-first admin API for /admin/taxonomy. v1.5 promoted tags to a
+// Tag-first admin API for /admin/memory/taxonomy. v1.5 promoted tags to a
 // first-class Tag entity; this file owns the CRUD.
 //
 // All actions are useFormState-compatible: signature is
@@ -37,12 +37,12 @@ const MAX_BUCKET_DESCRIPTION_CHARS = 1000;
 
 function revalidateSurfaces(): void {
   invalidateTaxonomyCache();
-  revalidatePath("/admin/taxonomy");
+  revalidatePath("/admin/memory/taxonomy");
 }
 
 function revalidateLibrarySurfaces(): void {
   revalidatePath("/library");
-  revalidatePath("/admin/library");
+  revalidatePath("/admin/memory/library");
 }
 
 async function resolveBannedBucketId(): Promise<string | null> {

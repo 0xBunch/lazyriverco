@@ -36,7 +36,7 @@ function parseIds(fd: FormData): string[] {
 }
 
 function revalidateLibrarySurfaces() {
-  revalidatePath("/admin/library");
+  revalidatePath("/admin/memory/library");
   revalidatePath("/library");
 }
 
@@ -159,7 +159,7 @@ export async function bulkTagAction(
       if (banned.has(tag)) {
         return {
           ok: false,
-          error: `"${tag}" is banned. Unban it on /admin/taxonomy first if you want to use it.`,
+          error: `"${tag}" is banned. Unban it on /admin/memory/taxonomy first if you want to use it.`,
         };
       }
     }

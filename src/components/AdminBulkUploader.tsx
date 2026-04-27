@@ -3,7 +3,7 @@
 import { useRouter } from "next/navigation";
 import { MediaUploader } from "@/components/MediaUploader";
 
-// Thin wrapper around MediaUploader for the /admin/library bulk surface.
+// Thin wrapper around MediaUploader for the /admin/memory/library bulk surface.
 // After each successful upload we router.refresh() so the admin table
 // picks up the new row without a manual reload. maxFiles={null} lifts
 // the one-at-a-time cap the add modal uses — bulk backfills are the

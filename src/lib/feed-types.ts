@@ -10,7 +10,7 @@
 // admin UI) without dragging the client along.
 //
 // Authored in PR A1 (schema + poller foundation, no UI yet). The
-// poller, health lib, and future /admin/feeds routes all pull their
+// poller, health lib, and future /admin/memory/feeds routes all pull their
 // shapes from here.
 //
 // Out of scope for this file: the `Media` and `Feed` Prisma types
@@ -24,7 +24,7 @@
 // chose to turn the feed off (recoverable by the same admin); the second
 // means the poller tripped the N-consecutive-failures breaker and the
 // feed will not poll again until a human intervenes. Different mental
-// model, different UX treatment in /admin/feeds.
+// model, different UX treatment in /admin/memory/feeds.
 
 export type FeedHealth =
   | "HEALTHY"
