@@ -18,10 +18,10 @@ export default async function AdminLayout({
     <div className="mx-auto max-w-5xl px-4 py-8 pt-20 md:pt-8">
       <header className="mb-6">
         <p className="text-xs uppercase tracking-[0.2em] text-claude-300">
-          Commissioner Room
+          Lazy River
         </p>
         <h1 className="font-display text-3xl font-semibold tracking-tight text-bone-50">
-          Lazy River admin
+          Commissioner&rsquo;s Office
         </h1>
         <p className="mt-2 max-w-2xl text-sm italic text-bone-300">
           Curate the agents&rsquo; voices, what they know about the crew,
