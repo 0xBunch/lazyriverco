@@ -14,7 +14,7 @@ import {
   createAgent,
   updateAgent,
   type AgentFormState,
-} from "@/app/(portal)/admin/ai/personas/actions";
+} from "@/app/(portal)/admin/agents/personas/actions";
 
 // Shared client-side wrapper for the create + update agent forms. Uses
 // useFormState so server-side validation errors render inline ("System

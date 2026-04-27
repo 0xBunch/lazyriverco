@@ -5,7 +5,7 @@ import { PromptSuggester } from "@/components/PromptSuggester";
 
 export const dynamic = "force-dynamic";
 
-export default async function AdminMembersPage() {
+export default async function AdminRosterPage() {
   const members = await prisma.user.findMany({
     orderBy: [{ role: "asc" }, { displayName: "asc" }],
     select: {

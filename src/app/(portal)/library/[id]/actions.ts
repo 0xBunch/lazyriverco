@@ -6,7 +6,7 @@ import { requireUser } from "@/lib/auth";
 import { assertWithinLimit, RateLimitError } from "@/lib/rate-limit";
 
 // useFormState-compatible state shape. Matches AdminLibraryState / the
-// admin/ai/personas forms so client code using useFormState/useFormStatus
+// admin/agents/personas forms so client code using useFormState/useFormStatus
 // reads the same way. `message` is empty on ok=true for postComment
 // because the UI just clears the textarea and lets the new row render
 // via revalidatePath.

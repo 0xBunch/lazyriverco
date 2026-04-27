@@ -5,7 +5,7 @@ import { prisma } from "@/lib/prisma";
 import { requireAdmin } from "@/lib/auth";
 import { PROMPT_ICONS } from "@/lib/prompt-icons";
 
-// Admin API for /admin/ai/prompts. Manages PromptGroup rows (the dropdown
+// Admin API for /admin/memory/prompts. Manages PromptGroup rows (the dropdown
 // buttons beneath the homepage prompt box) and their PromptSuggestion
 // items (the short-label + full-prompt entries inside each menu).
 //
@@ -23,7 +23,7 @@ const MAX_ITEM_LABEL = 60;
 const MAX_PROMPT_CHARS = 2000;
 
 function revalidateSurfaces(): void {
-  revalidatePath("/admin/ai/prompts");
+  revalidatePath("/admin/memory/prompts");
   revalidatePath("/");
 }
 

@@ -108,7 +108,7 @@ export default async function AdminUsageMemberPage({
     <div className="space-y-6">
       <nav className="text-xs uppercase tracking-[0.2em] text-bone-400">
         <Link
-          href="/admin/members/usage"
+          href="/admin/ops/usage"
           className="transition-colors hover:text-bone-200"
         >
           ← All members

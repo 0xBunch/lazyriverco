@@ -9,7 +9,7 @@ import {
   type UsageBreakdownRow,
 } from "./BreakdownTable";
 
-// /admin/members/usage — read-only dashboard for per-user LLM usage
+// /admin/ops/usage — read-only dashboard for per-user LLM usage
 // accounting. One server component owns every aggregate: summary
 // cards, per-user table, per-model and per-operation breakdowns. All
 // four Prisma queries fan out in a single Promise.all so the page
@@ -19,7 +19,7 @@ import {
 // so the page stays SSR-only and shareable. The cutoff clause is
 // applied identically to every aggregate so the summary and the
 // breakdowns can't disagree. ModelPricing CRUD lives at
-// /admin/members/pricing — extracted in PR 4 so this surface stays
+// /admin/ops/pricing — extracted in PR 4 so this surface stays
 // purely a read-only aggregate.
 
 export const dynamic = "force-dynamic";
@@ -230,7 +230,7 @@ function RangeSelector({ current }: { current: Range }) {
         return (
           <Link
             key={r}
-            href={`/admin/members/usage?range=${r}`}
+            href={`/admin/ops/usage?range=${r}`}
             aria-current={active ? "page" : undefined}
             className={cn(
               "rounded-full px-3 py-1.5 text-xs font-medium transition-colors",

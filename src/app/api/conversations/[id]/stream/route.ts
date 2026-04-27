@@ -383,7 +383,7 @@ export async function POST(
         } catch (err) {
           console.error("[stream] image generation failed:", err);
           // Record the failure with zero imageCount — tracks failed
-          // Replicate attempts on /admin/members/usage without attributing cost.
+          // Replicate attempts on /admin/ops/usage without attributing cost.
           // Uses the same pre-resolved slug as the success path so
           // success and failure events align on the same model row.
           void recordUsage({

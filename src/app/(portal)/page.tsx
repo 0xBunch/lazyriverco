@@ -17,7 +17,7 @@ export default async function LandingPage() {
     // admin-curated displayOrder, then displayName as a stable tiebreaker.
     // isDefault drives pre-selection, not sort position — picking which
     // agent appears first in the carousel is now an explicit displayOrder
-    // decision the admin makes from /admin/ai/personas.
+    // decision the admin makes from /admin/agents/personas.
     prisma.character.findMany({
       where: { active: true },
       orderBy: [{ displayOrder: "asc" }, { displayName: "asc" }],
