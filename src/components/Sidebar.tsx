@@ -37,8 +37,8 @@ export async function Sidebar() {
         <div className="px-3 pb-1 pt-2 group-data-[collapsed]:px-1 group-data-[collapsed]:pt-1">
           <Link
             href="/"
-            title="New chat"
-            className="flex items-center justify-center gap-2 rounded-lg border border-bone-700 bg-bone-800 px-3 py-2 text-xs font-medium text-bone-100 transition-colors hover:border-claude-500/60 hover:text-claude-50 focus:outline-none focus-visible:ring-2 focus-visible:ring-claude-500 focus-visible:ring-offset-2 focus-visible:ring-offset-bone-950 group-data-[collapsed]:border-0 group-data-[collapsed]:bg-transparent group-data-[collapsed]:px-0 group-data-[collapsed]:py-1.5"
+            aria-label="New chat"
+            className="group/item relative flex items-center justify-center gap-2 rounded-lg border border-bone-700 bg-bone-800 px-3 py-2 text-xs font-medium text-bone-100 transition-colors hover:border-claude-500/60 hover:text-claude-50 focus:outline-none focus-visible:ring-2 focus-visible:ring-claude-500 focus-visible:ring-offset-2 focus-visible:ring-offset-bone-950 group-data-[collapsed]:border-0 group-data-[collapsed]:bg-transparent group-data-[collapsed]:px-0 group-data-[collapsed]:py-1.5"
           >
             <svg
               aria-hidden="true"
@@ -54,6 +54,12 @@ export async function Sidebar() {
               <line x1="5" y1="12" x2="19" y2="12" />
             </svg>
             <span className="group-data-[collapsed]:hidden">+ New chat</span>
+            <span
+              aria-hidden="true"
+              className="pointer-events-none absolute left-full top-1/2 z-30 ml-3 -translate-y-1/2 hidden whitespace-nowrap rounded-md border border-bone-700/40 bg-bone-800 px-2 py-1 text-xs font-medium text-bone-50 opacity-0 shadow-md transition-opacity duration-150 delay-75 group-hover/item:opacity-100 group-focus-visible/item:opacity-100 group-data-[collapsed]:block motion-reduce:transition-none motion-reduce:delay-0"
+            >
+              New chat
+            </span>
           </Link>
         </div>
       ) : null}

@@ -160,7 +160,7 @@ export function SidebarShell({ sidebar, children }: SidebarShellProps) {
           />
         </button>
 
-        <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
+        <div className="flex min-h-0 flex-1 flex-col overflow-hidden group-data-[collapsed]:overflow-visible">
           {sidebar}
         </div>
       </aside>
