@@ -10,7 +10,7 @@ export type AdminSectionNavItem = {
 };
 
 // Inner sub-navigation that renders inside an admin umbrella section
-// (AI / Memory / Members / Sports). Visually subordinate to AdminSubNav:
+// (Agents / Memory / Ops / Sports). Visually subordinate to AdminSubNav:
 // no border-tab look, lighter weight, smaller text, so the hierarchy
 // reads "section > subsection" at a glance. Reuses bone-* + claude-*
 // palette and focus-visible ring style for consistency.

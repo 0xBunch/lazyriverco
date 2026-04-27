@@ -4,7 +4,7 @@ import { reorderAgent, setDefaultAgent } from "./actions";
 
 export const dynamic = "force-dynamic";
 
-export default async function AdminAgentsPage() {
+export default async function AdminPersonasPage() {
   const agents = await prisma.character.findMany({
     orderBy: [{ displayOrder: "asc" }, { displayName: "asc" }],
   });

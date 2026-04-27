@@ -1,4 +1,4 @@
-// Shared USD formatting for /admin/members/usage views. Sub-cent rows get 4
+// Shared USD formatting for /admin/ops/usage views. Sub-cent rows get 4
 // decimal places so $0.003 doesn't render as $0.00 (which would look
 // like a bug); everything else uses 2. Used by every table on this
 // surface — keep the rule in one place so decimal behavior is

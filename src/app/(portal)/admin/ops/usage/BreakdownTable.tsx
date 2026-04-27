@@ -1,6 +1,6 @@
 import { formatUsd } from "./_format";
 
-// Reusable per-dimension breakdown table. Used twice on /admin/members/usage:
+// Reusable per-dimension breakdown table. Used twice on /admin/ops/usage:
 // once grouped by model, once grouped by operation. Pure server
 // component — renders the already-sorted rows the page computed.
 //

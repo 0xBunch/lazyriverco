@@ -4,7 +4,7 @@ import { SaveButton } from "@/components/SaveButton";
 
 export const dynamic = "force-dynamic";
 
-export default async function AdminRelationshipsPage() {
+export default async function AdminOpinionsPage() {
   const [agents, members, relationships] = await Promise.all([
     prisma.character.findMany({
       orderBy: [{ displayOrder: "asc" }, { displayName: "asc" }],

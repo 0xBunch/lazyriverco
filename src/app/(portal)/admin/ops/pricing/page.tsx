@@ -5,8 +5,8 @@ import {
   type ModelPricingRow,
 } from "./ModelPricingPanel";
 
-// /admin/members/pricing — ModelPricing rate-card editor. Extracted from
-// /admin/members/usage in PR 4 of the admin condensation series so the
+// /admin/ops/pricing — ModelPricing rate-card editor. Extracted from
+// /admin/ops/usage in PR 4 of the admin condensation series so the
 // usage dashboard stays a pure read-only aggregate and pricing CRUD has
 // its own surface (and its own ?range param namespace).
 

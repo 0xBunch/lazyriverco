@@ -1,42 +1,37 @@
 /** @type {import('next').NextConfig} */
 const nextConfig = {
-  // Permanent (308) redirects from the pre-condensation admin paths to
-  // their new homes under /admin/ai/*. Source dirs are flat today, but
-  // we add :path* defensively so any future nested route (or a stale
-  // bookmark with query/segments tacked on) still lands cleanly. Two
-  // rules per move: bare path and :path* — Next won't match the bare
-  // form against the :path* pattern alone. Added in PR 2 of the admin
-  // condensation series.
+  // Permanent (308) redirects from pre-condensation admin paths to their
+  // current homes. Source dirs are flat today, but we add :path*
+  // defensively so any future nested route (or a stale bookmark with
+  // query/segments tacked on) still lands cleanly. Two rules per move:
+  // bare path and :path* — Next won't match the bare form against the
+  // :path* pattern alone. Added in PR 2 of the admin condensation
+  // series; updated as later renames moved destinations.
+  //
+  // Note: /admin/agents was once a redirect target into /admin/ai/*,
+  // but is now a real route (the renamed Agents tab). The old redirect
+  // entries are intentionally absent — the live route serves directly,
+  // and re-introducing a redirect here would intercept and break it.
   async redirects() {
     return [
       {
-        source: "/admin/agents",
-        destination: "/admin/ai/personas",
-        permanent: true,
-      },
-      {
-        source: "/admin/agents/:path*",
-        destination: "/admin/ai/personas/:path*",
-        permanent: true,
-      },
-      {
         source: "/admin/relationships",
-        destination: "/admin/ai/opinions",
+        destination: "/admin/agents/opinions",
         permanent: true,
       },
       {
         source: "/admin/relationships/:path*",
-        destination: "/admin/ai/opinions/:path*",
+        destination: "/admin/agents/opinions/:path*",
         permanent: true,
       },
       {
         source: "/admin/prompts",
-        destination: "/admin/ai/prompts",
+        destination: "/admin/memory/prompts",
         permanent: true,
       },
       {
         source: "/admin/prompts/:path*",
-        destination: "/admin/ai/prompts/:path*",
+        destination: "/admin/memory/prompts/:path*",
         permanent: true,
       },
       // PR 3 of the admin condensation: Memory umbrella absorbs canon,
@@ -91,19 +86,18 @@ const nextConfig = {
         destination: "/admin/memory/feeds/:path*",
         permanent: true,
       },
-      // PR 4 of the admin condensation: Usage moves under Members.
-      // /admin/members itself stays as the umbrella (its page.tsx
-      // server-redirects to /admin/members/roster — no next.config
-      // entry needed because the source still resolves to a real
-      // route).
+      // PR 4 of the admin condensation: Usage moved under Members
+      // (now Ops after the Agents/Memory/Ops rename — destination
+      // updated accordingly so legacy /admin/usage bookmarks still
+      // land cleanly).
       {
         source: "/admin/usage",
-        destination: "/admin/members/usage",
+        destination: "/admin/ops/usage",
         permanent: true,
       },
       {
         source: "/admin/usage/:path*",
-        destination: "/admin/members/usage/:path*",
+        destination: "/admin/ops/usage/:path*",
         permanent: true,
       },
       // PR 5 of the admin condensation: Draft moves under
