@@ -124,6 +124,17 @@ function parseUrl(raw: string): URL {
   }
 }
 
+/// URL-only safety check, exported so callers that need to use plain
+/// `fetch()` (e.g. feed polling, where safeFetch's manual-redirect
+/// wrapper interacted badly with one CDN's response shape) can still
+/// pre-flight-validate the URL against the SSRF guard. Doesn't follow
+/// redirects — caller is responsible for that.
+export async function assertUrlSafePublic(rawUrl: string): Promise<URL> {
+  const parsed = parseUrl(rawUrl);
+  await assertUrlSafe(parsed);
+  return parsed;
+}
+
 async function assertUrlSafe(url: URL): Promise<void> {
   if (url.protocol !== "https:" && url.protocol !== "http:") {
     throw new UnsafeUrlError(`Unsupported protocol: ${url.protocol}`);
