@@ -4,11 +4,11 @@ import { revalidatePath } from "next/cache";
 import { prisma } from "@/lib/prisma";
 import { requireAdmin } from "@/lib/auth";
 
-// Admin API for /admin/usage — ModelPricing CRUD only. The rest of the
-// page is read-only aggregates over LLMUsageEvent, which is populated
-// by the wrappers in src/lib/usage.ts. No writes to LLMUsageEvent from
-// the admin UI: past events are locked to the rate in effect at their
-// time of recording, so a rate edit only affects *future* calls.
+// Admin API for /admin/members/pricing — ModelPricing CRUD. The
+// LLMUsageEvent ledger at /admin/members/usage stays read-only and is
+// populated by the wrappers in src/lib/usage.ts. Past events are locked
+// to the rate in effect at their time of recording, so a rate edit
+// only affects *future* calls.
 //
 // All actions are useFormState-compatible: (prevState, formData) => State.
 
@@ -22,7 +22,7 @@ const MAX_PROVIDER_CHARS = 40;
 const MAX_NOTES_CHARS = 500;
 
 function revalidateSurfaces(): void {
-  revalidatePath("/admin/usage");
+  revalidatePath("/admin/members/pricing");
 }
 
 function parseRate(raw: FormDataEntryValue | null): number | null {

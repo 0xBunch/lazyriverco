@@ -8,7 +8,7 @@ const CARDS = [
       "Edit each agent's persona bible, displayName, and active state. The bible is the single most load-bearing knob — it defines the voice the LLM speaks in.",
   },
   {
-    href: "/admin/members",
+    href: "/admin/members/roster",
     title: "Members",
     body:
       "Curate per-member context: a free-form blurb plus structured fields (city, favorite team). Agents see this for everyone in the conversation.",
@@ -73,7 +73,8 @@ export default function AdminLanding() {
         Taxonomy shapes how Gemini tags new library uploads. Prompts
         drives the homepage dropdown suggestions. Personas, Opinions, and
         Prompts live under the AI tab; Canon, Lore, Library, Taxonomy,
-        and Feeds live under the Memory tab.
+        and Feeds live under the Memory tab. Roster, Usage, and Pricing
+        live under the Members tab.
       </p>
       <ul className="grid gap-3 sm:grid-cols-2">
         {CARDS.map((card) => (

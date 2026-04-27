@@ -175,7 +175,7 @@ export function ByUserTable({ rows }: { rows: UsageByUserRow[] }) {
               // / background calls. Members get a real <Link> on the
               // name cell; row hover still lights up for affordance.
               const key = row.userId ?? "__system__";
-              const href = row.userId ? `/admin/usage/${row.userId}` : null;
+              const href = row.userId ? `/admin/members/usage/${row.userId}` : null;
               return (
                 <tr
                   key={key}
