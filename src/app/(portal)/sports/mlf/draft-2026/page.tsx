@@ -260,6 +260,14 @@ export default async function DraftPage({
           sponsors={draft.sponsors.map((s) => ({
             name: s.name,
             tagline: s.tagline,
+            // Resolve R2 key to public URL on the server so the client
+            // component doesn't need NEXT_PUBLIC_R2_PUBLIC_BASE_URL.
+            // Empty R2_BASE → null (image mode disabled at deploy time).
+            imageUrl:
+              s.imageR2Key && R2_BASE
+                ? `${R2_BASE.replace(/\/+$/, "")}/${s.imageR2Key}`
+                : null,
+            linkUrl: s.linkUrl,
           }))}
         />
 
