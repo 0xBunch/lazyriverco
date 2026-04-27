@@ -64,8 +64,11 @@ export function SportsHero({
         }}
       />
 
-      {/* Top meta strip */}
-      <div className="relative mx-auto flex w-full max-w-7xl items-center justify-between px-4 pt-6 md:px-6 md:pt-10 lg:px-10">
+      {/* Top meta strip — pt-16 on mobile clears the SidebarShell's
+          floating-button (fixed top-2 + safe-area-inset-top, ~56px tall
+          on iOS). Desktop uses pt-10 since the sidebar is sticky-left,
+          not floating-over. */}
+      <div className="relative mx-auto flex w-full max-w-7xl items-center justify-between px-4 pt-16 md:px-6 md:pt-10 lg:px-10">
         <span className="font-display text-[10px] font-semibold uppercase tracking-[0.28em] text-bone-300">
           Lazy River · Sports Desk
         </span>

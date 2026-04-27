@@ -6,18 +6,11 @@ import { cn } from "@/lib/utils";
 
 const ADMIN_TABS = [
   { href: "/admin", label: "Overview" },
-  { href: "/admin/agents", label: "Agents" },
+  { href: "/admin/ai", label: "AI" },
   { href: "/admin/members", label: "Members" },
-  { href: "/admin/relationships", label: "Relationships" },
-  { href: "/admin/canon", label: "Canon" },
-  { href: "/admin/lore", label: "Lore" },
-  { href: "/admin/library", label: "Library" },
-  { href: "/admin/taxonomy", label: "Taxonomy" },
+  { href: "/admin/memory", label: "Memory" },
   { href: "/admin/calendar", label: "Calendar" },
-  { href: "/admin/feeds", label: "Feeds" },
-  { href: "/admin/draft", label: "Draft" },
-  { href: "/admin/prompts", label: "Prompts" },
-  { href: "/admin/usage", label: "Usage" },
+  { href: "/admin/sports", label: "Sports" },
 ] as const;
 
 export function AdminSubNav() {

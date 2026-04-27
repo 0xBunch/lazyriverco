@@ -36,7 +36,7 @@ export function HeadlinesRail({
         trailing={
           isAdmin ? (
             <a
-              href="/admin/feeds"
+              href="/admin/memory/feeds"
               className="text-xs text-claude-300 transition-colors hover:text-claude-200 focus:outline-none focus-visible:ring-2 focus-visible:ring-claude-500"
             >
               Manage feeds →
@@ -50,10 +50,10 @@ export function HeadlinesRail({
             <>
               No sports headlines yet. Configure a feed at{" "}
               <a
-                href="/admin/feeds"
+                href="/admin/memory/feeds"
                 className="text-claude-300 underline decoration-claude-700 underline-offset-4 hover:text-claude-200 focus:outline-none focus-visible:ring-2 focus-visible:ring-claude-500"
               >
-                /admin/feeds
+                /admin/memory/feeds
               </a>{" "}
               with <code className="rounded bg-bone-900 px-1.5 py-0.5 text-bone-200">category=SPORTS</code>{" "}
               and a sport tag — items poll on the next cron tick.

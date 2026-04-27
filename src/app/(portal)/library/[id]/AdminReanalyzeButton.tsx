@@ -1,7 +1,7 @@
 "use client";
 
 import { useFormState, useFormStatus } from "react-dom";
-import { reanalyzeOneAction } from "@/app/(portal)/admin/library/actions";
+import { reanalyzeOneAction } from "@/app/(portal)/admin/memory/library/actions";
 
 // Admin-only "Re-analyze tags" button on the library detail page. Kicks off
 // a background Gemini vision run on the item (bypasses the aiAnalyzedAt

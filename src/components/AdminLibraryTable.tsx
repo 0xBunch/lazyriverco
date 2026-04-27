@@ -13,7 +13,7 @@ import {
   bulkReanalyzeAction,
   bulkTagAction,
   type AdminLibraryState,
-} from "@/app/(portal)/admin/library/actions";
+} from "@/app/(portal)/admin/memory/library/actions";
 
 export type AdminLibraryItem = {
   id: string;
