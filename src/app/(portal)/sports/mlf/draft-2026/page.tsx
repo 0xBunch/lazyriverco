@@ -4,8 +4,9 @@ import { prisma } from "@/lib/prisma";
 import { getCurrentUser } from "@/lib/auth";
 import { isDraft2026Enabled } from "@/lib/draft-flags";
 import { formatCaption } from "@/lib/draft";
-import { lockPick } from "./actions";
 import { ClockCountdown } from "./ClockCountdown";
+import { ConfirmLockPickButton } from "./ConfirmLockPickButton";
+import { SponsorCarousel } from "./SponsorCarousel";
 
 export const metadata = {
   title: "MLF Rookie Draft 2026",
@@ -190,7 +191,6 @@ export default async function DraftPage({
 
   const youreOnClock = !!onClock && !!user && onClock.userId === user.id;
   const isAdmin = user?.role === "ADMIN";
-  const sponsor = draft.sponsors[0] ?? null;
   const picksLocked = picks.filter((p) => p.status === "locked").length;
   const total = draft.totalRounds * draft.totalSlots;
 
@@ -227,9 +227,11 @@ export default async function DraftPage({
             onDeck={onDeck}
             pickClockSec={draft.pickClockSec}
           />
-          <SponsorRail
-            sponsor={sponsor}
-            totalSponsors={draft.sponsors.length}
+          <SponsorCarousel
+            sponsors={draft.sponsors.map((s) => ({
+              name: s.name,
+              tagline: s.tagline,
+            }))}
           />
         </section>
 
@@ -597,64 +599,6 @@ function OnClockPanel({
   );
 }
 
-function SponsorRail({
-  sponsor,
-  totalSponsors,
-}: {
-  sponsor: { name: string; tagline: string | null } | null;
-  totalSponsors: number;
-}) {
-  return (
-    <div
-      className="relative flex flex-col gap-3 overflow-hidden rounded-sm border p-5"
-      style={{ borderColor: NAVY_700, backgroundColor: `${NAVY_900}CC` }}
-    >
-      <div className="flex items-center justify-between">
-        <div className="flex items-center gap-2 text-[10px] font-bold uppercase tracking-[0.26em]">
-          <span style={{ color: CREAM_400 }}>MLF Draft 2026</span>
-          <span style={{ color: NAVY_600 }}>·</span>
-          <span style={{ color: CREAM_200 }}>Presented By</span>
-        </div>
-      </div>
-
-      {sponsor ? (
-        <>
-          <div
-            className="text-[20px] leading-[1] tracking-[-0.01em] md:text-[24px]"
-            style={{
-              fontFamily: "var(--font-display)",
-              fontWeight: 700,
-              color: CREAM_50,
-              textTransform: "uppercase",
-            }}
-          >
-            {sponsor.name}
-          </div>
-          {sponsor.tagline && (
-            <div className="text-[13px] italic leading-[1.35]" style={{ color: CREAM_200 }}>
-              &ldquo;{sponsor.tagline}&rdquo;
-            </div>
-          )}
-        </>
-      ) : (
-        <div className="text-[13px] italic" style={{ color: CREAM_400 }}>
-          No sponsors on rotation yet. Add some in admin.
-        </div>
-      )}
-
-      <div className="mt-auto flex items-center gap-1.5 pt-1">
-        {Array.from({ length: Math.max(totalSponsors, 1) }).map((_, i) => (
-          <span
-            key={i}
-            className="h-1.5 w-1.5 rounded-full"
-            style={{ backgroundColor: i === 0 ? RED_500 : NAVY_600 }}
-          />
-        ))}
-      </div>
-    </div>
-  );
-}
-
 // ---------------------------------------------------------------------------
 // Big Board
 // ---------------------------------------------------------------------------
@@ -784,21 +728,13 @@ function PoolRow({
       </span>
       <div className="flex items-center justify-end">
         {youCanPick && onClockPickId ? (
-          <form action={lockPick} className="contents">
-            <input type="hidden" name="pickId" value={onClockPickId} />
-            <input type="hidden" name="playerId" value={player.playerId} />
-            <button
-              type="submit"
-              className="inline-flex min-h-[44px] items-center gap-1.5 rounded-sm px-4 py-2.5 text-[11px] font-bold uppercase tracking-[0.18em] transition hover:brightness-110 md:min-h-0 md:px-3 md:py-1.5 md:text-[10px]"
-              style={{
-                backgroundColor: RED_500,
-                color: CREAM_50,
-                boxShadow: `0 0 0 1px ${RED_400}`,
-              }}
-            >
-              ◉ Lock pick
-            </button>
-          </form>
+          <ConfirmLockPickButton
+            pickId={onClockPickId}
+            playerId={player.playerId}
+            playerName={name}
+            position={player.position}
+            team={player.team}
+          />
         ) : (
           <span style={{ color: CREAM_400, fontSize: 11 }}>→</span>
         )}
