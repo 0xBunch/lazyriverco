@@ -13,6 +13,8 @@ type SearchParams = {
   tag?: string;
   sport?: string;
   cursor?: string;
+  msg?: string;
+  error?: string;
 };
 
 export default async function SportsNewsIndex({
@@ -26,6 +28,8 @@ export default async function SportsNewsIndex({
   const tagFilter = searchParams?.tag;
   const sportFilter = searchParams?.sport;
   const cursor = searchParams?.cursor;
+  const flashMsg = searchParams?.msg;
+  const flashError = searchParams?.error;
 
   // Keyset pagination on (publishedAt DESC, id DESC). Cursor encodes
   // both fields so ties on publishedAt don't cause page-edge drift.
@@ -66,6 +70,16 @@ export default async function SportsNewsIndex({
 
   return (
     <div className="mx-auto max-w-5xl px-4 py-6 md:px-6 md:py-10">
+      {flashMsg && (
+        <p className="mb-4 rounded-lg border border-emerald-700/50 bg-emerald-900/30 px-4 py-2 text-sm text-emerald-200">
+          {flashMsg}
+        </p>
+      )}
+      {flashError && (
+        <p className="mb-4 rounded-lg border border-red-800/50 bg-red-900/30 px-4 py-2 text-sm text-red-200">
+          {flashError}
+        </p>
+      )}
       <header className="mb-6 md:mb-8">
         <h1 className="font-display text-3xl font-semibold tracking-tight text-bone-50 text-balance md:text-4xl">
           Sports news
