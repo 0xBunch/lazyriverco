@@ -228,7 +228,7 @@ DROP TYPE   IF EXISTS "FeedCategory";
 - ✅ `CREATE INDEX CONCURRENTLY` (split into File 2) — does NOT block writers. Required for a populated table that the 15-min cron continuously writes to.
 - ✅ `CREATE TYPE IF NOT EXISTS` — Railway runs PG ≥ 15. Re-run idempotent.
 - ✅ Down-migration drop order: index → columns → types.
-- ⚠️ Verify at PR 1 implementation: `pollFeed` insert site at [src/lib/feed-poller.ts](../src/lib/feed-poller.ts) — adding a nullable `sport` column doesn't break existing writes, but read the actual insert to confirm.
+- ✅ `pollFeed` insert site verified at [src/lib/feed-poller.ts](../src/lib/feed-poller.ts) line 307 — `prisma.newsItem.createMany({ data: rows, skipDuplicates: true })`. Adding a nullable `sport` column is invisible to this insert; Prisma's generated type makes new optional columns omittable.
 
 **Out of scope for sports PR 1:** updating `/admin/feeds` UI to expose the category + sport dropdowns. That's a one-screen `<select>` add — bundle into sports PR 1 or fast-follow as PR 1.1. Until that ships, sports feeds get `category=SPORTS` set via Prisma Studio or a one-off SQL update.
 
