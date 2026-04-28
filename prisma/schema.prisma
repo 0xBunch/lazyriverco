@@ -211,19 +211,33 @@ model Message {
   content        String      @db.Text
   mediaUrl       String?
   parentId       String?
+  /// MLChat (PR 2): when this row is an agent reply, points at the USER
+  /// message that summoned it. NULL for user messages and for legacy
+  /// 1:1 Conversation replies. ON DELETE SET NULL — deleting the trigger
+  /// message keeps the reply as historical record.
+  triggeredByMessageId String?
+  /// MLChat (PR 2): denormalized list of Character.id values that this
+  /// message @-mentioned. PR 1 always writes []; PR 2's POST handler
+  /// populates from extractMentions() so the listener can fan out agent
+  /// replies without a Prisma round-trip. Defaults to empty array.
+  mentionedAgentIds String[] @default([])
   createdAt      DateTime    @default(now())
 
-  channel      Channel?      @relation(fields: [channelId], references: [id], onDelete: Restrict)
-  conversation Conversation? @relation(fields: [conversationId], references: [id], onDelete: Cascade)
-  user         User?         @relation(fields: [userId], references: [id])
-  character    Character?    @relation(fields: [characterId], references: [id])
-  parent       Message?      @relation("Replies", fields: [parentId], references: [id])
-  replies      Message[]     @relation("Replies")
+  channel          Channel?      @relation(fields: [channelId], references: [id], onDelete: Restrict)
+  conversation     Conversation? @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+  user             User?         @relation(fields: [userId], references: [id])
+  character        Character?    @relation(fields: [characterId], references: [id])
+  parent           Message?      @relation("Replies", fields: [parentId], references: [id])
+  replies          Message[]     @relation("Replies")
+  triggerMessage   Message?      @relation("MessageTrigger", fields: [triggeredByMessageId], references: [id], onDelete: SetNull)
+  triggeredReplies Message[]     @relation("MessageTrigger")
 
   // Read pattern: "give me the last N messages in channel X by time".
   @@index([channelId, createdAt(sort: Desc)])
   // Same pattern but scoped to a Conversation (the new per-user path).
   @@index([conversationId, createdAt(sort: Desc)])
+  // Audit / debug: "what did agent reply to user message X?"
+  @@index([triggeredByMessageId])
 }
 
 enum AuthorType {
