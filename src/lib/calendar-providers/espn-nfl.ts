@@ -1,6 +1,6 @@
 import "server-only";
 import { fetchJson, pad2 } from "./fetch";
-import type { CalendarProvider, SyncedEvent } from "./types";
+import type { CalendarProviderHandler, SyncedEvent } from "./types";
 
 // NFL schedule via ESPN's public site API (unofficial but stable; the
 // same surface the espn.com scoreboard reads from). No key, no quota
@@ -43,71 +43,68 @@ type ESPNScoreboardResponse = {
   events?: ESPNEvent[];
 };
 
-export const espnNflProvider: CalendarProvider = {
-  name: SOURCE,
-  async fetch() {
-    const today = new Date();
-    const end = new Date(today);
-    end.setUTCDate(end.getUTCDate() + HORIZON_DAYS);
-    const dates = `${ymdCompact(today)}-${ymdCompact(end)}`;
-    const url = `https://site.api.espn.com/apis/site/v2/sports/football/nfl/scoreboard?dates=${dates}&limit=200`;
+export const fetchEspnNfl: CalendarProviderHandler = async (_feed) => {
+  const today = new Date();
+  const end = new Date(today);
+  end.setUTCDate(end.getUTCDate() + HORIZON_DAYS);
+  const dates = `${ymdCompact(today)}-${ymdCompact(end)}`;
+  const url = `https://site.api.espn.com/apis/site/v2/sports/football/nfl/scoreboard?dates=${dates}&limit=200`;
 
-    const r = await fetchJson<ESPNScoreboardResponse>(url);
-    const games = Array.isArray(r.events) ? r.events : [];
+  const r = await fetchJson<ESPNScoreboardResponse>(url);
+  const games = Array.isArray(r.events) ? r.events : [];
 
-    // Aggregate by ET-anchored calendar date. If a game gets postponed
-    // and re-scheduled to a different day, the next sync will write a new
-    // row keyed on the new ET date and leave the old one as a "ghost"
-    // (no longer in upstream). Acceptable for v1; a "drop synced rows
-    // not in latest payload" pass is future work.
-    const byDate = new Map<string, ESPNEvent[]>();
-    for (const ev of games) {
-      if (!ev.date) continue;
-      const date = utcIsoToEtDate(ev.date);
-      if (!date) continue;
-      const list = byDate.get(date) ?? [];
-      list.push(ev);
-      byDate.set(date, list);
-    }
+  // Aggregate by ET-anchored calendar date. If a game gets postponed
+  // and re-scheduled to a different day, the next sync will write a new
+  // row keyed on the new ET date and leave the old one as a "ghost"
+  // (no longer in upstream). Acceptable for v1; a "drop synced rows
+  // not in latest payload" pass is future work.
+  const byDate = new Map<string, ESPNEvent[]>();
+  for (const ev of games) {
+    if (!ev.date) continue;
+    const date = utcIsoToEtDate(ev.date);
+    if (!date) continue;
+    const list = byDate.get(date) ?? [];
+    list.push(ev);
+    byDate.set(date, list);
+  }
 
-    const out: SyncedEvent[] = [];
-    for (const [date, evs] of byDate) {
-      const matchups = evs
-        .map((e) => e.shortName?.trim())
-        .filter((s): s is string => Boolean(s));
-      const title =
-        matchups.length === 1
-          ? `NFL: ${matchups[0]}`
-          : `NFL — ${evs.length} games`;
-      const description =
-        matchups.length === 1
-          ? null
-          : truncate(
-              matchups.slice(0, 6).join(" • ") +
-                (matchups.length > 6 ? ` +${matchups.length - 6}` : ""),
-              190,
-            );
-      const body = evs
-        .map((e) => {
-          const matchup = e.shortName ?? e.name ?? "TBD";
-          const t = e.date ? formatEtTime(e.date) : null;
-          return t ? `- ${matchup} (${t})` : `- ${matchup}`;
-        })
-        .join("\n");
+  const out: SyncedEvent[] = [];
+  for (const [date, evs] of byDate) {
+    const matchups = evs
+      .map((e) => e.shortName?.trim())
+      .filter((s): s is string => Boolean(s));
+    const title =
+      matchups.length === 1
+        ? `NFL: ${matchups[0]}`
+        : `NFL — ${evs.length} games`;
+    const description =
+      matchups.length === 1
+        ? null
+        : truncate(
+            matchups.slice(0, 6).join(" • ") +
+              (matchups.length > 6 ? ` +${matchups.length - 6}` : ""),
+            190,
+          );
+    const body = evs
+      .map((e) => {
+        const matchup = e.shortName ?? e.name ?? "TBD";
+        const t = e.date ? formatEtTime(e.date) : null;
+        return t ? `- ${matchup} (${t})` : `- ${matchup}`;
+      })
+      .join("\n");
 
-      out.push({
-        source: SOURCE,
-        externalId: `day-${date}`,
-        title,
-        date,
-        description,
-        body,
-        tags: ["nfl", "sports"],
-      });
-    }
+    out.push({
+      source: SOURCE,
+      externalId: `day-${date}`,
+      title,
+      date,
+      description,
+      body,
+      tags: ["nfl", "sports"],
+    });
+  }
 
-    return out;
-  },
+  return out;
 };
 
 function ymdCompact(d: Date): string {

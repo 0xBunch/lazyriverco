@@ -78,22 +78,30 @@ export default async function AdminCalendarPage() {
 
   return (
     <div className="space-y-6">
-      <header>
-        <h1 className="font-display text-2xl font-semibold tracking-tight text-bone-50">
-          Calendar
-        </h1>
-        <p className="mt-1 text-sm text-bone-300">
-          Birthdays, cultural moments, trip dates, games. Dates within 7 days
-          are auto-injected into agent prompts; annual entries repeat every
-          year. Members see a read-only view at{" "}
-          <a
-            href="/calendar"
-            className="underline decoration-claude-500/40 underline-offset-2 hover:text-bone-50"
-          >
-            /calendar
-          </a>
-          .
-        </p>
+      <header className="flex flex-wrap items-start justify-between gap-3">
+        <div>
+          <h1 className="font-display text-2xl font-semibold tracking-tight text-bone-50">
+            Calendar
+          </h1>
+          <p className="mt-1 text-sm text-bone-300">
+            Birthdays, cultural moments, trip dates, games. Dates within 7 days
+            are auto-injected into agent prompts; annual entries repeat every
+            year. Members see a read-only view at{" "}
+            <a
+              href="/calendar"
+              className="underline decoration-claude-500/40 underline-offset-2 hover:text-bone-50"
+            >
+              /calendar
+            </a>
+            .
+          </p>
+        </div>
+        <a
+          href="/admin/memory/feeds"
+          className="rounded-md border border-bone-700 bg-bone-800 px-3 py-1.5 text-xs font-medium text-bone-100 hover:bg-bone-700"
+        >
+          Manage feeds →
+        </a>
       </header>
 
       <CalendarEntriesTable groups={groups} totals={totals} />

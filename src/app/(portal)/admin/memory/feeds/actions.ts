@@ -5,7 +5,13 @@ import { revalidatePath } from "next/cache";
 import { prisma } from "@/lib/prisma";
 import { requireAdmin } from "@/lib/auth";
 import { pollFeed } from "@/lib/feed-poller";
-import type { FeedCategory, FeedKind, SportTag } from "@prisma/client";
+import { BUILT_IN_CALENDAR_URLS } from "@/lib/calendar-providers/built-in-urls";
+import type {
+  CalendarProviderType,
+  FeedCategory,
+  FeedKind,
+  SportTag,
+} from "@prisma/client";
 
 // Admin actions for /admin/memory/feeds. All actions follow the same shape:
 //   - require ADMIN (middleware + role check — belt + suspenders)
@@ -22,9 +28,33 @@ import type { FeedCategory, FeedKind, SportTag } from "@prisma/client";
 
 const MAX_NAME = 80;
 const MAX_URL = 2048;
-const VALID_KINDS = ["NEWS", "MEDIA"] as const satisfies readonly FeedKind[];
-const VALID_CATEGORIES = ["GENERAL", "SPORTS"] as const satisfies readonly FeedCategory[];
-const VALID_SPORTS = ["NFL", "NBA", "MLB", "NHL", "MLS", "UFC"] as const satisfies readonly SportTag[];
+const VALID_KINDS = [
+  "NEWS",
+  "MEDIA",
+  "CALENDAR",
+] as const satisfies readonly FeedKind[];
+const VALID_CATEGORIES = [
+  "GENERAL",
+  "SPORTS",
+] as const satisfies readonly FeedCategory[];
+const VALID_SPORTS = [
+  "NFL",
+  "NBA",
+  "MLB",
+  "NHL",
+  "MLS",
+  "UFC",
+] as const satisfies readonly SportTag[];
+const VALID_PROVIDER_TYPES = [
+  "NAGER",
+  "USNO_MOON",
+  "USNO_SEASON",
+  "ESPN_NFL",
+  "ICAL_URL",
+] as const satisfies readonly CalendarProviderType[];
+
+// BUILT_IN_CALENDAR_URLS lives in src/lib/calendar-providers/built-in-urls.ts
+// — single source of truth shared with the migration's backfill SQL.
 
 // ---------------------------------------------------------------------------
 
@@ -32,20 +62,58 @@ export async function createFeed(fd: FormData): Promise<void> {
   const admin = await requireAdmin();
 
   const name = (fd.get("name") ?? "").toString().trim().slice(0, MAX_NAME);
-  const url = (fd.get("url") ?? "").toString().trim().slice(0, MAX_URL);
+  const urlRaw = (fd.get("url") ?? "").toString().trim().slice(0, MAX_URL);
   const kindRaw = (fd.get("kind") ?? "").toString();
   const categoryRaw = (fd.get("category") ?? "GENERAL").toString();
   const sportRaw = (fd.get("sport") ?? "").toString();
+  const providerTypeRaw = (fd.get("providerType") ?? "").toString();
   const pollIntervalMin = Number(fd.get("pollIntervalMin") ?? 30);
 
   if (!name) return back({ error: "Name is required." });
-  if (!url) return back({ error: "URL is required." });
-  if (!/^https?:\/\/.+/i.test(url)) {
-    return back({ error: "URL must start with http:// or https://" });
-  }
   if (!VALID_KINDS.includes(kindRaw as FeedKind)) {
-    return back({ error: "Kind must be NEWS or MEDIA." });
+    return back({ error: "Kind must be NEWS, MEDIA, or CALENDAR." });
   }
+  const kind = kindRaw as FeedKind;
+
+  // Per-kind URL + providerType validation. Built-in calendar providers
+  // (NAGER, USNO_*, ESPN_NFL) ignore any user-typed URL and use the
+  // canonical one from BUILT_IN_URLS — the user just picks the provider
+  // type. ICAL_URL feeds use the user-typed URL verbatim. NEWS/MEDIA
+  // require URL + must not have a providerType.
+  let url = urlRaw;
+  let providerType: CalendarProviderType | null = null;
+
+  if (kind === "CALENDAR") {
+    if (
+      !VALID_PROVIDER_TYPES.includes(providerTypeRaw as CalendarProviderType)
+    ) {
+      return back({
+        error:
+          "Provider type required for CALENDAR feeds (NAGER, USNO_MOON, USNO_SEASON, ESPN_NFL, or ICAL_URL).",
+      });
+    }
+    providerType = providerTypeRaw as CalendarProviderType;
+    if (providerType === "ICAL_URL") {
+      if (!url) return back({ error: "URL is required for ICAL_URL feeds." });
+      if (!/^https?:\/\/.+/i.test(url)) {
+        return back({ error: "URL must start with http:// or https://" });
+      }
+    } else {
+      url = BUILT_IN_CALENDAR_URLS[providerType];
+    }
+  } else {
+    // NEWS / MEDIA
+    if (!url) return back({ error: "URL is required." });
+    if (!/^https?:\/\/.+/i.test(url)) {
+      return back({ error: "URL must start with http:// or https://" });
+    }
+    if (providerTypeRaw) {
+      return back({
+        error: "Provider type only applies to CALENDAR feeds.",
+      });
+    }
+  }
+
   if (!VALID_CATEGORIES.includes(categoryRaw as FeedCategory)) {
     return back({ error: "Category must be GENERAL or SPORTS." });
   }
@@ -72,9 +140,10 @@ export async function createFeed(fd: FormData): Promise<void> {
       data: {
         name,
         url,
-        kind: kindRaw as FeedKind,
+        kind,
         category: categoryRaw as FeedCategory,
         sport,
+        providerType,
         pollIntervalMin,
         ownerId: admin.id,
       },

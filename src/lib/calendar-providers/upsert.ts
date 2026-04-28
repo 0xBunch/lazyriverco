@@ -9,17 +9,32 @@ import type { SyncedEvent } from "./types";
 // Contract: source AND externalId must both be non-empty. Manual
 // CalendarEntry rows leave both NULL (Postgres treats them as distinct
 // in the unique index, so manual entries don't conflict with each other
-// or with synced ones). Per data-integrity-guardian's review, the
-// runtime guard below is the load-bearing pin on that contract — if a
-// future provider regresses to passing nulls/empties, the upsert path
-// would otherwise silently insert a duplicate. Fail loud.
+// or with synced ones). The runtime guard below is the load-bearing
+// pin on that contract — if a future provider regresses to passing
+// nulls/empties, the upsert path would otherwise silently insert a
+// duplicate. Fail loud.
+//
+// `feedId` is required (non-null) — every synced row should be
+// traceable back to the Feed that produced it. The migration backfill
+// guarantees this for legacy rows; new writes set it from the poller.
 
 const MAX_ERRORS = 20;
 
+export type UpsertResult = {
+  upserted: number;
+  latestAt: Date | null;
+  errors: string[];
+};
+
 export async function upsertSyncedEvents(
   events: readonly SyncedEvent[],
-): Promise<{ upserted: number; errors: string[] }> {
+  feedId: string,
+): Promise<UpsertResult> {
+  if (!feedId) {
+    throw new Error("upsertSyncedEvents: feedId required");
+  }
   let upserted = 0;
+  let latestAt: Date | null = null;
   const errors: string[] = [];
   let suppressedErrors = 0;
   const now = new Date();
@@ -50,6 +65,7 @@ export async function upsertSyncedEvents(
           source: ev.source,
           externalId: ev.externalId,
           syncedAt: now,
+          feedId,
         },
         update: {
           title: ev.title,
@@ -59,13 +75,21 @@ export async function upsertSyncedEvents(
           body: ev.body ?? null,
           tags: ev.tags,
           syncedAt: now,
+          // Re-bind feedId on update too — handles the case where a
+          // legacy synced row from PR #109 had feedId=NULL and is now
+          // being touched by a CALENDAR-feed poll. Backfill SQL covers
+          // most of these but defense-in-depth doesn't cost anything.
+          feedId,
         },
       });
       upserted++;
+      if (latestAt === null || dateUtc > latestAt) {
+        latestAt = dateUtc;
+      }
     } catch (e) {
       const msg = e instanceof Error ? e.message : String(e);
       const tagged = `${ev.source}/${ev.externalId}: ${msg}`;
-      // Mirror feed-poller.ts:45 — log to stderr so the failure is visible
+      // Mirror feed-poller.ts — log to stderr so the failure is visible
       // in Railway logs even if the cron's JSON response is truncated or
       // never reaches the caller.
       console.error("[calendar-upsert]", tagged);
@@ -81,7 +105,7 @@ export async function upsertSyncedEvents(
     errors.push(`+${suppressedErrors} more errors suppressed`);
   }
 
-  return { upserted, errors };
+  return { upserted, latestAt, errors };
 }
 
 // "2026-12-25" → Date at UTC midnight, matching @db.Date storage. Avoids

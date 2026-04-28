@@ -24,7 +24,14 @@ export default async function AdminFeedsPage({
   const feeds = await prisma.feed.findMany({
     orderBy: [{ enabled: "desc" }, { createdAt: "desc" }],
     include: {
-      _count: { select: { items: true, mediaItems: true, pollLogs: true } },
+      _count: {
+        select: {
+          items: true,
+          mediaItems: true,
+          calendarEntries: true,
+          pollLogs: true,
+        },
+      },
       owner: { select: { displayName: true } },
     },
   });
@@ -44,10 +51,20 @@ export default async function AdminFeedsPage({
 
       <p className="text-sm text-bone-300">
         Automated feeds. <strong className="font-semibold text-bone-100">NEWS</strong>{" "}
-        feeds drop RSS items into a separate news surface; <strong className="font-semibold text-bone-100">MEDIA</strong>{" "}
-        feeds flow into the library (hidden from the default grid — flip the
-        &ldquo;include auto-feed items&rdquo; toggle to see them). Poll cron
-        runs every 15 min; you can also hit <em>Poll now</em> per feed. Feeds
+        feeds drop RSS items into a separate news surface;{" "}
+        <strong className="font-semibold text-bone-100">MEDIA</strong> feeds
+        flow into the library (hidden from the default grid — flip the
+        &ldquo;include auto-feed items&rdquo; toggle to see them);{" "}
+        <strong className="font-semibold text-bone-100">CALENDAR</strong>{" "}
+        feeds populate <a
+          href="/calendar"
+          className="underline decoration-claude-500/40 underline-offset-2 hover:text-bone-50"
+        >
+          /calendar
+        </a>{" "}
+        — pick a built-in provider (Nager / USNO / ESPN) or paste a public{" "}
+        <code>.ics</code> URL (e.g. a public Google Calendar). Poll cron runs
+        every 15 min; you can also hit <em>Poll now</em> per feed. Feeds
         auto-disable after 5 consecutive failures — flip <em>Enabled</em>{" "}
         back on to clear the breaker.
       </p>
@@ -71,13 +88,12 @@ export default async function AdminFeedsPage({
           <input
             name="url"
             type="url"
-            placeholder="https://…/feed.xml"
-            required
+            placeholder="https://…/feed.xml or .ics (ignored for built-in calendar providers)"
             maxLength={2048}
             className="rounded-lg border border-bone-700 bg-bone-950 px-3 py-2 text-sm text-bone-50 placeholder-bone-500 focus:border-claude-500 focus:outline-none focus:ring-1 focus:ring-claude-500"
           />
         </div>
-        <div className="grid gap-3 sm:grid-cols-[auto_auto_auto_auto_1fr]">
+        <div className="grid gap-3 sm:grid-cols-[auto_auto_auto_auto_auto_1fr]">
           <select
             name="kind"
             defaultValue="NEWS"
@@ -86,6 +102,20 @@ export default async function AdminFeedsPage({
           >
             <option value="NEWS">NEWS</option>
             <option value="MEDIA">MEDIA</option>
+            <option value="CALENDAR">CALENDAR</option>
+          </select>
+          <select
+            name="providerType"
+            defaultValue=""
+            aria-label="Calendar provider type (only for CALENDAR feeds)"
+            className="rounded-lg border border-bone-700 bg-bone-950 px-3 py-2 text-sm text-bone-50 focus:border-claude-500 focus:outline-none focus:ring-1 focus:ring-claude-500"
+          >
+            <option value="">— Provider (CAL) —</option>
+            <option value="ICAL_URL">ICAL_URL (.ics)</option>
+            <option value="NAGER">NAGER (US Holidays)</option>
+            <option value="USNO_MOON">USNO_MOON</option>
+            <option value="USNO_SEASON">USNO_SEASON</option>
+            <option value="ESPN_NFL">ESPN_NFL</option>
           </select>
           <select
             name="category"
@@ -148,7 +178,11 @@ export default async function AdminFeedsPage({
               autoDisabledAt: feed.autoDisabledAt,
             });
             const itemCount =
-              feed.kind === "NEWS" ? feed._count.items : feed._count.mediaItems;
+              feed.kind === "NEWS"
+                ? feed._count.items
+                : feed.kind === "MEDIA"
+                  ? feed._count.mediaItems
+                  : feed._count.calendarEntries;
             const lastPolled = feed.lastPolledAt
               ? relativeTime(feed.lastPolledAt)
               : "never";
@@ -167,17 +201,20 @@ export default async function AdminFeedsPage({
                   />
                   <span className="rounded-md bg-bone-800 px-2 py-0.5 text-[0.7rem] font-mono text-bone-300">
                     {feed.kind}
+                    {feed.providerType ? ` · ${feed.providerType}` : ""}
                   </span>
-                  <span
-                    className={
-                      feed.category === "SPORTS"
-                        ? "rounded-md bg-sports-amber/15 px-2 py-0.5 text-[0.7rem] font-mono text-sports-amber"
-                        : "rounded-md bg-bone-800 px-2 py-0.5 text-[0.7rem] font-mono text-bone-400"
-                    }
-                  >
-                    {feed.category}
-                    {feed.sport ? ` · ${feed.sport}` : ""}
-                  </span>
+                  {feed.kind === "CALENDAR" ? null : (
+                    <span
+                      className={
+                        feed.category === "SPORTS"
+                          ? "rounded-md bg-sports-amber/15 px-2 py-0.5 text-[0.7rem] font-mono text-sports-amber"
+                          : "rounded-md bg-bone-800 px-2 py-0.5 text-[0.7rem] font-mono text-bone-400"
+                      }
+                    >
+                      {feed.category}
+                      {feed.sport ? ` · ${feed.sport}` : ""}
+                    </span>
+                  )}
                   <p className="font-display text-base font-semibold text-bone-50">
                     {feed.name}
                   </p>
@@ -187,14 +224,22 @@ export default async function AdminFeedsPage({
                 </div>
 
                 <p className="mt-1 truncate text-xs text-bone-400">
-                  <a
-                    href={feed.url}
-                    target="_blank"
-                    rel="noreferrer"
-                    className="underline decoration-bone-700 underline-offset-2 hover:text-bone-200 hover:decoration-bone-500"
-                  >
-                    {feed.url}
-                  </a>
+                  {feed.url.includes("{yr}") ? (
+                    // Built-in providers store {yr}-templated URLs that are
+                    // identity-only — non-clickable since the literal URL
+                    // returns 404. Provider code substitutes the current
+                    // year at fetch time.
+                    <span className="font-mono">{feed.url}</span>
+                  ) : (
+                    <a
+                      href={feed.url}
+                      target="_blank"
+                      rel="noreferrer"
+                      className="underline decoration-bone-700 underline-offset-2 hover:text-bone-200 hover:decoration-bone-500"
+                    >
+                      {feed.url}
+                    </a>
+                  )}
                 </p>
 
                 <dl className="mt-3 grid grid-cols-2 gap-x-4 gap-y-1 text-[0.75rem] sm:grid-cols-4">

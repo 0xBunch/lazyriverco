@@ -1,57 +1,39 @@
 import { NextResponse } from "next/server";
-import { runAllProviders } from "@/lib/calendar-providers";
 
-// Daily cron entrypoint for calendar sync providers (Nager holidays,
-// USNO astronomy, ESPN NFL). Mirrors the auth + shape of the news
-// poll-feeds cron — same x-cron-secret header, same "GET or POST" so
-// the Railway cron command can be a plain curl.
+// DEPRECATED — this route is a stub for back-compat with the Railway
+// scheduled job that PR #109 wired up. Calendar feeds now live as
+// CALENDAR-kind Feed rows polled by /api/cron/poll-feeds (the same
+// 15-min cron that handles NEWS/MEDIA feeds), so a separate daily
+// "sync-calendar" tick is redundant.
 //
-// Wire on Railway:
-//   curl -H "x-cron-secret: $CRON_SECRET" https://lazyriver.co/api/cron/sync-calendar
-//   schedule: 0 9 * * *   (daily at 09:00 UTC = 4 AM US-Central)
+// Removal sequence:
+//   1. This PR — route returns { deprecated: true } so the Railway
+//      cron's curl command keeps getting 200s instead of 404s.
+//   2. KB removes the daily sync-calendar entry from Railway's cron
+//      config.
+//   3. Follow-up PR deletes this file.
 //
-// Daily cadence is fine — none of the data sources change intra-day
-// (holidays, moon phases, NFL schedule). Errors in any single provider
-// don't fail the response; they surface in the per-provider results
-// array so an admin reading Railway logs can spot which feed broke.
+// During the brief window between (1) and (2) both crons may fire.
+// The (source, externalId) unique on CalendarEntry prevents
+// duplicates; syncedAt may flap by ≤1 day. Acceptable transient.
 
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
 
-export async function POST(req: Request) {
-  return handle(req);
+export async function POST() {
+  return handle();
 }
 
-export async function GET(req: Request) {
-  return handle(req);
+export async function GET() {
+  return handle();
 }
 
-async function handle(req: Request) {
-  const secret = process.env.CRON_SECRET;
-  if (!secret) {
-    return NextResponse.json(
-      { ok: false, error: "CRON_SECRET not configured." },
-      { status: 500 },
-    );
-  }
-  const provided = req.headers.get("x-cron-secret");
-  if (provided !== secret) {
-    return NextResponse.json(
-      { ok: false, error: "Unauthorized." },
-      { status: 401 },
-    );
-  }
-
-  const startedAt = Date.now();
-  const results = await runAllProviders();
-  const totalUpserted = results.reduce((acc, r) => acc + r.upserted, 0);
-  const anyErrors = results.some((r) => r.errors.length > 0);
-
+function handle() {
   return NextResponse.json({
     ok: true,
-    elapsedMs: Date.now() - startedAt,
-    totalUpserted,
-    anyErrors,
-    results,
+    deprecated: true,
+    replacement: "/api/cron/poll-feeds",
+    message:
+      "Calendar feeds are now CALENDAR-kind Feed rows polled by /api/cron/poll-feeds. Remove this scheduled job from Railway.",
   });
 }
