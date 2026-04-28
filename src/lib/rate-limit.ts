@@ -37,6 +37,11 @@ export type RateLimitBucket =
   // a handful of records, edited rarely. Firing = stolen cookie burning
   // R2 PUT cost via repeat presigns.
   | "sports.sponsor.presign"
+  // Admin sponsor banner-ad AI generation (Nano Banana Pro). Each call
+  // is ~$0.04 on the Gemini API. Tight cap — admins iterate prompts a
+  // handful of times per banner, not hundreds. Firing = stolen cookie
+  // burning AI spend.
+  | "sports.sponsor.generate"
   // Chat image generation (Replicate + R2). Much more expensive per call
   // than a text message, so gets its own tighter bucket on top of the
   // conversation.message limit.

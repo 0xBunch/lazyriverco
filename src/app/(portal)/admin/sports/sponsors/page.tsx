@@ -2,6 +2,7 @@ import { prisma } from "@/lib/prisma";
 import {
   createSponsor,
   deleteSponsor,
+  generateSponsorImage,
   removeSponsorImage,
   toggleSponsorActive,
   updateSponsor,
@@ -161,6 +162,41 @@ export default async function AdminSportsSponsorsPage({
           </button>
         </div>
       </form>
+
+      {editing && (
+        <form
+          action={generateSponsorImage}
+          className="space-y-3 rounded-2xl border border-claude-700/40 bg-bone-900 p-5"
+        >
+          <input type="hidden" name="id" value={editing.id} />
+          <div className="flex items-baseline justify-between gap-3">
+            <p className="font-display text-sm font-semibold text-bone-50">
+              Generate with AI
+            </p>
+            <span className="font-display text-[10px] font-semibold uppercase tracking-[0.28em] text-bone-500">
+              Nano Banana Pro · ~$0.04 / image · square
+            </span>
+          </div>
+          <textarea
+            name="prompt"
+            placeholder="e.g. A cartoon hot dog wearing sunglasses, holding a foam finger that says 'GO TEAM,' broadcast-style sports sponsor banner, vibrant colors"
+            required
+            rows={3}
+            maxLength={600}
+            className={`${inputCls} w-full resize-y`}
+          />
+          <p className="text-xs text-bone-400">
+            Replaces the current banner image (if any). Sets the shape to
+            Square automatically. Edit the alt text in the form above
+            after generating. Generation takes 5–15 seconds.
+          </p>
+          <div className="flex justify-end">
+            <button type="submit" className={btnPrimaryCls}>
+              Generate banner
+            </button>
+          </div>
+        </form>
+      )}
 
       {editing?.imageR2Key && (
         <form
