@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { cn } from "@/lib/utils";
 import type { ExpandedEntry, GridCell } from "@/lib/calendar-grid";
+import { tagEmoji } from "@/lib/calendar-tag-emoji";
 
 // Presentational only: takes pre-built cells + per-day event map and
 // renders the 7×N grid. No state, no data fetching — the server page
@@ -115,6 +116,13 @@ export function CalendarMonthGrid({ cells, eventsByDate }: Props) {
                             aria-hidden="true"
                           >
                             ↻
+                          </span>
+                        ) : tagEmoji(event.tags) ? (
+                          <span
+                            className="mr-1"
+                            aria-hidden="true"
+                          >
+                            {tagEmoji(event.tags)}
                           </span>
                         ) : null}
                         {event.title}
