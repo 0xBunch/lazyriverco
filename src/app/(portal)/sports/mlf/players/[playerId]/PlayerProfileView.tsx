@@ -23,12 +23,12 @@ export function PlayerProfileView({
 }) {
   if (profile.notFound) {
     return (
-      <div className="rounded-lg border border-bone-800 bg-bone-900/40 p-6 text-center">
-        <h1 className="font-display text-lg font-semibold text-bone-100">
+      <div className="rounded-lg border border-bone-200 bg-bone-100 p-6 text-center">
+        <h1 className="font-display text-lg font-semibold text-bone-900">
           Player not found
         </h1>
-        <p className="mt-2 text-sm text-bone-400">
-          Sleeper id <code className="text-bone-200">{profile.playerId}</code>{" "}
+        <p className="mt-2 text-sm text-bone-600">
+          Sleeper id <code className="text-bone-800">{profile.playerId}</code>{" "}
           isn&apos;t in the MLF database yet. If this looks wrong, an admin can
           re-sync from the /fantasy page.
         </p>
@@ -69,26 +69,26 @@ function HeaderBlock({ profile }: { profile: PlayerProfile }) {
           alt=""
           width={72}
           height={72}
-          className="h-18 w-18 rounded-full border border-bone-800 bg-bone-900 object-cover"
+          className="h-18 w-18 rounded-full border border-bone-200 bg-bone-100 object-cover"
           unoptimized
         />
       ) : (
         <div
           aria-hidden="true"
-          className="flex h-18 w-18 items-center justify-center rounded-full border border-bone-800 bg-bone-900 text-2xl text-bone-400"
+          className="flex h-18 w-18 items-center justify-center rounded-full border border-bone-200 bg-bone-100 text-2xl text-bone-600"
         >
           {initials(profile.fullName)}
         </div>
       )}
       <div className="min-w-0 flex-1">
-        <h1 className="font-display text-3xl font-semibold tracking-tight text-bone-50 text-balance">
+        <h1 className="font-display text-3xl font-semibold tracking-tight text-bone-950 text-balance">
           {profile.fullName}
         </h1>
-        <p className="mt-1 flex flex-wrap items-center gap-x-2 gap-y-1 text-sm text-bone-300">
+        <p className="mt-1 flex flex-wrap items-center gap-x-2 gap-y-1 text-sm text-bone-700">
           {profile.position ? <span>{profile.position}</span> : null}
           {profile.team ? (
             <>
-              <span aria-hidden="true" className="text-bone-600">
+              <span aria-hidden="true" className="text-bone-400">
                 ·
               </span>
               <span>{profile.team}</span>
@@ -96,17 +96,17 @@ function HeaderBlock({ profile }: { profile: PlayerProfile }) {
           ) : null}
           {profile.injuryStatus ? (
             <>
-              <span aria-hidden="true" className="text-bone-600">
+              <span aria-hidden="true" className="text-bone-400">
                 ·
               </span>
-              <span className="rounded border border-claude-700/60 px-1.5 py-0.5 text-[11px] uppercase tracking-wider text-claude-200">
+              <span className="rounded border border-claude-700/60 px-1.5 py-0.5 text-[11px] uppercase tracking-wider text-claude-800">
                 {profile.injuryStatus}
               </span>
             </>
           ) : null}
           {!profile.active ? (
             <>
-              <span aria-hidden="true" className="text-bone-600">
+              <span aria-hidden="true" className="text-bone-400">
                 ·
               </span>
               <span className="text-bone-500">inactive</span>
@@ -157,7 +157,7 @@ function StatCards({ profile }: { profile: PlayerProfile }) {
   }
   if (cards.length === 0) {
     return (
-      <p className="text-sm text-bone-400">
+      <p className="text-sm text-bone-600">
         No stats or projections available for this player yet. Stats sync runs
         once a day; try again after the next sync.
       </p>
@@ -168,16 +168,16 @@ function StatCards({ profile }: { profile: PlayerProfile }) {
       {cards.map((c, i) => (
         <div
           key={`${c.label}-${i}`}
-          className="rounded-lg border border-bone-800 bg-bone-900/40 p-3"
+          className="rounded-lg border border-bone-200 bg-bone-100 p-3"
         >
-          <div className="text-[11px] uppercase tracking-wider text-bone-400">
+          <div className="text-[11px] uppercase tracking-wider text-bone-600">
             {c.label}
           </div>
-          <div className="mt-1 font-display text-2xl font-semibold text-bone-50 tabular-nums">
+          <div className="mt-1 font-display text-2xl font-semibold text-bone-950 tabular-nums">
             {c.primary}
           </div>
           {c.secondary ? (
-            <div className="mt-0.5 text-xs text-bone-400 tabular-nums">
+            <div className="mt-0.5 text-xs text-bone-600 tabular-nums">
               {c.secondary}
             </div>
           ) : null}
@@ -230,9 +230,9 @@ function WeeklySparkline({
   }, [weekly]);
 
   return (
-    <section className="rounded-lg border border-bone-800 bg-bone-900/40 p-4">
+    <section className="rounded-lg border border-bone-200 bg-bone-100 p-4">
       <div className="mb-3 flex items-baseline justify-between">
-        <h2 className="font-display text-sm font-semibold uppercase tracking-wider text-bone-300">
+        <h2 className="font-display text-sm font-semibold uppercase tracking-wider text-bone-700">
           {season} week-by-week
         </h2>
         <span className="text-xs text-bone-500 tabular-nums">
@@ -279,7 +279,7 @@ function WeeklySparkline({
         {weekly.map((w) => (
           <li key={w.week} className="flex flex-col items-center gap-0.5">
             <span>W{w.week}</span>
-            <span className="text-bone-400">{w.pts.toFixed(0)}</span>
+            <span className="text-bone-600">{w.pts.toFixed(0)}</span>
           </li>
         ))}
       </ol>
@@ -290,14 +290,14 @@ function WeeklySparkline({
 function RosterBadges({ profile }: { profile: PlayerProfile }) {
   if (profile.rosteredBy.length === 0) {
     return (
-      <div className="rounded-lg border border-bone-800 bg-bone-900/40 p-4 text-sm text-bone-400">
+      <div className="rounded-lg border border-bone-200 bg-bone-100 p-4 text-sm text-bone-600">
         Not currently on any MLF roster.
       </div>
     );
   }
   return (
-    <div className="rounded-lg border border-bone-800 bg-bone-900/40 p-4">
-      <h2 className="font-display text-sm font-semibold uppercase tracking-wider text-bone-300">
+    <div className="rounded-lg border border-bone-200 bg-bone-100 p-4">
+      <h2 className="font-display text-sm font-semibold uppercase tracking-wider text-bone-700">
         MLF ownership
       </h2>
       <ul className="mt-2 flex flex-col gap-1 text-sm">
@@ -306,13 +306,13 @@ function RosterBadges({ profile }: { profile: PlayerProfile }) {
             key={`${r.season}-${r.rosterId}`}
             className="flex items-baseline justify-between gap-2"
           >
-            <span className="text-bone-100">
+            <span className="text-bone-900">
               {r.managerDisplayName}
               {r.teamName ? (
-                <span className="ml-1 text-bone-400">· {r.teamName}</span>
+                <span className="ml-1 text-bone-600">· {r.teamName}</span>
               ) : null}
             </span>
-            <span className="text-xs uppercase tracking-wider text-bone-400">
+            <span className="text-xs uppercase tracking-wider text-bone-600">
               {r.slot} · {r.season}
             </span>
           </li>
@@ -352,8 +352,8 @@ function AgentTakes({ playerId }: { playerId: string }) {
   }, [playerId]);
 
   return (
-    <section className="rounded-lg border border-bone-800 bg-bone-900/40 p-4">
-      <h2 className="font-display text-sm font-semibold uppercase tracking-wider text-bone-300">
+    <section className="rounded-lg border border-bone-200 bg-bone-100 p-4">
+      <h2 className="font-display text-sm font-semibold uppercase tracking-wider text-bone-700">
         What the clubhouse thinks
       </h2>
       {takes === null ? (
@@ -362,18 +362,18 @@ function AgentTakes({ playerId }: { playerId: string }) {
             <div
               key={i}
               className={cn(
-                "h-12 animate-pulse rounded-md bg-bone-800/50",
+                "h-12 animate-pulse rounded-md bg-bone-200/50",
                 i === 1 ? "w-[80%]" : i === 2 ? "w-[65%]" : "w-full",
               )}
             />
           ))}
         </div>
       ) : takes.length === 0 ? (
-        <p className="mt-2 text-sm text-bone-400">
+        <p className="mt-2 text-sm text-bone-600">
           {error ?? "No takes yet — agents will chime in next time."}
         </p>
       ) : (
-        <ul className="mt-4 flex flex-col divide-y divide-bone-800/60">
+        <ul className="mt-4 flex flex-col divide-y divide-bone-200/60">
           {takes.map((t) => (
             <li
               key={t.characterId}
@@ -385,22 +385,22 @@ function AgentTakes({ playerId }: { playerId: string }) {
                   alt=""
                   width={48}
                   height={48}
-                  className="h-12 w-12 flex-shrink-0 rounded-full border border-bone-800 bg-bone-900 object-cover"
+                  className="h-12 w-12 flex-shrink-0 rounded-full border border-bone-200 bg-bone-100 object-cover"
                   unoptimized
                 />
               ) : (
                 <div
                   aria-hidden="true"
-                  className="flex h-12 w-12 flex-shrink-0 items-center justify-center rounded-full border border-bone-800 bg-bone-900 text-sm text-bone-400"
+                  className="flex h-12 w-12 flex-shrink-0 items-center justify-center rounded-full border border-bone-200 bg-bone-100 text-sm text-bone-600"
                 >
                   {initials(t.characterName)}
                 </div>
               )}
               <div className="min-w-0 flex-1">
-                <blockquote className="font-display text-base leading-snug text-bone-50 text-pretty before:mr-1 before:text-bone-500 before:content-['\201C'] after:ml-0.5 after:text-bone-500 after:content-['\201D']">
+                <blockquote className="font-display text-base leading-snug text-bone-950 text-pretty before:mr-1 before:text-bone-500 before:content-['\201C'] after:ml-0.5 after:text-bone-500 after:content-['\201D']">
                   {t.take}
                 </blockquote>
-                <div className="mt-1 text-xs font-medium text-bone-400">
+                <div className="mt-1 text-xs font-medium text-bone-600">
                   — {t.characterName}
                 </div>
               </div>
@@ -525,9 +525,9 @@ function PartnerCard({ playerId }: { playerId: string }) {
   }, [playerId]);
 
   return (
-    <section className="rounded-lg border border-bone-800 bg-bone-900/40 p-4">
+    <section className="rounded-lg border border-bone-200 bg-bone-100 p-4">
       <div className="flex items-baseline justify-between gap-2">
-        <h2 className="font-display text-sm font-semibold uppercase tracking-wider text-bone-300">
+        <h2 className="font-display text-sm font-semibold uppercase tracking-wider text-bone-700">
           WAG
         </h2>
         {status === "result" &&
@@ -536,7 +536,7 @@ function PartnerCard({ playerId }: { playerId: string }) {
           <button
             type="button"
             onClick={runFinder}
-            className="text-[11px] uppercase tracking-wider text-bone-500 hover:text-bone-300 focus:outline-none focus-visible:ring-2 focus-visible:ring-claude-500"
+            className="text-[11px] uppercase tracking-wider text-bone-500 hover:text-bone-700 focus:outline-none focus-visible:ring-2 focus-visible:ring-claude-500"
             title="Re-run WAGFINDER"
           >
             re-roll
@@ -573,7 +573,7 @@ function WagIdle({
 }) {
   return (
     <div className="mt-4 flex flex-col items-start gap-3">
-      <p className="text-sm text-bone-300 text-pretty">
+      <p className="text-sm text-bone-700 text-pretty">
         Run WAGFINDER to scour the web for this player&apos;s wife, fiancée,
         or girlfriend. Takes about 15-30 seconds; result is cached after.
       </p>
@@ -582,8 +582,8 @@ function WagIdle({
         onClick={onClick}
         disabled={disabled}
         className={cn(
-          "inline-flex items-center gap-2 rounded-md border border-claude-700 bg-claude-900/30 px-3 py-1.5 text-sm font-medium text-claude-100 transition-colors",
-          "hover:border-claude-500 hover:bg-claude-900/60 hover:text-claude-50",
+          "inline-flex items-center gap-2 rounded-md border border-claude-700 bg-claude-900/30 px-3 py-1.5 text-sm font-medium text-claude-900 transition-colors",
+          "hover:border-claude-500 hover:bg-claude-900/60 hover:text-claude-950",
           "focus:outline-none focus-visible:ring-2 focus-visible:ring-claude-500",
           "disabled:cursor-not-allowed disabled:opacity-50",
         )}
@@ -602,18 +602,18 @@ function WagSearching({ phase }: { phase: string }) {
     <div className="mt-4 flex items-center gap-4">
       <div
         aria-hidden="true"
-        className="flex h-14 w-14 flex-shrink-0 items-center justify-center rounded-full border border-bone-800 bg-bone-900"
+        className="flex h-14 w-14 flex-shrink-0 items-center justify-center rounded-full border border-bone-200 bg-bone-100"
       >
         <WagSpinner />
       </div>
       <div className="min-w-0 flex-1">
-        <div className="font-display text-base font-semibold text-bone-100">
+        <div className="font-display text-base font-semibold text-bone-900">
           WAGFINDER working…
         </div>
         <div
           aria-live="polite"
           aria-atomic="true"
-          className="mt-1 text-sm text-bone-400 text-pretty transition-opacity"
+          className="mt-1 text-sm text-bone-600 text-pretty transition-opacity"
         >
           {phase}
         </div>
@@ -632,7 +632,7 @@ function WagSpinner() {
       aria-label="Searching"
       className="relative inline-block h-6 w-6"
     >
-      <span className="absolute inset-0 rounded-full border-2 border-bone-800" />
+      <span className="absolute inset-0 rounded-full border-2 border-bone-200" />
       <span className="absolute inset-0 animate-spin rounded-full border-2 border-transparent border-t-claude-400 border-r-claude-500" />
     </span>
   );
@@ -641,14 +641,14 @@ function WagSpinner() {
 function WagNotFound({ onRetry }: { onRetry: () => void }) {
   return (
     <div className="mt-3 flex flex-col items-start gap-2">
-      <p className="text-sm text-bone-400">
+      <p className="text-sm text-bone-600">
         No public info found. Could be a private player, or the web&apos;s
         quiet on this one.
       </p>
       <button
         type="button"
         onClick={onRetry}
-        className="text-[11px] uppercase tracking-wider text-bone-500 hover:text-bone-300 focus:outline-none focus-visible:ring-2 focus-visible:ring-claude-500"
+        className="text-[11px] uppercase tracking-wider text-bone-500 hover:text-bone-700 focus:outline-none focus-visible:ring-2 focus-visible:ring-claude-500"
       >
         try again
       </button>
@@ -665,13 +665,13 @@ function WagError({
 }) {
   return (
     <div className="mt-3 flex flex-col items-start gap-2">
-      <p className="text-sm text-claude-200 text-pretty">
+      <p className="text-sm text-claude-800 text-pretty">
         {message ?? "Search failed."}
       </p>
       <button
         type="button"
         onClick={onRetry}
-        className="inline-flex items-center gap-2 rounded-md border border-claude-700 bg-claude-900/30 px-3 py-1.5 text-sm font-medium text-claude-100 hover:border-claude-500 focus:outline-none focus-visible:ring-2 focus-visible:ring-claude-500"
+        className="inline-flex items-center gap-2 rounded-md border border-claude-700 bg-claude-900/30 px-3 py-1.5 text-sm font-medium text-claude-900 hover:border-claude-500 focus:outline-none focus-visible:ring-2 focus-visible:ring-claude-500"
       >
         Try again
       </button>
@@ -707,29 +707,29 @@ function WagResult({
           height={56}
           loading="lazy"
           onError={onImageBroken}
-          className="h-14 w-14 flex-shrink-0 rounded-full border border-bone-800 bg-bone-900 object-cover"
+          className="h-14 w-14 flex-shrink-0 rounded-full border border-bone-200 bg-bone-100 object-cover"
         />
       ) : (
         <div
           aria-hidden="true"
-          className="flex h-14 w-14 flex-shrink-0 items-center justify-center rounded-full border border-bone-800 bg-bone-900 text-sm text-bone-400"
+          className="flex h-14 w-14 flex-shrink-0 items-center justify-center rounded-full border border-bone-200 bg-bone-100 text-sm text-bone-600"
         >
           {partner.name ? initials(partner.name) : "??"}
         </div>
       )}
       <div className="min-w-0 flex-1">
         <div className="flex items-baseline gap-2">
-          <h3 className="truncate font-display text-base font-semibold text-bone-50 text-balance">
+          <h3 className="truncate font-display text-base font-semibold text-bone-950 text-balance">
             {partner.name ?? "Unknown"}
           </h3>
           {/* Single claude-accent spot on the card — relationship is
               the one semantic signal that earns the dusty-rose. */}
-          <span className="flex-shrink-0 rounded-full border border-claude-700/70 px-2 py-0.5 text-[11px] uppercase tracking-widest text-claude-200">
+          <span className="flex-shrink-0 rounded-full border border-claude-700/70 px-2 py-0.5 text-[11px] uppercase tracking-widest text-claude-800">
             {RELATIONSHIP_LABEL[partner.relationship]}
           </span>
         </div>
         {partner.notableFact ? (
-          <p className="mt-1.5 text-sm text-bone-200 text-pretty">
+          <p className="mt-1.5 text-sm text-bone-800 text-pretty">
             {partner.notableFact}
           </p>
         ) : null}
@@ -738,7 +738,7 @@ function WagResult({
             href={`https://instagram.com/${partner.instagramHandle}`}
             target="_blank"
             rel="noopener noreferrer"
-            className="mt-1.5 inline-block text-sm text-claude-300 underline-offset-2 hover:text-claude-200 hover:underline focus:outline-none focus-visible:ring-2 focus-visible:ring-claude-500"
+            className="mt-1.5 inline-block text-sm text-claude-700 underline-offset-2 hover:text-claude-800 hover:underline focus:outline-none focus-visible:ring-2 focus-visible:ring-claude-500"
           >
             @{partner.instagramHandle}
           </a>
@@ -749,7 +749,7 @@ function WagResult({
               href={partner.sourceUrl}
               target="_blank"
               rel="noopener noreferrer"
-              className="truncate hover:text-bone-300 focus:outline-none focus-visible:ring-2 focus-visible:ring-claude-500"
+              className="truncate hover:text-bone-700 focus:outline-none focus-visible:ring-2 focus-visible:ring-claude-500"
             >
               source · {sourceDomain(partner.sourceUrl)}
             </a>

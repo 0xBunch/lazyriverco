@@ -27,46 +27,46 @@ export function MlfTopThree({
     : "";
 
   return (
-    <section className="rounded-sm border border-bone-800 bg-bone-900/40 p-5 md:p-7">
+    <section className="rounded-sm border border-bone-200 bg-bone-100 p-5 md:p-7">
       <SectionHeader
         label={`MLF · Top 3 ${labelSuffix}`.trim()}
         srTitle="MLF Top 3 standings"
         trailing={
           <Link
             href="/sports/mlf"
-            className="text-xs text-claude-300 transition-colors hover:text-claude-200 focus:outline-none focus-visible:ring-2 focus-visible:ring-claude-500"
+            className="text-xs text-claude-700 transition-colors hover:text-claude-800 focus:outline-none focus-visible:ring-2 focus-visible:ring-claude-500"
           >
             Full standings →
           </Link>
         }
       />
       {!data || data.rows.length === 0 ? (
-        <p className="mt-5 text-sm text-bone-400">
+        <p className="mt-5 text-sm text-bone-600">
           MLF standings unavailable right now.
         </p>
       ) : (
-        <ol className="mt-5 divide-y divide-bone-800">
+        <ol className="mt-5 divide-y divide-bone-200">
           {data.rows.map((row) => (
             <li key={row.rosterId} className="flex items-center gap-3 py-3 md:gap-4">
-              <span className="w-5 font-display text-xl font-semibold tabular-nums text-bone-400 md:w-6 md:text-2xl">
+              <span className="w-5 font-display text-xl font-semibold tabular-nums text-bone-600 md:w-6 md:text-2xl">
                 {row.rank}
               </span>
               <ManagerAvatar row={row} />
               <div className="min-w-0 flex-1">
-                <p className="truncate font-display text-sm font-semibold text-bone-50 md:text-base">
+                <p className="truncate font-display text-sm font-semibold text-bone-950 md:text-base">
                   {row.teamName ?? row.managerDisplayName}
                 </p>
                 {row.teamName ? (
-                  <p className="truncate text-xs text-bone-400">
+                  <p className="truncate text-xs text-bone-600">
                     {row.managerDisplayName}
                   </p>
                 ) : null}
               </div>
-              <span className="text-sm tabular-nums text-bone-100">
+              <span className="text-sm tabular-nums text-bone-900">
                 {row.wins}–{row.losses}
                 {row.ties > 0 ? `–${row.ties}` : ""}
               </span>
-              <span className="ml-2 hidden text-xs tabular-nums text-bone-400 md:ml-3 md:inline">
+              <span className="ml-2 hidden text-xs tabular-nums text-bone-600 md:ml-3 md:inline">
                 {row.pointsFor.toFixed(1)}
               </span>
             </li>
@@ -84,7 +84,7 @@ function ManagerAvatar({ row }: { row: StandingsRow }) {
       <img
         src={row.avatar}
         alt=""
-        className="h-8 w-8 rounded-full object-cover ring-1 ring-bone-700 md:h-9 md:w-9"
+        className="h-8 w-8 rounded-full object-cover ring-1 ring-bone-300 md:h-9 md:w-9"
       />
     );
   }
@@ -95,7 +95,7 @@ function ManagerAvatar({ row }: { row: StandingsRow }) {
     .map((s) => s[0]?.toUpperCase())
     .join("");
   return (
-    <div className="grid h-8 w-8 place-items-center rounded-full bg-bone-800 font-display text-xs font-semibold text-bone-100 ring-1 ring-bone-700 md:h-9 md:w-9">
+    <div className="grid h-8 w-8 place-items-center rounded-full bg-bone-200 font-display text-xs font-semibold text-bone-900 ring-1 ring-bone-300 md:h-9 md:w-9">
       {initials || "—"}
     </div>
   );

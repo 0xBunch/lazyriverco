@@ -26,25 +26,25 @@ export function WagOfTheDay({
 }) {
   if (!data) {
     return (
-      <article className="relative col-span-1 overflow-hidden rounded-sm bg-bone-900 ring-1 ring-bone-800 md:col-span-7">
+      <article className="relative col-span-1 overflow-hidden rounded-sm bg-bone-100 ring-1 ring-bone-200 md:col-span-7">
         <div
           aria-hidden="true"
           className="absolute inset-0"
           style={{
             background:
-              "linear-gradient(135deg, #1E1D1C 0%, #141311 60%, #141311 100%)",
+              "linear-gradient(135deg, #EFECDF 0%, #FAF9F5 60%, #FAF9F5 100%)",
           }}
         />
         <SectionHeaderEyebrow label="WAG of the Day" />
         <div className="relative flex aspect-[4/5] flex-col justify-end p-6 md:aspect-[7/8] md:p-10">
           <h2 className="sr-only">WAG of the Day</h2>
-          <p className="font-display text-2xl font-semibold text-bone-300 md:text-3xl">
+          <p className="font-display text-2xl font-semibold text-bone-700 md:text-3xl">
             On break today.
           </p>
           {isAdmin ? (
             <Link
               href="/admin/sports/wags/queue"
-              className="mt-3 inline-flex w-fit items-center gap-2 rounded-full border border-bone-700 bg-bone-950 px-3 py-1.5 text-xs text-bone-200 transition-colors hover:border-claude-500 hover:text-claude-200 focus:outline-none focus-visible:ring-2 focus-visible:ring-claude-500"
+              className="mt-3 inline-flex w-fit items-center gap-2 rounded-full border border-bone-300 bg-bone-50 px-3 py-1.5 text-xs text-bone-800 transition-colors hover:border-claude-500 hover:text-claude-800 focus:outline-none focus-visible:ring-2 focus-visible:ring-claude-500"
             >
               Schedule one →
             </Link>
@@ -58,7 +58,7 @@ export function WagOfTheDay({
   const altText = `${wag.name}, partner of ${wag.athleteName}`;
 
   return (
-    <article className="relative col-span-1 aspect-[4/5] overflow-hidden rounded-sm bg-bone-900 ring-1 ring-bone-800 md:col-span-7 md:aspect-[7/8]">
+    <article className="relative col-span-1 aspect-[4/5] overflow-hidden rounded-sm bg-bone-100 ring-1 ring-bone-200 md:col-span-7 md:aspect-[7/8]">
       {/* Image — eslint-disable-next-line because next/image needs the
           host allow-listed in next.config.mjs (deferred to a follow-up
           PR that extends the partner-photo proxy + remotePatterns). */}
@@ -82,9 +82,9 @@ export function WagOfTheDay({
         label="WAG of the Day"
         serial={serial}
       />
-      <div className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-bone-950/95 via-bone-950/60 to-transparent p-6 md:p-10">
+      <div className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-bone-50/95 via-bone-50/60 to-transparent p-6 md:p-10">
         <h2
-          className="font-display font-semibold text-balance text-bone-50"
+          className="font-display font-semibold text-balance text-bone-950"
           style={{
             fontSize: "clamp(32px, 4.5vw, 64px)",
             fontWeight: 600,
@@ -95,13 +95,13 @@ export function WagOfTheDay({
           {wag.name}
         </h2>
         {caption ? (
-          <p className="mt-2 max-w-xl text-sm text-pretty text-bone-200 line-clamp-1 md:mt-3 md:line-clamp-2 md:text-lg">
+          <p className="mt-2 max-w-xl text-sm text-pretty text-bone-800 line-clamp-1 md:mt-3 md:line-clamp-2 md:text-lg">
             {caption}
           </p>
         ) : null}
         <div className="mt-3 flex flex-wrap items-center gap-3 text-xs md:mt-5 md:text-sm">
-          <span className="inline-flex items-center gap-1.5 rounded-full bg-bone-900/70 px-3 py-1 text-bone-100 ring-1 ring-bone-700">
-            <span className="font-display text-[10px] font-semibold uppercase tracking-[0.28em] text-bone-400">
+          <span className="inline-flex items-center gap-1.5 rounded-full bg-bone-100 px-3 py-1 text-bone-900 ring-1 ring-bone-300">
+            <span className="font-display text-[10px] font-semibold uppercase tracking-[0.28em] text-bone-600">
               Athlete
             </span>
             <span className="truncate">
@@ -114,7 +114,7 @@ export function WagOfTheDay({
               href={wag.instagramUrl}
               target="_blank"
               rel="noopener noreferrer"
-              className="text-claude-300 underline decoration-claude-700 underline-offset-4 transition-colors hover:text-claude-200 focus:outline-none focus-visible:ring-2 focus-visible:ring-claude-500"
+              className="text-claude-700 underline decoration-claude-700 underline-offset-4 transition-colors hover:text-claude-800 focus:outline-none focus-visible:ring-2 focus-visible:ring-claude-500"
             >
               Instagram
             </a>
@@ -136,11 +136,11 @@ function SectionHeaderEyebrow({
 }) {
   return (
     <div className="absolute inset-x-6 top-6 z-10 flex items-center justify-between md:inset-x-10 md:top-10">
-      <span className="font-display text-[10px] font-semibold uppercase tracking-[0.28em] text-sports-amber/90">
+      <span className="font-display text-[10px] font-semibold uppercase tracking-[0.28em] text-bone-700">
         {label}
       </span>
       {typeof serial === "number" ? (
-        <span className="font-display text-[10px] font-semibold uppercase tracking-[0.28em] tabular-nums text-bone-300">
+        <span className="font-display text-[10px] font-semibold uppercase tracking-[0.28em] tabular-nums text-bone-700">
           № {String(serial).padStart(3, "0")}
         </span>
       ) : null}

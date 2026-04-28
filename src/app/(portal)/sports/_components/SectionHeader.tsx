@@ -7,7 +7,7 @@
 ///   - An optional trailing slot for a "More →" link or filter chip.
 ///
 /// Visual: font-display uppercase tracking-[0.28em] text-[10px]
-/// font-semibold text-bone-400. Per the rams a11y pass, decorative
+/// font-semibold text-bone-600. Per the rams a11y pass, decorative
 /// labels under WCAG's 12pt advisory must not be the only heading.
 export function SectionHeader({
   label,
@@ -26,7 +26,7 @@ export function SectionHeader({
       <h2 className="sr-only">{srTitle}</h2>
       <span
         aria-hidden="true"
-        className="font-display text-[10px] font-semibold uppercase tracking-[0.28em] text-bone-400"
+        className="font-display text-[10px] font-semibold uppercase tracking-[0.28em] text-bone-600"
       >
         {label}
       </span>

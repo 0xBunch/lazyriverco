@@ -17,7 +17,7 @@ export function TonightStrip({
   isAdmin: boolean;
 }) {
   return (
-    <section className="rounded-sm border border-bone-800 bg-bone-900/40 p-5 md:p-7">
+    <section className="rounded-sm border border-bone-200 bg-bone-100 p-5 md:p-7">
       <SectionHeader
         label="Tonight · Where to watch"
         srTitle="Tonight's schedule"
@@ -25,7 +25,7 @@ export function TonightStrip({
           isAdmin ? (
             <a
               href="/admin/sports/schedule"
-              className="text-xs text-claude-300 transition-colors hover:text-claude-200 focus:outline-none focus-visible:ring-2 focus-visible:ring-claude-500"
+              className="text-xs text-claude-700 transition-colors hover:text-claude-800 focus:outline-none focus-visible:ring-2 focus-visible:ring-claude-500"
             >
               Manage →
             </a>
@@ -33,7 +33,7 @@ export function TonightStrip({
         }
       />
       {games.length === 0 ? (
-        <p className="mt-5 text-sm text-bone-400">
+        <p className="mt-5 text-sm text-bone-600">
           Nothing on the schedule yet.
         </p>
       ) : (
@@ -65,16 +65,16 @@ const SCHEDULE_TIME_FORMAT = new Intl.DateTimeFormat("en-US", {
 function ScheduleCard({ game }: { game: SportsScheduleGame }) {
   const isLive = game.status === "LIVE";
   const cardClasses = isLive
-    ? "flex items-center gap-3 rounded-sm border border-sports-amber/40 bg-sports-amber/5 p-3"
-    : "flex items-center gap-3 rounded-sm border border-bone-800 bg-bone-950/40 p-3";
+    ? "flex items-center gap-3 rounded-sm border border-sports-amber/60 bg-sports-amber/15 p-3"
+    : "flex items-center gap-3 rounded-sm border border-bone-200 bg-bone-100 p-3";
 
   const inner = (
     <>
       <div className="flex w-12 flex-col items-end gap-0.5 leading-none md:w-16 md:gap-1">
-        <span className="font-display text-xs font-semibold text-bone-50 md:text-sm">
+        <span className="font-display text-xs font-semibold text-bone-950 md:text-sm">
           {game.awayTeam}
         </span>
-        <span className="font-display text-xs font-semibold text-bone-50 md:text-sm">
+        <span className="font-display text-xs font-semibold text-bone-950 md:text-sm">
           @ {game.homeTeam}
         </span>
       </div>
@@ -82,21 +82,21 @@ function ScheduleCard({ game }: { game: SportsScheduleGame }) {
         {isLive ? (
           <div className="flex items-center gap-1.5">
             <LiveDot className="h-1.5 w-1.5" />
-            <span className="font-display text-[10px] font-semibold uppercase tracking-[0.28em] text-sports-amber">
+            <span className="font-display text-[10px] font-semibold uppercase tracking-[0.28em] text-mlsn-500">
               Live
             </span>
           </div>
         ) : (
-          <span className="font-display text-[10px] font-semibold uppercase tracking-[0.28em] text-bone-400">
+          <span className="font-display text-[10px] font-semibold uppercase tracking-[0.28em] text-bone-600">
             {game.status === "FINAL" ? "Final" : "Tonight"}
           </span>
         )}
-        <p className="mt-0.5 text-sm tabular-nums text-bone-100">
+        <p className="mt-0.5 text-sm tabular-nums text-bone-900">
           {SCHEDULE_TIME_FORMAT.format(game.gameTime)}
         </p>
       </div>
       {game.network ? (
-        <span className="rounded-full bg-bone-950 px-2.5 py-0.5 text-[10px] tracking-widest text-bone-100 ring-1 ring-bone-700 md:px-3 md:py-1 md:text-[11px]">
+        <span className="rounded-full bg-bone-50 px-2.5 py-0.5 text-[10px] tracking-widest text-bone-900 ring-1 ring-bone-300 md:px-3 md:py-1 md:text-[11px]">
           {game.network}
         </span>
       ) : null}
