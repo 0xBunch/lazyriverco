@@ -10,6 +10,26 @@ import type { NewMessagePayload } from "@/lib/mlchat/types";
 // Postgres trigger installed by the v01 migration emits NOTIFYs on
 // Message INSERTs scoped to a Channel; we validate the payload shape and
 // fan out to every SSE handler currently registered.
+//
+// Resilience model:
+//   - pg-listen's defaults give up reconnecting after 3000ms total
+//     (`retryTimeout`). On Railway, brief network proxy blips can
+//     easily exceed that — once we've given up, the subscriber sits
+//     dead with no further reconnect attempts. We extend retryTimeout
+//     to 60s so transient blips heal automatically.
+//   - On a TERMINAL connection error (after pg-listen's reconnect loop
+//     has exhausted), reset module state so the next `subscribe()` runs
+//     init() against a fresh client. Without reset, the previous lazy
+//     pattern silently dropped NOTIFYs because subscriber stayed
+//     non-null and init was never re-entered.
+//   - JSON parse errors on incoming payloads are caught by a custom
+//     `parse` so a bad payload (e.g. a misfired manual NOTIFY) doesn't
+//     trip pg-listen's error event. Our isNewMessagePayload guard
+//     drops the null result downstream.
+//   - SIGTERM clears state too, so a process that survives a graceful
+//     shutdown signal (Railway grace period without follow-up SIGKILL)
+//     still re-inits cleanly on the next subscribe rather than
+//     registering handlers against a closed client.
 
 const NOTIFY_CHANNEL = "mlchat_new_message" as const;
 
@@ -26,6 +46,10 @@ let initPromise: Promise<void> | null = null;
 // without blocking new subscribers.
 const HANDLER_COUNT_WARN = 100;
 
+// Give pg-listen a full minute to reconnect on transient network
+// issues. Default is 3000ms which evaporates on any non-trivial blip.
+const RETRY_TIMEOUT_MS = 60_000;
+
 function isNewMessagePayload(value: unknown): value is NewMessagePayload {
   if (!value || typeof value !== "object") return false;
   const v = value as Record<string, unknown>;
@@ -40,6 +64,43 @@ function isNewMessagePayload(value: unknown): value is NewMessagePayload {
   );
 }
 
+/**
+ * pg-listen's default `parse` is plain JSON.parse, which throws on
+ * non-JSON payloads and surfaces as an `error` event. We catch and
+ * return null so the downstream isNewMessagePayload guard drops it
+ * without disturbing the connection. Same shape as the default for
+ * valid JSON; null for everything else.
+ */
+function safeParsePayload(serialized: string): unknown {
+  try {
+    return JSON.parse(serialized);
+  } catch {
+    console.warn(
+      "[mlchat/listen] dropping non-JSON payload",
+      serialized.slice(0, 80),
+    );
+    return null;
+  }
+}
+
+/**
+ * Drop module-level subscriber state and close the underlying client.
+ * Existing handlers stay registered — they'll be served by the next
+ * init()'s subscriber once subscribe() re-enters. Idempotent.
+ */
+function resetSubscriberState(reason: string): void {
+  if (!subscriber && !initPromise) return;
+  console.warn(`[mlchat/listen] resetting state — ${reason}`);
+  const dying = subscriber;
+  subscriber = null;
+  initPromise = null;
+  if (dying) {
+    dying.close().catch((e) => {
+      console.error("[mlchat/listen] error during reset close", e);
+    });
+  }
+}
+
 async function init(): Promise<void> {
   const connectionString = process.env.DATABASE_URL;
   if (!connectionString) {
@@ -48,12 +109,17 @@ async function init(): Promise<void> {
     );
   }
 
-  // paranoidChecking re-issues a SELECT 1 every 30s to detect half-open
-  // connections behind proxies (Railway's networking layer can hold a
-  // TCP socket open after the upstream pgbouncer drops it).
   const sub = createSubscriber<Channels>(
     { connectionString },
-    { paranoidChecking: 30_000 },
+    {
+      // Re-issue SELECT 1 every 30s to detect half-open connections
+      // behind Railway's network proxy.
+      paranoidChecking: 30_000,
+      // Give the reconnect loop 60s before giving up, vs the 3s default.
+      retryTimeout: RETRY_TIMEOUT_MS,
+      // Drop non-JSON payloads silently instead of firing error.
+      parse: safeParsePayload,
+    },
   );
 
   sub.notifications.on(NOTIFY_CHANNEL, (payload) => {
@@ -78,7 +144,14 @@ async function init(): Promise<void> {
   });
 
   sub.events.on("error", (err) => {
+    // Connection-level terminal failure: pg-listen has exhausted its
+    // reconnect window. Reset module state so the next subscribe() runs
+    // init() against a fresh client. (Parse errors no longer reach this
+    // path — they're swallowed by safeParsePayload above.)
     console.error("[mlchat/listen] subscriber error", err);
+    if (subscriber === sub) {
+      resetSubscriberState(`error event: ${err.message}`);
+    }
   });
 
   sub.events.on("connected", () => {
@@ -92,44 +165,34 @@ async function init(): Promise<void> {
   await sub.connect();
   await sub.listenTo(NOTIFY_CHANNEL);
 
-  // Graceful shutdown: Railway sends SIGTERM with ~10s grace before
-  // SIGKILL on every redeploy. Closing the pg-listen client cleanly
-  // releases the DB connection immediately rather than letting Postgres
-  // time it out, which matters when push-to-main cycles can stack a
-  // few half-dead connections against the pool.
-  const shutdown = () => {
-    sub.close().catch((e) => {
-      console.error("[mlchat/listen] error during shutdown", e);
-    });
-  };
-  process.once("SIGTERM", shutdown);
-  process.once("SIGINT", shutdown);
-
   subscriber = sub;
+}
+
+/**
+ * Internal: ensure a live subscriber exists. Inits if absent; awaits an
+ * in-flight init promise if one's already running. Throws if init fails;
+ * the caller decides retry semantics.
+ */
+async function ensureSubscriber(): Promise<void> {
+  if (subscriber) return;
+  if (!initPromise) {
+    initPromise = init().catch((err) => {
+      // Reset so the next call re-runs init instead of returning a
+      // permanently-rejected promise.
+      initPromise = null;
+      throw err;
+    });
+  }
+  await initPromise;
 }
 
 /**
  * Register an SSE handler that fires whenever a new room message lands.
  * Returns an unsubscribe function — call it from the SSE route's cancel
  * / abort path so handlers don't leak across closed connections.
- *
- * Lazily initializes the underlying pg-listen connection on first call.
- * If init throws (e.g. DB unreachable on cold boot), the rejection
- * propagates to the caller and the handler is NOT registered. Subsequent
- * subscribe() calls retry init once the previous attempt settles.
  */
 export async function subscribe(handler: Handler): Promise<() => void> {
-  if (!subscriber) {
-    if (!initPromise) {
-      initPromise = init().catch((err) => {
-        // Reset so the next subscribe() retries instead of returning a
-        // permanently-rejected promise.
-        initPromise = null;
-        throw err;
-      });
-    }
-    await initPromise;
-  }
+  await ensureSubscriber();
   handlers.add(handler);
   if (handlers.size > HANDLER_COUNT_WARN) {
     console.warn(`[mlchat/listen] handler count high: ${handlers.size}`);
@@ -138,3 +201,16 @@ export async function subscribe(handler: Handler): Promise<() => void> {
     handlers.delete(handler);
   };
 }
+
+// Graceful shutdown: Railway sends SIGTERM with ~10s grace before
+// SIGKILL on every redeploy. Reset module state AND close the pg-listen
+// client so the DB connection releases immediately. Reset (not just
+// close) means a process that survives the grace window without dying
+// re-inits cleanly on the next subscribe() rather than registering
+// handlers against a closed client.
+process.once("SIGTERM", () => {
+  resetSubscriberState("SIGTERM");
+});
+process.once("SIGINT", () => {
+  resetSubscriberState("SIGINT");
+});
