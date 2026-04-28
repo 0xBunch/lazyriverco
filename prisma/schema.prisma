@@ -1535,20 +1535,41 @@ model SportsScheduleGame {
 /// (line 1325) but scoped to the landing rather than a draft event.
 /// Active sponsors rotate by date hash — the same brand shows all day,
 /// then advances at UTC midnight.
+///
+/// PR C adds optional banner-image fields. When `imageR2Key` is set,
+/// SponsorBreakRail renders the image at the configured `imageShape`;
+/// when null, the existing text treatment is used. A SQL CHECK
+/// constraint enforces that imageR2Key and imageShape are both set or
+/// both null (defense in depth — actions.ts also validates).
 model SportsSponsor {
-  id           String   @id @default(uuid())
+  id           String              @id @default(uuid())
   name         String
   /// Italic 1-liner displayed in quotes beneath the brand name.
-  tagline      String?  @db.VarChar(140)
+  tagline      String?             @db.VarChar(140)
   /// Optional click-through URL. Mockups use # for fake-ad mode.
   href         String?
-  active       Boolean  @default(true)
+  /// R2 key under the `sponsors/<uuid>.<ext>` prefix. Null = text-only sponsor.
+  imageR2Key   String?
+  /// Alt text for the banner image. Falls back to `name` if null.
+  imageAltText String?             @db.VarChar(280)
+  /// Layout used to render the banner. Null when `imageR2Key` is null.
+  imageShape   SponsorImageShape?
+  active       Boolean             @default(true)
   /// Sort order within active set. Drives stable rotation across days.
-  displayOrder Int      @default(0)
-  createdAt    DateTime @default(now())
-  updatedAt    DateTime @updatedAt
+  displayOrder Int                 @default(0)
+  createdAt    DateTime            @default(now())
+  updatedAt    DateTime            @updatedAt
 
   @@index([active, displayOrder])
+}
+
+/// Shape of the SportsSponsor banner image. BILLBOARD is ~970x250
+/// (IAB billboard). SQUARE is ~1:1 — the native output of Nano Banana
+/// Pro, easing PR D's AI generation flow. Null on the column means the
+/// sponsor is text-only.
+enum SponsorImageShape {
+  BILLBOARD
+  SQUARE
 }
 
 /// Game status for SportsScheduleGame. SCHEDULED → LIVE → FINAL is the

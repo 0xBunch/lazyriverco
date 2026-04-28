@@ -2,11 +2,22 @@ import { prisma } from "@/lib/prisma";
 import {
   createSponsor,
   deleteSponsor,
+  removeSponsorImage,
   toggleSponsorActive,
   updateSponsor,
 } from "./actions";
+import { UploadImageField } from "./UploadImageField";
 
 export const dynamic = "force-dynamic";
+
+const R2_PUBLIC_BASE =
+  process.env.NEXT_PUBLIC_R2_PUBLIC_BASE_URL?.replace(/\/+$/, "") ?? "";
+
+function r2Url(key: string | null | undefined): string | null {
+  if (!key) return null;
+  if (!R2_PUBLIC_BASE) return null;
+  return `${R2_PUBLIC_BASE}/${key}`;
+}
 
 type SearchParams = { msg?: string; error?: string; edit?: string };
 
@@ -39,10 +50,10 @@ export default async function AdminSportsSponsorsPage({
       )}
 
       <p className="text-sm text-bone-300">
-        Sponsors surface in two places on /sports — the hero{" "}
-        <strong className="font-semibold text-bone-100">Presented By</strong>{" "}
-        line and the mid-page broadcast-break rail. Active sponsors rotate by
-        hashed UTC date — same brand all day, advances at midnight.{" "}
+        Sponsors render in the mid-page broadcast-break rail on /sports.
+        Active sponsors rotate by hashed UTC date — same brand all day,
+        advances at midnight. Upload an image and pick a shape to ship a
+        banner ad; leave the image blank for a text-only sponsor card.{" "}
         <strong className="font-semibold text-bone-100">{activeCount}</strong>{" "}
         active right now.
       </p>
@@ -95,6 +106,49 @@ export default async function AdminSportsSponsorsPage({
             />
             Active in rotation
           </label>
+
+          <div className="space-y-3 sm:col-span-2">
+            <UploadImageField
+              initialKey={editing?.imageR2Key ?? null}
+              initialUrl={r2Url(editing?.imageR2Key)}
+            />
+            <fieldset className="rounded-lg border border-bone-700 bg-bone-950/40 p-3">
+              <legend className="px-1 font-display text-[11px] font-semibold uppercase tracking-[0.2em] text-bone-400">
+                Banner shape
+              </legend>
+              <div className="flex flex-wrap gap-4 pt-1 text-sm text-bone-200">
+                <label className="flex items-center gap-2">
+                  <input
+                    type="radio"
+                    name="imageShape"
+                    value="BILLBOARD"
+                    defaultChecked={editing?.imageShape !== "SQUARE"}
+                    className="h-4 w-4 border-bone-700 bg-bone-950 text-claude-500 focus:ring-claude-500"
+                  />
+                  Billboard{" "}
+                  <span className="text-xs text-bone-500">~970×250</span>
+                </label>
+                <label className="flex items-center gap-2">
+                  <input
+                    type="radio"
+                    name="imageShape"
+                    value="SQUARE"
+                    defaultChecked={editing?.imageShape === "SQUARE"}
+                    className="h-4 w-4 border-bone-700 bg-bone-950 text-claude-500 focus:ring-claude-500"
+                  />
+                  Square{" "}
+                  <span className="text-xs text-bone-500">1:1, AI-friendly</span>
+                </label>
+              </div>
+            </fieldset>
+            <input
+              name="imageAltText"
+              placeholder="Image alt text (a11y; falls back to brand name)"
+              maxLength={280}
+              defaultValue={editing?.imageAltText ?? ""}
+              className={inputCls + " w-full"}
+            />
+          </div>
         </div>
         <div className="flex justify-end gap-2">
           {editing && (
@@ -108,66 +162,107 @@ export default async function AdminSportsSponsorsPage({
         </div>
       </form>
 
+      {editing?.imageR2Key && (
+        <form
+          action={removeSponsorImage}
+          className="rounded-2xl border border-bone-800 bg-bone-950 p-4 text-sm text-bone-300"
+        >
+          <input type="hidden" name="id" value={editing.id} />
+          <div className="flex items-center justify-between gap-3">
+            <p>
+              <strong className="font-semibold text-bone-100">
+                {editing.name}
+              </strong>{" "}
+              has a banner image attached. Removing it reverts the sponsor
+              to text-only mode.
+            </p>
+            <button type="submit" className={btnDangerCls}>
+              Remove image
+            </button>
+          </div>
+        </form>
+      )}
+
       {sponsors.length === 0 ? (
         <p className="rounded-2xl border border-bone-800 bg-bone-950 p-6 text-center text-sm italic text-bone-400">
           No sponsors yet. Add one above to start the rotation.
         </p>
       ) : (
         <ul className="space-y-2">
-          {sponsors.map((s) => (
-            <li
-              key={s.id}
-              className={`rounded-xl border p-4 ${
-                s.active
-                  ? "border-bone-700 bg-bone-900"
-                  : "border-bone-800 bg-bone-950 opacity-60"
-              }`}
-            >
-              <div className="flex flex-wrap items-baseline gap-3">
-                <p className="font-display text-base font-semibold uppercase tracking-tight text-bone-50">
-                  {s.name}
-                </p>
-                <span className="text-[0.7rem] uppercase tracking-widest text-bone-500">
-                  sort {s.displayOrder} · {s.active ? "active" : "paused"}
-                </span>
-              </div>
-              {s.tagline && (
-                <p className="mt-1 text-sm italic text-bone-300">
-                  &ldquo;{s.tagline}&rdquo;
-                </p>
-              )}
-              {s.href && (
-                <p className="mt-1 truncate text-xs text-bone-500">
-                  →{" "}
-                  <a
-                    href={s.href}
-                    target="_blank"
-                    rel="noreferrer"
-                    className="underline decoration-bone-700 underline-offset-2 hover:text-bone-300"
-                  >
-                    {s.href}
-                  </a>
-                </p>
-              )}
-              <div className="mt-3 flex flex-wrap gap-2">
-                <a href={`/admin/sports/sponsors?edit=${s.id}`} className={btnCls}>
-                  Edit
-                </a>
-                <form action={toggleSponsorActive}>
-                  <input type="hidden" name="id" value={s.id} />
-                  <button type="submit" className={btnCls}>
-                    {s.active ? "Pause" : "Resume"}
-                  </button>
-                </form>
-                <form action={deleteSponsor}>
-                  <input type="hidden" name="id" value={s.id} />
-                  <button type="submit" className={btnDangerCls}>
-                    Delete
-                  </button>
-                </form>
-              </div>
-            </li>
-          ))}
+          {sponsors.map((s) => {
+            const thumbUrl = r2Url(s.imageR2Key);
+            return (
+              <li
+                key={s.id}
+                className={`flex gap-3 rounded-xl border p-4 ${
+                  s.active
+                    ? "border-bone-700 bg-bone-900"
+                    : "border-bone-800 bg-bone-950 opacity-60"
+                }`}
+              >
+                {thumbUrl ? (
+                  <span className="block h-16 w-16 shrink-0 overflow-hidden rounded-md border border-bone-800 bg-bone-950">
+                    {/* eslint-disable-next-line @next/next/no-img-element */}
+                    <img
+                      src={thumbUrl}
+                      alt={s.imageAltText ?? s.name}
+                      className="h-full w-full object-cover"
+                    />
+                  </span>
+                ) : null}
+                <div className="min-w-0 flex-1">
+                  <div className="flex flex-wrap items-baseline gap-3">
+                    <p className="font-display text-base font-semibold uppercase tracking-tight text-bone-50">
+                      {s.name}
+                    </p>
+                    <span className="text-[0.7rem] uppercase tracking-widest text-bone-500">
+                      sort {s.displayOrder} · {s.active ? "active" : "paused"}
+                    </span>
+                    {s.imageShape && (
+                      <span className="rounded-full border border-claude-700/60 px-2 py-0.5 text-[0.65rem] font-semibold uppercase tracking-widest text-claude-200">
+                        {s.imageShape === "SQUARE" ? "Square" : "Billboard"}
+                      </span>
+                    )}
+                  </div>
+                  {s.tagline && (
+                    <p className="mt-1 text-sm italic text-bone-300">
+                      &ldquo;{s.tagline}&rdquo;
+                    </p>
+                  )}
+                  {s.href && (
+                    <p className="mt-1 truncate text-xs text-bone-500">
+                      →{" "}
+                      <a
+                        href={s.href}
+                        target="_blank"
+                        rel="noreferrer"
+                        className="underline decoration-bone-700 underline-offset-2 hover:text-bone-300"
+                      >
+                        {s.href}
+                      </a>
+                    </p>
+                  )}
+                  <div className="mt-3 flex flex-wrap gap-2">
+                    <a href={`/admin/sports/sponsors?edit=${s.id}`} className={btnCls}>
+                      Edit
+                    </a>
+                    <form action={toggleSponsorActive}>
+                      <input type="hidden" name="id" value={s.id} />
+                      <button type="submit" className={btnCls}>
+                        {s.active ? "Pause" : "Resume"}
+                      </button>
+                    </form>
+                    <form action={deleteSponsor}>
+                      <input type="hidden" name="id" value={s.id} />
+                      <button type="submit" className={btnDangerCls}>
+                        Delete
+                      </button>
+                    </form>
+                  </div>
+                </div>
+              </li>
+            );
+          })}
         </ul>
       )}
     </div>
