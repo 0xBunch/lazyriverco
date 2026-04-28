@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { cn } from "@/lib/utils";
 import type { UpcomingEntry } from "@/lib/calendar-grid";
+import { tagEmoji } from "@/lib/calendar-tag-emoji";
 
 // Presentational list view for the next N upcoming events. Pairs with the
 // month grid behind the ?v=list|calendar toggle. Date column on the left
@@ -88,6 +89,8 @@ export function CalendarUpcomingList({ entries, todayIso }: Props) {
                     >
                       ↻
                     </span>
+                  ) : tagEmoji(entry.tags) ? (
+                    <span aria-hidden="true">{tagEmoji(entry.tags)}</span>
                   ) : null}
                   <span className="truncate">{entry.title}</span>
                 </div>

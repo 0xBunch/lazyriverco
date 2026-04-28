@@ -778,12 +778,28 @@ model CalendarEntry {
   /// YouTube or Vimeo URL. Rendered as an iframe embed on the detail page.
   /// URL-only; video *upload* is intentionally not supported (cost + moderation).
   videoEmbedUrl String?
+  /// Origin tag for cron-synced rows (e.g. "nager-us", "usno-moon",
+  /// "espn-nfl"). NULL for hand-curated entries. Pairs with externalId
+  /// to form the dedupe key for syncs. Existing manual rows leave both
+  /// columns NULL — Postgres treats NULLs as distinct in unique
+  /// indexes, so no conflicts.
+  source        String?
+  /// Provider's stable ID for a given event ("2026-12-25-christmas-day",
+  /// "day-2026-09-13"). NULL for manual entries. Combined with `source`
+  /// as the upsert key in src/lib/calendar-providers/upsert.ts.
+  externalId    String?
+  /// Last cron sync timestamp; NULL for manual entries. Useful for
+  /// debugging "why isn't this updating" — if syncedAt is fresh but the
+  /// row looks stale, the upstream changed.
+  syncedAt      DateTime?
   createdAt     DateTime @default(now())
   updatedAt     DateTime @updatedAt
 
   media         CalendarEntryMedia[]
 
+  @@unique([source, externalId])
   @@index([date])
+  @@index([source])
 }
 
 /// Join between CalendarEntry and the shared Media bank. A Media row can
