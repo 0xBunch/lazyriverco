@@ -8,7 +8,7 @@ import type { SportsSponsor } from "@prisma/client";
 /// src/app/(portal)/sports/mlf/draft-2026/page.tsx (lines 600-660):
 /// callsign label, brand name in display caps, italic tagline in
 /// quotes, rotation dots showing position in the active set. Active
-/// dot uses sports-amber; dim dots use bone-700 (vs draft-2026's
+/// dot uses sports-amber; dim dots use bone-300 (vs draft-2026's
 /// red/navy palette).
 ///
 /// Renders nothing when there's no active sponsor.
@@ -33,32 +33,24 @@ export function SponsorBreakRail({
   return (
     <section
       aria-label="Sponsor break"
-      className="relative w-full border-y border-sports-amber/30 bg-bone-900/50"
+      className="relative w-full border-y border-sports-amber/40 bg-bone-100"
     >
-      <div
-        aria-hidden="true"
-        className="absolute inset-0 opacity-[0.06]"
-        style={{
-          background:
-            "radial-gradient(60% 100% at 50% 50%, rgba(242,201,76,0.6) 0%, transparent 70%)",
-        }}
-      />
       <div className="relative mx-auto grid w-full max-w-7xl grid-cols-1 items-center gap-4 px-4 py-6 md:grid-cols-12 md:gap-6 md:px-6 md:py-8 lg:gap-10 lg:px-10 lg:py-10">
         <div className="flex flex-col gap-2 md:col-span-7">
           <div className="flex items-center gap-2">
-            <span className="font-display text-[10px] font-semibold uppercase tracking-[0.28em] text-sports-amber/80">
+            <span className="font-display text-[10px] font-semibold uppercase tracking-[0.28em] text-bone-700">
               Lazy River Sports
             </span>
-            <span aria-hidden="true" className="text-bone-700">
+            <span aria-hidden="true" className="text-bone-300">
               ·
             </span>
-            <span className="font-display text-[10px] font-semibold uppercase tracking-[0.28em] text-bone-300">
+            <span className="font-display text-[10px] font-semibold uppercase tracking-[0.28em] text-bone-700">
               Brought to you by
             </span>
           </div>
           <div className="flex flex-wrap items-baseline gap-2 md:gap-4">
             <span
-              className="font-display font-bold uppercase text-bone-50"
+              className="font-display font-bold uppercase text-bone-950"
               style={{
                 fontSize: "clamp(28px, 3.6vw, 48px)",
                 letterSpacing: "-0.01em",
@@ -68,7 +60,7 @@ export function SponsorBreakRail({
               {sponsor.name}
             </span>
             {sponsor.tagline ? (
-              <span className="text-sm italic text-bone-300 md:text-base">
+              <span className="text-sm italic text-bone-700 md:text-base">
                 &ldquo;{sponsor.tagline}&rdquo;
               </span>
             ) : null}
@@ -89,12 +81,12 @@ export function SponsorBreakRail({
                   className={
                     i === safeIndex
                       ? "h-1.5 w-3 rounded-full bg-sports-amber"
-                      : "h-1.5 w-1.5 rounded-full bg-bone-700"
+                      : "h-1.5 w-1.5 rounded-full bg-bone-300"
                   }
                 />
               ))}
             </div>
-            <span className="font-display text-[10px] font-semibold uppercase tracking-[0.28em] tabular-nums text-bone-400">
+            <span className="font-display text-[10px] font-semibold uppercase tracking-[0.28em] tabular-nums text-bone-600">
               {String(safeIndex + 1).padStart(2, "0")} / {String(dotCount).padStart(2, "0")}
             </span>
           </div>
@@ -103,7 +95,7 @@ export function SponsorBreakRail({
               href={sponsor.href}
               target="_blank"
               rel="noopener noreferrer"
-              className="inline-flex items-center gap-2 rounded-full border border-bone-700 bg-bone-950 px-4 py-2 text-xs uppercase tracking-widest text-bone-100 transition-colors hover:border-sports-amber/60 hover:text-sports-amber focus:outline-none focus-visible:ring-2 focus-visible:ring-claude-500"
+              className="inline-flex items-center gap-2 rounded-full border border-bone-300 bg-bone-50 px-4 py-2 text-xs uppercase tracking-widest text-bone-900 transition-colors hover:border-bone-500 hover:bg-bone-100 focus:outline-none focus-visible:ring-2 focus-visible:ring-claude-500"
             >
               Visit
               <span aria-hidden="true">↗</span>

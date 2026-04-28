@@ -41,24 +41,24 @@ export function HeadlinesRail({
         trailing={
           <Link
             href="/sports/news"
-            className="text-xs text-claude-300 transition-colors hover:text-claude-200 focus:outline-none focus-visible:ring-2 focus-visible:ring-claude-500"
+            className="text-xs text-claude-700 transition-colors hover:text-claude-800 focus:outline-none focus-visible:ring-2 focus-visible:ring-claude-500"
           >
             All news →
           </Link>
         }
       />
       {items.length === 0 ? (
-        <div className="mt-6 rounded-sm border border-dashed border-bone-800 p-6 text-sm text-bone-400">
+        <div className="mt-6 rounded-sm border border-dashed border-bone-200 p-6 text-sm text-bone-600">
           {isAdmin ? (
             <>
               No sports headlines yet. Configure a feed at{" "}
               <a
                 href="/admin/memory/feeds"
-                className="text-claude-300 underline decoration-claude-700 underline-offset-4 hover:text-claude-200 focus:outline-none focus-visible:ring-2 focus-visible:ring-claude-500"
+                className="text-claude-700 underline decoration-claude-700 underline-offset-4 hover:text-claude-800 focus:outline-none focus-visible:ring-2 focus-visible:ring-claude-500"
               >
                 /admin/memory/feeds
               </a>{" "}
-              with <code className="rounded bg-bone-900 px-1.5 py-0.5 text-bone-200">category=SPORTS</code>{" "}
+              with <code className="rounded bg-bone-100 px-1.5 py-0.5 text-bone-800">category=SPORTS</code>{" "}
               and a sport tag — items poll on the next cron tick.
             </>
           ) : (
@@ -66,7 +66,7 @@ export function HeadlinesRail({
           )}
         </div>
       ) : (
-        <ul className="mt-6 divide-y divide-bone-800/80 border-y border-bone-800/80">
+        <ul className="mt-6 divide-y divide-bone-200/80 border-y border-bone-200/80">
           {items.map((item, i) => (
             <li
               key={item.id}
@@ -91,39 +91,39 @@ function HeadlineCard({ item }: { item: HeadlineItem }) {
   return (
     <Link
       href={`/sports/news/${item.id}`}
-      className="group -mx-2 flex items-start gap-3 rounded-sm px-2 py-4 transition-colors hover:bg-bone-900/30 focus:outline-none focus-visible:ring-2 focus-visible:ring-claude-500 md:gap-5 md:py-5"
+      className="group -mx-2 flex items-start gap-3 rounded-sm px-2 py-4 transition-colors hover:bg-bone-100 focus:outline-none focus-visible:ring-2 focus-visible:ring-claude-500 md:gap-5 md:py-5"
     >
       <Thumbnail src={item.ogImageUrl} />
       <div className="min-w-0 flex-1">
         <div className="mb-1 flex flex-wrap items-center gap-1.5 md:mb-1.5 md:gap-2">
-          <span className="font-display text-[10px] font-semibold uppercase tracking-[0.28em] text-bone-400">
+          <span className="font-display text-[10px] font-semibold uppercase tracking-[0.28em] text-bone-600">
             {item.feedName}
           </span>
-          <span aria-hidden="true" className="text-bone-700">
+          <span aria-hidden="true" className="text-bone-300">
             ·
           </span>
-          <span className="text-[11px] tabular-nums text-bone-400 md:text-xs">
+          <span className="text-[11px] tabular-nums text-bone-600 md:text-xs">
             {relative}
           </span>
           {item.sport ? (
-            <span className="ml-1 inline-flex items-center rounded-full bg-bone-900 px-1.5 py-0.5 text-[9px] tracking-widest text-bone-200 ring-1 ring-bone-700 md:px-2 md:text-[10px]">
+            <span className="ml-1 inline-flex items-center rounded-full bg-bone-100 px-1.5 py-0.5 text-[9px] tracking-widest text-bone-800 ring-1 ring-bone-300 md:px-2 md:text-[10px]">
               {item.sport}
             </span>
           ) : null}
           {visibleTags.map((t) => (
             <span
               key={t}
-              className="hidden items-center rounded-full bg-bone-900 px-1.5 py-0.5 text-[9px] tracking-widest text-bone-300 ring-1 ring-bone-800 md:inline-flex md:px-2 md:text-[10px]"
+              className="hidden items-center rounded-full bg-bone-100 px-1.5 py-0.5 text-[9px] tracking-widest text-bone-700 ring-1 ring-bone-200 md:inline-flex md:px-2 md:text-[10px]"
             >
               {t}
             </span>
           ))}
         </div>
-        <h3 className="font-display text-sm font-semibold text-balance leading-snug text-bone-50 group-hover:text-claude-100 md:text-lg lg:text-xl">
+        <h3 className="font-display text-sm font-semibold text-balance leading-snug text-bone-950 group-hover:text-claude-900 md:text-lg lg:text-xl">
           {item.title}
         </h3>
         {item.excerpt ? (
-          <p className="mt-2 hidden text-sm text-pretty text-bone-300 line-clamp-2 md:block">
+          <p className="mt-2 hidden text-sm text-pretty text-bone-700 line-clamp-2 md:block">
             {item.excerpt}
           </p>
         ) : null}
@@ -139,14 +139,14 @@ function Thumbnail({ src }: { src: string | null }) {
       <img
         src={src}
         alt=""
-        className="aspect-[4/3] w-20 flex-shrink-0 rounded-sm object-cover ring-1 ring-bone-800 md:w-32"
+        className="aspect-[4/3] w-20 flex-shrink-0 rounded-sm object-cover ring-1 ring-bone-200 md:w-32"
       />
     );
   }
   return (
     <span
       aria-hidden="true"
-      className="aspect-[4/3] w-20 flex-shrink-0 rounded-sm bg-gradient-to-br from-claude-900 to-bone-950 ring-1 ring-bone-800 md:w-32"
+      className="aspect-[4/3] w-20 flex-shrink-0 rounded-sm bg-bone-200 ring-1 ring-bone-300 md:w-32"
     />
   );
 }

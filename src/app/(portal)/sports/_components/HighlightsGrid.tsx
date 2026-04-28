@@ -26,7 +26,7 @@ export function HighlightsGrid({
             isAdmin ? (
               <a
                 href="/admin/sports/highlights"
-                className="text-xs text-claude-300 transition-colors hover:text-claude-200 focus:outline-none focus-visible:ring-2 focus-visible:ring-claude-500"
+                className="text-xs text-claude-700 transition-colors hover:text-claude-800 focus:outline-none focus-visible:ring-2 focus-visible:ring-claude-500"
               >
                 Manage →
               </a>
@@ -35,7 +35,7 @@ export function HighlightsGrid({
         />
       </div>
       {items.length === 0 ? (
-        <div className="mx-4 mt-6 rounded-sm border border-dashed border-bone-800 p-6 text-sm text-bone-400 md:mx-0">
+        <div className="mx-4 mt-6 rounded-sm border border-dashed border-bone-200 p-6 text-sm text-bone-600 md:mx-0">
           {isAdmin
             ? "No highlights yet. Add one at /admin/sports/highlights."
             : "No highlights today."}
@@ -71,7 +71,7 @@ function HighlightCard({ item }: { item: SportsHighlight }) {
       aria-label={`Play highlight: ${item.title}`}
       className="group block rounded-sm focus:outline-none focus-visible:ring-2 focus-visible:ring-claude-500"
     >
-      <span className="relative block aspect-video overflow-hidden rounded-sm bg-gradient-to-br from-claude-900 via-bone-900 to-bone-950 ring-1 ring-bone-800">
+      <span className="relative block aspect-video overflow-hidden rounded-sm bg-bone-200 ring-1 ring-bone-300">
         {/* eslint-disable-next-line @next/next/no-img-element */}
         <img
           src={item.thumbUrl}
@@ -80,7 +80,7 @@ function HighlightCard({ item }: { item: SportsHighlight }) {
           className="absolute inset-0 h-full w-full object-cover"
         />
         {item.durationSec != null ? (
-          <span className="absolute bottom-2 right-2 rounded-sm bg-bone-950/80 px-2 py-0.5 text-[11px] tabular-nums text-bone-100">
+          <span className="absolute bottom-2 right-2 rounded-sm bg-bone-950/80 px-2 py-0.5 text-[11px] tabular-nums text-bone-50">
             {formatDuration(item.durationSec)}
           </span>
         ) : null}
@@ -92,10 +92,10 @@ function HighlightCard({ item }: { item: SportsHighlight }) {
           </span>
         </span>
       </span>
-      <p className="mt-2.5 font-display text-sm font-semibold leading-snug text-bone-100 line-clamp-2 group-hover:text-claude-100">
+      <p className="mt-2.5 font-display text-sm font-semibold leading-snug text-bone-900 line-clamp-2 group-hover:text-claude-900">
         {item.title}
       </p>
-      <p className="mt-1 text-xs tabular-nums text-bone-400">
+      <p className="mt-1 text-xs tabular-nums text-bone-600">
         {item.sport} · {item.channel}
       </p>
     </a>

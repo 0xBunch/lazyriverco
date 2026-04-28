@@ -65,10 +65,10 @@ export function SleeperOverview({ initial, narrative, isAdmin }: Props) {
     <div className="mx-auto flex max-w-6xl flex-col gap-5 px-4 py-8 pt-20 md:pt-8">
       <header className="flex flex-wrap items-end justify-between gap-3">
         <div className="min-w-0">
-          <h1 className="font-display text-3xl font-semibold tracking-tight text-bone-50 text-balance">
+          <h1 className="font-display text-3xl font-semibold tracking-tight text-bone-950 text-balance">
             {data.leagueName}
           </h1>
-          <p className="mt-1 text-sm text-bone-300 text-pretty">
+          <p className="mt-1 text-sm text-bone-700 text-pretty">
             {isRecap
               ? `${data.season} final standings · ${data.nflSeason} hasn't kicked off yet · synced ${lastSyncedRelative}`
               : `${data.season} season · NFL Week ${data.currentWeek} · synced ${lastSyncedRelative}`}
@@ -80,8 +80,8 @@ export function SleeperOverview({ initial, narrative, isAdmin }: Props) {
             onClick={onSync}
             disabled={syncing}
             className={cn(
-              "inline-flex items-center gap-2 rounded-md border border-bone-700 bg-bone-900 px-3 py-1.5 text-sm text-bone-100 transition-colors",
-              "hover:border-claude-500 hover:text-claude-100",
+              "inline-flex items-center gap-2 rounded-md border border-bone-300 bg-bone-100 px-3 py-1.5 text-sm text-bone-900 transition-colors",
+              "hover:border-claude-500 hover:text-claude-900",
               "disabled:cursor-not-allowed disabled:opacity-60",
             )}
           >
@@ -93,7 +93,7 @@ export function SleeperOverview({ initial, narrative, isAdmin }: Props) {
       {syncError ? (
         <div
           role="alert"
-          className="rounded-md border border-claude-700/70 bg-claude-900/40 px-3 py-2 text-sm text-claude-100"
+          className="rounded-md border border-claude-700/70 bg-claude-900/40 px-3 py-2 text-sm text-claude-900"
         >
           {syncError}
         </div>
@@ -133,12 +133,12 @@ function NarrativeCard({ body, season }: { body: string; season: string }) {
   return (
     <section
       aria-label={`${season} season narrative`}
-      className="rounded-lg border border-bone-800 bg-gradient-to-br from-bone-900/60 to-bone-900/20 p-4 md:p-5"
+      className="rounded-lg border border-bone-200 bg-gradient-to-br from-bone-100/60 to-bone-100/20 p-4 md:p-5"
     >
-      <h2 className="mb-2 font-display text-xs font-semibold uppercase tracking-widest text-claude-300">
+      <h2 className="mb-2 font-display text-xs font-semibold uppercase tracking-widest text-claude-700">
         How {season} went
       </h2>
-      <p className="text-[15px] leading-relaxed text-bone-100 text-pretty">
+      <p className="text-[15px] leading-relaxed text-bone-900 text-pretty">
         {body}
       </p>
     </section>
@@ -161,8 +161,8 @@ function TabButton({
       className={cn(
         "rounded-full border px-3 py-1 text-sm transition-colors",
         active
-          ? "border-claude-500 bg-claude-900/30 text-claude-100"
-          : "border-bone-700 bg-bone-900 text-bone-300 hover:text-bone-100",
+          ? "border-claude-500 bg-claude-900/30 text-claude-900"
+          : "border-bone-300 bg-bone-100 text-bone-700 hover:text-bone-900",
       )}
       aria-pressed={active}
     >
@@ -173,12 +173,12 @@ function TabButton({
 
 function StandingsTable({ rows }: { rows: StandingsRow[] }) {
   if (rows.length === 0) {
-    return <p className="text-sm text-bone-400">No standings yet.</p>;
+    return <p className="text-sm text-bone-600">No standings yet.</p>;
   }
   return (
-    <div className="overflow-x-auto rounded-lg border border-bone-800 bg-bone-900/40">
+    <div className="overflow-x-auto rounded-lg border border-bone-200 bg-bone-100">
       <table className="w-full text-sm">
-        <thead className="border-b border-bone-800 text-left text-bone-400">
+        <thead className="border-b border-bone-200 text-left text-bone-600">
           <tr>
             <th className="px-3 py-2 font-medium">#</th>
             <th className="px-3 py-2 font-medium">Manager</th>
@@ -196,21 +196,21 @@ function StandingsTable({ rows }: { rows: StandingsRow[] }) {
           {rows.map((r) => (
             <tr
               key={r.rosterId}
-              className="border-b border-bone-800/60 last:border-0"
+              className="border-b border-bone-200/60 last:border-0"
             >
-              <td className="px-3 py-2 text-bone-300 tabular-nums">{r.rank}</td>
-              <td className="px-3 py-2 text-bone-100">
+              <td className="px-3 py-2 text-bone-700 tabular-nums">{r.rank}</td>
+              <td className="px-3 py-2 text-bone-900">
                 {r.managerDisplayName}
               </td>
-              <td className="px-3 py-2 text-bone-300">{r.teamName ?? "—"}</td>
-              <td className="px-3 py-2 text-right text-bone-100 tabular-nums">
+              <td className="px-3 py-2 text-bone-700">{r.teamName ?? "—"}</td>
+              <td className="px-3 py-2 text-right text-bone-900 tabular-nums">
                 {r.wins}-{r.losses}
                 {r.ties ? `-${r.ties}` : ""}
               </td>
-              <td className="px-3 py-2 text-right text-bone-200 tabular-nums">
+              <td className="px-3 py-2 text-right text-bone-800 tabular-nums">
                 {r.pointsFor.toFixed(1)}
               </td>
-              <td className="px-3 py-2 text-right text-bone-300 tabular-nums">
+              <td className="px-3 py-2 text-right text-bone-700 tabular-nums">
                 {r.pointsAgainst.toFixed(1)}
               </td>
             </tr>
@@ -227,11 +227,11 @@ function RostersPanel({ rosters }: { rosters: RosterDetail[] }) {
   );
   const current = rosters.find((r) => r.rosterId === selected) ?? rosters[0];
   if (!current) {
-    return <p className="text-sm text-bone-400">No rosters yet.</p>;
+    return <p className="text-sm text-bone-600">No rosters yet.</p>;
   }
   return (
     <div className="grid gap-4 md:grid-cols-[220px_1fr]">
-      <aside className="flex max-h-[70vh] flex-col gap-1 overflow-y-auto pr-2 md:border-r md:border-bone-800">
+      <aside className="flex max-h-[70vh] flex-col gap-1 overflow-y-auto pr-2 md:border-r md:border-bone-200">
         {rosters.map((r) => {
           const active = r.rosterId === current.rosterId;
           return (
@@ -242,13 +242,13 @@ function RostersPanel({ rosters }: { rosters: RosterDetail[] }) {
               className={cn(
                 "rounded-md px-3 py-2 text-left text-sm transition-colors",
                 active
-                  ? "bg-claude-900/30 text-claude-100"
-                  : "text-bone-300 hover:bg-bone-900 hover:text-bone-100",
+                  ? "bg-claude-900/30 text-claude-900"
+                  : "text-bone-700 hover:bg-bone-100 hover:text-bone-900",
               )}
             >
               <span className="block font-medium">{r.managerDisplayName}</span>
               {r.teamName ? (
-                <span className="block text-xs text-bone-400">
+                <span className="block text-xs text-bone-600">
                   {r.teamName}
                 </span>
               ) : null}
@@ -258,10 +258,10 @@ function RostersPanel({ rosters }: { rosters: RosterDetail[] }) {
       </aside>
       <div>
         <header className="mb-3 flex items-baseline justify-between">
-          <h2 className="font-display text-lg font-semibold text-bone-50">
+          <h2 className="font-display text-lg font-semibold text-bone-950">
             {current.teamName ?? current.managerDisplayName}
           </h2>
-          <span className="text-sm text-bone-300 tabular-nums">
+          <span className="text-sm text-bone-700 tabular-nums">
             {current.wins}-{current.losses}
             {current.ties ? `-${current.ties}` : ""} ·{" "}
             {current.pointsFor.toFixed(1)} PF
@@ -290,7 +290,7 @@ function RosterSection({
   if (players.length === 0) return null;
   return (
     <div className="mb-4">
-      <h3 className="mb-1 text-xs font-semibold uppercase tracking-wider text-bone-400">
+      <h3 className="mb-1 text-xs font-semibold uppercase tracking-wider text-bone-600">
         {title}
       </h3>
       <ul className="space-y-1">
@@ -305,21 +305,21 @@ function RosterSection({
             <li key={p.playerId}>
               <Link
                 href={`/sports/mlf/players/${encodeURIComponent(p.playerId)}`}
-                className="flex items-baseline justify-between gap-2 rounded-md border border-transparent px-2 py-1 text-sm transition-colors hover:border-bone-800 hover:bg-bone-900/40 focus:outline-none focus-visible:ring-2 focus-visible:ring-claude-500"
+                className="flex items-baseline justify-between gap-2 rounded-md border border-transparent px-2 py-1 text-sm transition-colors hover:border-bone-200 hover:bg-bone-100 focus:outline-none focus-visible:ring-2 focus-visible:ring-claude-500"
               >
-                <span className="min-w-0 truncate text-bone-100">
-                  <span className="mr-2 inline-block w-8 text-bone-400 tabular-nums">
+                <span className="min-w-0 truncate text-bone-900">
+                  <span className="mr-2 inline-block w-8 text-bone-600 tabular-nums">
                     {p.position ?? "??"}
                   </span>
                   {p.name}
                 </span>
-                <span className="flex shrink-0 items-center gap-2 text-xs text-bone-400 tabular-nums">
+                <span className="flex shrink-0 items-center gap-2 text-xs text-bone-600 tabular-nums">
                   {statTail ? (
-                    <span className="text-bone-300">{statTail}</span>
+                    <span className="text-bone-700">{statTail}</span>
                   ) : null}
                   {p.team ? <span>{p.team}</span> : null}
                   {p.injuryStatus ? (
-                    <span className="rounded border border-claude-700/60 px-1 text-claude-200">
+                    <span className="rounded border border-claude-700/60 px-1 text-claude-800">
                       {p.injuryStatus}
                     </span>
                   ) : null}
@@ -339,19 +339,19 @@ function TransactionsList({
   transactions: LeagueOverview["recentTransactions"];
 }) {
   if (transactions.length === 0) {
-    return <p className="text-sm text-bone-400">No transactions yet.</p>;
+    return <p className="text-sm text-bone-600">No transactions yet.</p>;
   }
   return (
     <ul className="flex flex-col gap-2">
       {transactions.map((t) => (
         <li
           key={t.transactionId}
-          className="rounded-md border border-bone-800 bg-bone-900/40 p-3 text-sm"
+          className="rounded-md border border-bone-200 bg-bone-100 p-3 text-sm"
         >
           <div className="flex items-baseline justify-between gap-2">
             <span className="inline-flex items-center gap-2">
               <TypeBadge type={t.type} />
-              <span className="text-bone-300">
+              <span className="text-bone-700">
                 Week {t.week}
                 {t.creatorManager ? ` · ${t.creatorManager}` : ""}
               </span>
@@ -360,15 +360,15 @@ function TransactionsList({
               {formatRelative(t.createdAt)}
             </span>
           </div>
-          <div className="mt-2 flex flex-col gap-1 text-bone-100">
+          <div className="mt-2 flex flex-col gap-1 text-bone-900">
             {t.adds.length > 0 ? (
               <div>
-                <span className="text-bone-400">adds:</span>{" "}
+                <span className="text-bone-600">adds:</span>{" "}
                 {t.adds.map((a, i) => (
                   <span key={`${a.player.playerId}-${i}`}>
                     {i > 0 ? ", " : ""}
                     {a.managerDisplayName ? (
-                      <span className="text-bone-300">
+                      <span className="text-bone-700">
                         {a.managerDisplayName} ←{" "}
                       </span>
                     ) : null}
@@ -384,12 +384,12 @@ function TransactionsList({
             ) : null}
             {t.drops.length > 0 ? (
               <div>
-                <span className="text-bone-400">drops:</span>{" "}
+                <span className="text-bone-600">drops:</span>{" "}
                 {t.drops.map((d, i) => (
                   <span key={`${d.player.playerId}-${i}`}>
                     {i > 0 ? ", " : ""}
                     {d.managerDisplayName ? (
-                      <span className="text-bone-300">
+                      <span className="text-bone-700">
                         {d.managerDisplayName} →{" "}
                       </span>
                     ) : null}
@@ -404,12 +404,12 @@ function TransactionsList({
               </div>
             ) : null}
             {t.includesDraftPicks ? (
-              <div className="text-xs text-bone-400">
+              <div className="text-xs text-bone-600">
                 includes draft picks
               </div>
             ) : null}
             {t.includesWaiverBudget ? (
-              <div className="text-xs text-bone-400">
+              <div className="text-xs text-bone-600">
                 includes waiver budget
               </div>
             ) : null}
@@ -430,7 +430,7 @@ const TRANSACTION_TYPE_LABEL: Record<string, string> = {
 function TypeBadge({ type }: { type: string }) {
   const label = TRANSACTION_TYPE_LABEL[type] ?? type;
   return (
-    <span className="rounded-full border border-bone-700 bg-bone-800/60 px-2 py-0.5 text-[11px] uppercase tracking-wider text-bone-300">
+    <span className="rounded-full border border-bone-300 bg-bone-200/60 px-2 py-0.5 text-[11px] uppercase tracking-wider text-bone-700">
       {label}
     </span>
   );

@@ -71,28 +71,28 @@ export default async function SportsNewsIndex({
   return (
     <div className="mx-auto max-w-5xl px-4 py-6 md:px-6 md:py-10">
       {flashMsg && (
-        <p className="mb-4 rounded-lg border border-emerald-700/50 bg-emerald-900/30 px-4 py-2 text-sm text-emerald-200">
+        <p className="mb-4 rounded-lg border border-emerald-300 bg-emerald-50 px-4 py-2 text-sm text-emerald-800">
           {flashMsg}
         </p>
       )}
       {flashError && (
-        <p className="mb-4 rounded-lg border border-red-800/50 bg-red-900/30 px-4 py-2 text-sm text-red-200">
+        <p className="mb-4 rounded-lg border border-red-300 bg-red-50 px-4 py-2 text-sm text-red-800">
           {flashError}
         </p>
       )}
       <header className="mb-6 md:mb-8">
-        <h1 className="font-display text-3xl font-semibold tracking-tight text-bone-50 text-balance md:text-4xl">
+        <h1 className="font-display text-3xl font-semibold tracking-tight text-bone-950 text-balance md:text-4xl">
           Sports news
         </h1>
-        <p className="mt-2 text-sm text-bone-300 text-pretty">
+        <p className="mt-2 text-sm text-bone-700 text-pretty">
           Headlines aggregated from the feeds tagged{" "}
-          <code className="rounded bg-bone-900 px-1.5 py-0.5 text-bone-200">
+          <code className="rounded bg-bone-100 px-1.5 py-0.5 text-bone-800">
             category=SPORTS
           </code>{" "}
           at{" "}
           <Link
             href="/admin/memory/feeds"
-            className="text-claude-300 underline decoration-claude-700 underline-offset-2 hover:text-claude-200"
+            className="text-claude-700 underline decoration-claude-700 underline-offset-2 hover:text-claude-800"
           >
             /admin/memory/feeds
           </Link>
@@ -122,11 +122,11 @@ export default async function SportsNewsIndex({
       </div>
 
       {visible.length === 0 ? (
-        <p className="rounded-2xl border border-dashed border-bone-800 bg-bone-950 p-8 text-center text-sm italic text-bone-400">
+        <p className="rounded-2xl border border-dashed border-bone-200 bg-bone-50 p-8 text-center text-sm italic text-bone-600">
           No headlines match this filter yet.
         </p>
       ) : (
-        <ul className="divide-y divide-bone-800/80 border-y border-bone-800/80">
+        <ul className="divide-y divide-bone-200/80 border-y border-bone-200/80">
           {visible.map((item) => (
             <li key={item.id}>
               <NewsCard
@@ -154,7 +154,7 @@ export default async function SportsNewsIndex({
             href={buildFilterHref({ tag: tagFilter, sport: sportFilter })}
             className={
               cursor
-                ? "rounded-md border border-bone-700 bg-bone-800 px-3 py-1.5 text-bone-100 hover:bg-bone-700"
+                ? "rounded-md border border-bone-300 bg-bone-200 px-3 py-1.5 text-bone-900 hover:bg-bone-300"
                 : "pointer-events-none opacity-30"
             }
             aria-disabled={!cursor}
@@ -173,7 +173,7 @@ export default async function SportsNewsIndex({
             }
             className={
               nextCursor
-                ? "rounded-md border border-bone-700 bg-bone-800 px-3 py-1.5 text-bone-100 hover:bg-bone-700"
+                ? "rounded-md border border-bone-300 bg-bone-200 px-3 py-1.5 text-bone-900 hover:bg-bone-300"
                 : "pointer-events-none opacity-30"
             }
             aria-disabled={!nextCursor}
@@ -199,7 +199,7 @@ function FilterRow({
 }) {
   return (
     <div className="flex flex-wrap items-center gap-2">
-      <span className="font-display text-[10px] font-semibold uppercase tracking-[0.28em] text-bone-400">
+      <span className="font-display text-[10px] font-semibold uppercase tracking-[0.28em] text-bone-600">
         {label}
       </span>
       {options.map((opt) => {
@@ -211,8 +211,8 @@ function FilterRow({
             href={buildHref(opt)}
             className={
               isSelected
-                ? "rounded-full bg-claude-900 px-3 py-1 text-xs text-claude-100 ring-1 ring-claude-700"
-                : "rounded-full bg-bone-900 px-3 py-1 text-xs text-bone-300 ring-1 ring-bone-800 hover:bg-bone-800 hover:text-bone-100"
+                ? "rounded-full bg-claude-900 px-3 py-1 text-xs text-claude-900 ring-1 ring-claude-700"
+                : "rounded-full bg-bone-100 px-3 py-1 text-xs text-bone-700 ring-1 ring-bone-200 hover:bg-bone-200 hover:text-bone-900"
             }
           >
             {display}
@@ -242,25 +242,25 @@ function NewsCard({
   return (
     <Link
       href={`/sports/news/${item.id}`}
-      className="group -mx-2 flex items-start gap-4 rounded-sm px-2 py-5 transition-colors hover:bg-bone-900/30 focus:outline-none focus-visible:ring-2 focus-visible:ring-claude-500"
+      className="group -mx-2 flex items-start gap-4 rounded-sm px-2 py-5 transition-colors hover:bg-bone-100 focus:outline-none focus-visible:ring-2 focus-visible:ring-claude-500"
     >
       <Thumbnail src={item.ogImageUrl} />
       <div className="min-w-0 flex-1">
         <div className="mb-1.5 flex flex-wrap items-center gap-2 text-[11px]">
-          <span className="font-display text-[10px] font-semibold uppercase tracking-[0.28em] text-bone-400">
+          <span className="font-display text-[10px] font-semibold uppercase tracking-[0.28em] text-bone-600">
             {item.feedName}
           </span>
-          <span aria-hidden="true" className="text-bone-700">·</span>
-          <span className="tabular-nums text-bone-400">
+          <span aria-hidden="true" className="text-bone-300">·</span>
+          <span className="tabular-nums text-bone-600">
             {formatRelative(when)}
           </span>
           {item.sport && <SportPill sport={item.sport} />}
         </div>
-        <h2 className="font-display text-lg font-semibold leading-snug text-bone-50 text-balance group-hover:text-claude-100 md:text-xl">
+        <h2 className="font-display text-lg font-semibold leading-snug text-bone-950 text-balance group-hover:text-claude-900 md:text-xl">
           {item.title}
         </h2>
         {item.excerpt && (
-          <p className="mt-2 hidden text-sm text-pretty text-bone-300 line-clamp-2 md:block">
+          <p className="mt-2 hidden text-sm text-pretty text-bone-700 line-clamp-2 md:block">
             {item.excerpt}
           </p>
         )}
@@ -269,7 +269,7 @@ function NewsCard({
             {item.tags.map((t) => (
               <li
                 key={t}
-                className="rounded-full bg-bone-900 px-2 py-0.5 text-[10px] tracking-widest text-bone-200 ring-1 ring-bone-700"
+                className="rounded-full bg-bone-100 px-2 py-0.5 text-[10px] tracking-widest text-bone-800 ring-1 ring-bone-300"
               >
                 {t}
               </li>
@@ -289,21 +289,21 @@ function Thumbnail({ src }: { src: string | null }) {
         src={src}
         alt=""
         loading="lazy"
-        className="aspect-[4/3] w-24 flex-shrink-0 rounded-sm object-cover ring-1 ring-bone-800 md:w-36"
+        className="aspect-[4/3] w-24 flex-shrink-0 rounded-sm object-cover ring-1 ring-bone-200 md:w-36"
       />
     );
   }
   return (
     <span
       aria-hidden="true"
-      className="aspect-[4/3] w-24 flex-shrink-0 rounded-sm bg-gradient-to-br from-claude-900 to-bone-950 ring-1 ring-bone-800 md:w-36"
+      className="aspect-[4/3] w-24 flex-shrink-0 rounded-sm bg-bone-200 ring-1 ring-bone-300 md:w-36"
     />
   );
 }
 
 function SportPill({ sport }: { sport: string }) {
   return (
-    <span className="inline-flex items-center rounded-full bg-bone-900 px-2 py-0.5 text-[10px] tracking-widest text-bone-200 ring-1 ring-bone-700">
+    <span className="inline-flex items-center rounded-full bg-bone-100 px-2 py-0.5 text-[10px] tracking-widest text-bone-800 ring-1 ring-bone-300">
       {sport}
     </span>
   );

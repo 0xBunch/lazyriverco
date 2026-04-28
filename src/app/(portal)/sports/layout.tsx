@@ -8,6 +8,12 @@
 // than spanning the full viewport. Section chrome stays within the
 // canvas — sidebar and bar are visually distinct surfaces, not a
 // shared top bar.
+//
+// Light-theme surface: /sports/* runs on bone-50 (near-white) with
+// bone-900 default text — broadcast/network chrome, closer to ESPN —
+// while the rest of the portal stays on the dark bone-950 body. The
+// red bar above + dark sidebar to the left are intentionally distinct
+// from the light content canvas: three regions, three palettes.
 
 import { MlsnHeaderBar } from "@/components/sports/MlsnHeaderBar";
 
@@ -24,7 +30,7 @@ export default function SportsLayout({
       <link rel="preconnect" href="https://api.fontshare.com" />
       <link rel="stylesheet" href={FONTSHARE_HREF} />
       <MlsnHeaderBar />
-      {children}
+      <div className="min-h-screen bg-bone-50 text-bone-900">{children}</div>
     </>
   );
 }

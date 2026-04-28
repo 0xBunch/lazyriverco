@@ -48,10 +48,10 @@ export default async function PlayerProfilePage({
 
   return (
     <div className="mx-auto max-w-6xl px-4 py-8 pt-20 md:pt-8">
-      <nav className="mb-4 text-sm text-bone-400">
+      <nav className="mb-4 text-sm text-bone-600">
         <Link
           href="/sports/mlf"
-          className="inline-flex items-center gap-1 rounded px-1 hover:text-bone-100 focus:outline-none focus-visible:ring-2 focus-visible:ring-claude-500"
+          className="inline-flex items-center gap-1 rounded px-1 hover:text-bone-900 focus:outline-none focus-visible:ring-2 focus-visible:ring-claude-500"
         >
           <span aria-hidden="true">←</span> MLF
         </Link>

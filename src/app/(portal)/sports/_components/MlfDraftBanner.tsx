@@ -24,7 +24,7 @@ export function MlfDraftBanner() {
     <Link
       href="/sports/mlf/draft-2026"
       aria-label="MLF Rookie Draft 2026 — open draft room"
-      className="group relative block overflow-hidden rounded-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-claude-500 focus-visible:ring-offset-2 focus-visible:ring-offset-bone-950"
+      className="group relative block overflow-hidden rounded-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-claude-500 focus-visible:ring-offset-2 focus-visible:ring-offset-bone-50"
       style={{ backgroundColor: NAVY_950 }}
     >
       <span
