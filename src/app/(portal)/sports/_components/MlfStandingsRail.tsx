@@ -69,17 +69,22 @@ export function MlfStandingsRail({
                 <span className="w-5 text-sm tabular-nums text-bone-500">
                   {row.rank}
                 </span>
-                <ManagerAvatar row={row} />
-                <div className="min-w-0 flex-1">
-                  <p className="truncate font-display text-sm font-semibold text-bone-950">
-                    {row.teamName ?? row.managerDisplayName}
-                  </p>
-                  {row.teamName ? (
-                    <p className="truncate text-xs text-bone-600">
-                      {row.managerDisplayName}
+                <Link
+                  href={`/sports/mlf?tab=rosters&roster=${row.rosterId}`}
+                  className="group flex min-w-0 flex-1 items-center gap-3 rounded-sm focus:outline-none focus-visible:ring-2 focus-visible:ring-claude-500"
+                >
+                  <ManagerAvatar row={row} />
+                  <div className="min-w-0 flex-1">
+                    <p className="truncate font-display text-sm font-semibold text-bone-950 underline-offset-2 group-hover:underline">
+                      {row.teamName ?? row.managerDisplayName}
                     </p>
-                  ) : null}
-                </div>
+                    {row.teamName ? (
+                      <p className="truncate text-xs text-bone-600">
+                        {row.managerDisplayName}
+                      </p>
+                    ) : null}
+                  </div>
+                </Link>
                 <span className="text-sm tabular-nums text-bone-900">
                   {row.wins}–{row.losses}
                   {row.ties > 0 ? `–${row.ties}` : ""}
@@ -109,13 +114,15 @@ export function MlfStandingsRail({
 }
 
 function ManagerAvatar({ row }: { row: StandingsRow }) {
-  if (row.avatar) {
-    // eslint-disable-next-line @next/next/no-img-element
+  const url = avatarUrl(row.avatar);
+  if (url) {
     return (
+      // eslint-disable-next-line @next/next/no-img-element
       <img
-        src={row.avatar}
+        src={url}
         alt=""
-        className="h-7 w-7 rounded-full object-cover ring-1 ring-bone-300"
+        loading="lazy"
+        className="h-7 w-7 shrink-0 rounded-full bg-bone-200 object-cover ring-1 ring-bone-300"
       />
     );
   }
@@ -126,8 +133,17 @@ function ManagerAvatar({ row }: { row: StandingsRow }) {
     .map((s) => s[0]?.toUpperCase())
     .join("");
   return (
-    <div className="grid h-7 w-7 place-items-center rounded-full bg-bone-200 font-display text-[10px] font-semibold text-bone-900 ring-1 ring-bone-300">
+    <div className="grid h-7 w-7 shrink-0 place-items-center rounded-full bg-bone-200 font-display text-[10px] font-semibold text-bone-900 ring-1 ring-bone-300">
       {initials || "—"}
     </div>
   );
+}
+
+// Sleeper users return `avatar` as a CDN hash, not a full URL. We have to
+// prefix it ourselves; some users set a custom URL avatar (full https://)
+// which we pass through unchanged.
+function avatarUrl(raw: string | null): string | null {
+  if (!raw) return null;
+  if (/^https?:\/\//i.test(raw)) return raw;
+  return `https://sleepercdn.com/avatars/thumbs/${raw}`;
 }

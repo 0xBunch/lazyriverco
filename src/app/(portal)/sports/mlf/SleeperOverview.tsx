@@ -2,6 +2,7 @@
 
 import { useCallback, useMemo, useState } from "react";
 import Link from "next/link";
+import { useSearchParams } from "next/navigation";
 import { cn } from "@/lib/utils";
 import type {
   HydratedPlayer,
@@ -18,15 +19,30 @@ import type {
 
 type Props = {
   initial: LeagueOverview;
-  narrative: string | null;
   isAdmin: boolean;
 };
 
 type Tab = "standings" | "rosters" | "transactions";
 
-export function SleeperOverview({ initial, narrative, isAdmin }: Props) {
+const TABS = new Set<Tab>(["standings", "rosters", "transactions"]);
+
+function parseTab(raw: string | null): Tab | null {
+  return raw && TABS.has(raw as Tab) ? (raw as Tab) : null;
+}
+
+function parseRosterId(raw: string | null): number | null {
+  if (!raw) return null;
+  const n = Number.parseInt(raw, 10);
+  return Number.isFinite(n) ? n : null;
+}
+
+export function SleeperOverview({ initial, isAdmin }: Props) {
+  const searchParams = useSearchParams();
+  const initialTab = parseTab(searchParams?.get("tab") ?? null) ?? "standings";
+  const initialRoster = parseRosterId(searchParams?.get("roster") ?? null);
+
   const [data, setData] = useState<LeagueOverview>(initial);
-  const [tab, setTab] = useState<Tab>("standings");
+  const [tab, setTab] = useState<Tab>(initialTab);
   const [syncing, setSyncing] = useState(false);
   const [syncError, setSyncError] = useState<string | null>(null);
   const isRecap = data.mode === "recap";
@@ -99,8 +115,6 @@ export function SleeperOverview({ initial, narrative, isAdmin }: Props) {
         </div>
       ) : null}
 
-      {narrative ? <NarrativeCard body={narrative} season={data.season} /> : null}
-
       <nav className="flex gap-2" aria-label="Fantasy view">
         <TabButton active={tab === "standings"} onClick={() => setTab("standings")}>
           Standings
@@ -120,28 +134,12 @@ export function SleeperOverview({ initial, narrative, isAdmin }: Props) {
         {tab === "standings" ? (
           <StandingsTable rows={data.standings} />
         ) : tab === "rosters" ? (
-          <RostersPanel rosters={data.rosters} />
+          <RostersPanel rosters={data.rosters} initialRosterId={initialRoster} />
         ) : (
           <TransactionsList transactions={data.recentTransactions} />
         )}
       </section>
     </div>
-  );
-}
-
-function NarrativeCard({ body, season }: { body: string; season: string }) {
-  return (
-    <section
-      aria-label={`${season} season narrative`}
-      className="rounded-lg border border-bone-200 bg-gradient-to-br from-bone-100/60 to-bone-100/20 p-4 md:p-5"
-    >
-      <h2 className="mb-2 font-display text-xs font-semibold uppercase tracking-widest text-claude-700">
-        How {season} went
-      </h2>
-      <p className="text-[15px] leading-relaxed text-bone-900 text-pretty">
-        {body}
-      </p>
-    </section>
   );
 }
 
@@ -176,7 +174,7 @@ function StandingsTable({ rows }: { rows: StandingsRow[] }) {
     return <p className="text-sm text-bone-600">No standings yet.</p>;
   }
   return (
-    <div className="overflow-x-auto rounded-lg border border-bone-200 bg-bone-100">
+    <div className="overflow-x-auto rounded-sm border border-bone-200 bg-bone-100">
       <table className="w-full text-sm">
         <thead className="border-b border-bone-200 text-left text-bone-600">
           <tr>
@@ -202,7 +200,24 @@ function StandingsTable({ rows }: { rows: StandingsRow[] }) {
               <td className="px-3 py-2 text-bone-900">
                 {r.managerDisplayName}
               </td>
-              <td className="px-3 py-2 text-bone-700">{r.teamName ?? "—"}</td>
+              <td className="px-3 py-2 text-bone-700">
+                {r.teamName ? (
+                  <Link
+                    href={`/sports/mlf?tab=rosters&roster=${r.rosterId}`}
+                    className="rounded-sm text-bone-900 underline decoration-bone-300 underline-offset-2 transition-colors hover:decoration-bone-700 focus:outline-none focus-visible:ring-2 focus-visible:ring-claude-500"
+                  >
+                    {r.teamName}
+                  </Link>
+                ) : (
+                  <Link
+                    href={`/sports/mlf?tab=rosters&roster=${r.rosterId}`}
+                    aria-label={`View ${r.managerDisplayName}'s roster`}
+                    className="rounded-sm text-bone-700 underline decoration-bone-300 underline-offset-2 transition-colors hover:decoration-bone-700 focus:outline-none focus-visible:ring-2 focus-visible:ring-claude-500"
+                  >
+                    {r.managerDisplayName}
+                  </Link>
+                )}
+              </td>
               <td className="px-3 py-2 text-right text-bone-900 tabular-nums">
                 {r.wins}-{r.losses}
                 {r.ties ? `-${r.ties}` : ""}
@@ -221,10 +236,19 @@ function StandingsTable({ rows }: { rows: StandingsRow[] }) {
   );
 }
 
-function RostersPanel({ rosters }: { rosters: RosterDetail[] }) {
-  const [selected, setSelected] = useState<number | null>(
-    rosters[0]?.rosterId ?? null,
-  );
+function RostersPanel({
+  rosters,
+  initialRosterId,
+}: {
+  rosters: RosterDetail[];
+  initialRosterId: number | null;
+}) {
+  const seedId =
+    initialRosterId !== null &&
+    rosters.some((r) => r.rosterId === initialRosterId)
+      ? initialRosterId
+      : (rosters[0]?.rosterId ?? null);
+  const [selected, setSelected] = useState<number | null>(seedId);
   const current = rosters.find((r) => r.rosterId === selected) ?? rosters[0];
   if (!current) {
     return <p className="text-sm text-bone-600">No rosters yet.</p>;
@@ -341,82 +365,119 @@ function TransactionsList({
   if (transactions.length === 0) {
     return <p className="text-sm text-bone-600">No transactions yet.</p>;
   }
+  const freeAgents = transactions.filter((t) => t.type === "free_agent");
+  const waivers = transactions.filter((t) => t.type === "waiver");
+  const other = transactions.filter(
+    (t) => t.type === "trade" || t.type === "commissioner",
+  );
+
   return (
-    <ul className="flex flex-col gap-2">
-      {transactions.map((t) => (
-        <li
-          key={t.transactionId}
-          className="rounded-md border border-bone-200 bg-bone-100 p-3 text-sm"
-        >
-          <div className="flex items-baseline justify-between gap-2">
-            <span className="inline-flex items-center gap-2">
-              <TypeBadge type={t.type} />
-              <span className="text-bone-700">
-                Week {t.week}
-                {t.creatorManager ? ` · ${t.creatorManager}` : ""}
-              </span>
-            </span>
-            <span className="text-xs text-bone-500 tabular-nums">
-              {formatRelative(t.createdAt)}
-            </span>
-          </div>
-          <div className="mt-2 flex flex-col gap-1 text-bone-900">
-            {t.adds.length > 0 ? (
-              <div>
-                <span className="text-bone-600">adds:</span>{" "}
-                {t.adds.map((a, i) => (
-                  <span key={`${a.player.playerId}-${i}`}>
-                    {i > 0 ? ", " : ""}
-                    {a.managerDisplayName ? (
-                      <span className="text-bone-700">
-                        {a.managerDisplayName} ←{" "}
+    <div className="flex flex-col gap-6">
+      <div className="grid gap-4 md:grid-cols-2">
+        <TxColumn title="Free agents" items={freeAgents} emptyLabel="No free agent moves yet." />
+        <TxColumn title="Waivers" items={waivers} emptyLabel="No waiver moves yet." />
+      </div>
+      {other.length > 0 ? (
+        <TxColumn title="Other moves" items={other} emptyLabel="" showTypeBadge />
+      ) : null}
+    </div>
+  );
+}
+
+function TxColumn({
+  title,
+  items,
+  emptyLabel,
+  showTypeBadge = false,
+}: {
+  title: string;
+  items: LeagueOverview["recentTransactions"];
+  emptyLabel: string;
+  showTypeBadge?: boolean;
+}) {
+  return (
+    <section>
+      <h2 className="mb-2 font-display text-xs font-semibold uppercase tracking-widest text-bone-700">
+        {title}
+      </h2>
+      {items.length === 0 ? (
+        <p className="text-sm text-bone-600">{emptyLabel}</p>
+      ) : (
+        <ul className="flex flex-col gap-2">
+          {items.map((t) => (
+            <li
+              key={t.transactionId}
+              className="rounded-md border border-bone-200 bg-bone-100 p-2 text-xs"
+            >
+              <div className="flex flex-wrap items-baseline gap-x-2 gap-y-1 text-bone-700">
+                {showTypeBadge ? <TypeBadge type={t.type} /> : null}
+                <span>
+                  Week {t.week}
+                  {t.creatorManager ? ` · ${t.creatorManager}` : ""}
+                </span>
+                <span className="ml-auto text-bone-500 tabular-nums">
+                  {formatRelative(t.createdAt)}
+                </span>
+              </div>
+              <div className="mt-1.5 flex flex-col gap-1 text-bone-900">
+                {t.adds.length > 0 ? (
+                  <div>
+                    <span className="text-bone-600">adds:</span>{" "}
+                    {t.adds.map((a, i) => (
+                      <span key={`${a.player.playerId}-${i}`}>
+                        {i > 0 ? ", " : ""}
+                        {a.managerDisplayName ? (
+                          <span className="text-bone-700">
+                            {a.managerDisplayName} ←{" "}
+                          </span>
+                        ) : null}
+                        <Link
+                          href={`/sports/mlf/players/${encodeURIComponent(a.player.playerId)}`}
+                          className="underline-offset-2 hover:underline focus:outline-none focus-visible:ring-2 focus-visible:ring-claude-500"
+                        >
+                          {a.player.name}
+                        </Link>
                       </span>
-                    ) : null}
-                    <Link
-                      href={`/sports/mlf/players/${encodeURIComponent(a.player.playerId)}`}
-                      className="underline-offset-2 hover:underline focus:outline-none focus-visible:ring-2 focus-visible:ring-claude-500"
-                    >
-                      {a.player.name}
-                    </Link>
-                  </span>
-                ))}
-              </div>
-            ) : null}
-            {t.drops.length > 0 ? (
-              <div>
-                <span className="text-bone-600">drops:</span>{" "}
-                {t.drops.map((d, i) => (
-                  <span key={`${d.player.playerId}-${i}`}>
-                    {i > 0 ? ", " : ""}
-                    {d.managerDisplayName ? (
-                      <span className="text-bone-700">
-                        {d.managerDisplayName} →{" "}
+                    ))}
+                  </div>
+                ) : null}
+                {t.drops.length > 0 ? (
+                  <div>
+                    <span className="text-bone-600">drops:</span>{" "}
+                    {t.drops.map((d, i) => (
+                      <span key={`${d.player.playerId}-${i}`}>
+                        {i > 0 ? ", " : ""}
+                        {d.managerDisplayName ? (
+                          <span className="text-bone-700">
+                            {d.managerDisplayName} →{" "}
+                          </span>
+                        ) : null}
+                        <Link
+                          href={`/sports/mlf/players/${encodeURIComponent(d.player.playerId)}`}
+                          className="underline-offset-2 hover:underline focus:outline-none focus-visible:ring-2 focus-visible:ring-claude-500"
+                        >
+                          {d.player.name}
+                        </Link>
                       </span>
-                    ) : null}
-                    <Link
-                      href={`/sports/mlf/players/${encodeURIComponent(d.player.playerId)}`}
-                      className="underline-offset-2 hover:underline focus:outline-none focus-visible:ring-2 focus-visible:ring-claude-500"
-                    >
-                      {d.player.name}
-                    </Link>
-                  </span>
-                ))}
+                    ))}
+                  </div>
+                ) : null}
+                {t.includesDraftPicks ? (
+                  <div className="text-[11px] text-bone-600">
+                    includes draft picks
+                  </div>
+                ) : null}
+                {t.includesWaiverBudget ? (
+                  <div className="text-[11px] text-bone-600">
+                    includes waiver budget
+                  </div>
+                ) : null}
               </div>
-            ) : null}
-            {t.includesDraftPicks ? (
-              <div className="text-xs text-bone-600">
-                includes draft picks
-              </div>
-            ) : null}
-            {t.includesWaiverBudget ? (
-              <div className="text-xs text-bone-600">
-                includes waiver budget
-              </div>
-            ) : null}
-          </div>
-        </li>
-      ))}
-    </ul>
+            </li>
+          ))}
+        </ul>
+      )}
+    </section>
   );
 }
 

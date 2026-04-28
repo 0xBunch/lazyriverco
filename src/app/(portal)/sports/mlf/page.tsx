@@ -6,7 +6,6 @@ import {
   isSleeperEnabled,
   SleeperError,
 } from "@/lib/sleeper";
-import { generateSeasonNarrative } from "@/lib/sleeper-ai";
 import { SleeperOverview } from "./SleeperOverview";
 import { ModulePlaceholder } from "@/components/ModulePlaceholder";
 
@@ -44,16 +43,9 @@ export default async function FantasyPage() {
       includeWeeklyStats: true,
     });
 
-    // Season narrative is a single Claude one-shot cached by (leagueId,
-    // season). Only generated in recap mode; returns null in live mode.
-    // Awaited on first-ever view (one-time ~3s cost) so the demo doesn't
-    // pop into view mid-read — after that it's an indexed lookup.
-    const narrative = await generateSeasonNarrative().catch(() => null);
-
     return (
       <SleeperOverview
         initial={overview}
-        narrative={narrative}
         isAdmin={user.role === "ADMIN"}
       />
     );
