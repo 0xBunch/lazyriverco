@@ -44,6 +44,9 @@ export type PoolItem = {
     fullName: string | null;
     position: string | null;
     team: string | null;
+    /// 2026 PPR projection — drives the rightmost column on the board.
+    /// Null when no projection row exists for the draft's season yet.
+    projection: number | null;
   };
 };
 
@@ -372,9 +375,10 @@ function PoolRow({
   alt: boolean;
 }) {
   const name = player.fullName ?? player.playerId;
+  const proj = player.projection != null ? player.projection.toFixed(1) : null;
   return (
     <div
-      className="grid grid-cols-[28px_1fr_auto] items-center gap-3 border-b px-3 py-3 text-[13px] tabular-nums transition duration-150 md:grid-cols-[40px_minmax(0,2fr)_50px_50px_140px] md:px-4 md:py-2.5 md:hover:translate-x-px"
+      className="grid grid-cols-[28px_1fr_auto] items-center gap-3 border-b px-3 py-3 text-[13px] tabular-nums transition duration-150 md:grid-cols-[40px_minmax(0,2fr)_50px_50px_56px_140px] md:px-4 md:py-2.5 md:hover:translate-x-px"
       style={{
         borderColor: `${NAVY_700}40`,
         backgroundColor: selected
@@ -404,6 +408,12 @@ function PoolRow({
           <span>{player.position ?? "?"}</span>
           <span style={{ color: CREAM_400 }}>·</span>
           <span>{player.team ?? "FA"}</span>
+          {proj ? (
+            <>
+              <span style={{ color: CREAM_400 }}>·</span>
+              <span style={{ color: CREAM_50 }}>{proj}</span>
+            </>
+          ) : null}
         </div>
       </div>
       <span className="hidden font-semibold md:inline" style={{ color: CREAM_200 }}>
@@ -411,6 +421,13 @@ function PoolRow({
       </span>
       <span className="hidden font-semibold md:inline" style={{ color: CREAM_200 }}>
         {player.team ?? "FA"}
+      </span>
+      <span
+        className="hidden text-right font-semibold md:inline"
+        style={{ color: proj ? CREAM_50 : CREAM_400 }}
+        title={proj ? "2026 PPR projection" : "No 2026 projection yet"}
+      >
+        {proj ?? "—"}
       </span>
       <div className="flex items-center justify-end">
         {youCanPick && onClockPickId ? (

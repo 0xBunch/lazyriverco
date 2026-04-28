@@ -155,6 +155,11 @@ export default async function DraftPage({
             fullName: true,
             position: true,
             team: true,
+            projections: {
+              where: { season: draft.season },
+              select: { ptsPpr: true },
+              take: 1,
+            },
           },
         },
       },
@@ -184,7 +189,19 @@ export default async function DraftPage({
       .filter((p) => p.status === "locked" && p.playerId)
       .map((p) => p.playerId as string),
   );
-  const availablePool = pool.filter((r) => !pickedPlayerIds.has(r.playerId));
+  const availablePool = pool
+    .filter((r) => !pickedPlayerIds.has(r.playerId))
+    .map((r) => ({
+      id: r.id,
+      playerId: r.playerId,
+      player: {
+        playerId: r.player.playerId,
+        fullName: r.player.fullName,
+        position: r.player.position,
+        team: r.player.team,
+        projection: r.player.projections[0]?.ptsPpr ?? null,
+      },
+    }));
 
   const onDeck = onClock
     ? picks
