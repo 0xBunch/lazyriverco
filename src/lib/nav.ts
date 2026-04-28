@@ -3,7 +3,6 @@ import {
   IconBook2,
   IconBuildingStadium,
   IconCalendar,
-  IconHash,
   IconMap,
   IconMessageCircle,
   IconTools,
@@ -18,15 +17,16 @@ export type NavItem = {
 
 // Always visible to every signed-in user. The Chats tab is the
 // management surface (search, star, archive, rename); the "+ New chat"
-// button and the logo link still start a new conversation. `/mlchat`
-// (the river — shared real-time room) sits ABOVE `/chats` because it's
-// the v0.1 test for a primary surface that may up-level to `/` after a
-// usage check (see plan: okay-so-this-is-structured-goose.md).
+// button and the logo link still start a new conversation.
 // `/sports` is a top-level dashboard parent — individual sports apps
 // (MLF fantasy football, future NBA/MLB modules) sit UNDER /sports/*
 // rather than as siblings in the nav so the Apps section stays tight.
+//
+// `/mlchat` (the river — shared real-time room) is intentionally NOT
+// in the nav while we're testing the surface. The route stays live and
+// reachable by direct URL; we'll add the nav entry back when usage
+// proves out (see plan: okay-so-this-is-structured-goose.md).
 export const MAIN_NAV_ITEMS = [
-  { href: "/mlchat", icon: IconHash, label: "The River" },
   { href: "/chats", icon: IconMessageCircle, label: "Chats" },
   { href: "/calendar", icon: IconCalendar, label: "Calendar" },
   { href: "/library", icon: IconBook2, label: "Library" },
