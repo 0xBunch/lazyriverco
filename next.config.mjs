@@ -1,5 +1,18 @@
 /** @type {import('next').NextConfig} */
 const nextConfig = {
+  experimental: {
+    // Opt node-ical out of webpack bundling for server code. Loaded via
+    // Node's native require at runtime instead. Without this, webpack
+    // bundles node-ical's transitive deps (`temporal-polyfill`,
+    // `rrule-temporal`) into route chunks and minifies their `BigInt(…)`
+    // global calls into `a.BigInt(…)` member-access shape — which crashes
+    // at module-init during `next build`'s "Collecting page data" pass
+    // for /api/cron/poll-feeds (the route that imports calendar-providers
+    // → ical → node-ical). Reproduced locally on next@14.2.35; same
+    // failure on Railway. Marking the package external bypasses the
+    // transform, so the package's own native BigInt usage works fine.
+    serverComponentsExternalPackages: ["node-ical"],
+  },
   // Permanent (308) redirects from pre-condensation admin paths to their
   // current homes. Source dirs are flat today, but we add :path*
   // defensively so any future nested route (or a stale bookmark with
