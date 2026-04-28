@@ -12,6 +12,11 @@ import {
   deleteObject,
   isValidSponsorKey,
 } from "@/lib/r2";
+import { assertWithinLimit, RateLimitError } from "@/lib/rate-limit";
+import {
+  generateSponsorBannerImage,
+  SponsorImageGenError,
+} from "@/lib/sports/sponsor-image-gen";
 
 const MAX_NAME = 80;
 const MAX_TAGLINE = 140;
@@ -181,6 +186,84 @@ export async function deleteSponsor(fd: FormData): Promise<void> {
   return back({ msg: "Sponsor deleted." });
 }
 
+/// Generate a sponsor banner image via Nano Banana Pro and attach it
+/// to an existing sponsor. AI is edit-only — the admin must save the
+/// sponsor (creating a row) before generating, so this action always
+/// has an id to update. Replaces any existing imageR2Key on the row;
+/// the previous R2 object is deleted (best-effort).
+export async function generateSponsorImage(fd: FormData): Promise<void> {
+  const admin = await requireAdmin();
+
+  const id = (fd.get("id") ?? "").toString();
+  if (!id) return back({ error: "Missing sponsor id." });
+
+  const prompt = readField(fd, "prompt", 600);
+  if (!prompt) {
+    return back({ error: "Prompt is required." });
+  }
+
+  const existing = await prisma.sportsSponsor.findUnique({
+    where: { id },
+    select: { imageR2Key: true, name: true },
+  });
+  if (!existing) return back({ error: "Sponsor not found." });
+
+  // Rate limit BEFORE the Gemini call so a stolen cookie can't burn
+  // through unbounded $0.04 generations.
+  try {
+    await assertWithinLimit(admin.id, "sports.sponsor.generate", {
+      maxPerMinute: 5,
+      maxPerDay: 20,
+    });
+  } catch (e) {
+    if (e instanceof RateLimitError) {
+      return back({
+        error: `Hit the AI generation limit. Try again in ${Math.ceil(e.retryAfterSeconds / 60)} minute(s).`,
+      });
+    }
+    throw e;
+  }
+
+  let generated: Awaited<ReturnType<typeof generateSponsorBannerImage>>;
+  try {
+    generated = await generateSponsorBannerImage({ prompt });
+  } catch (e) {
+    if (e instanceof SponsorImageGenError) {
+      return back({ error: e.message });
+    }
+    if (e instanceof R2UploadError) {
+      return back({ error: `Couldn't store the generated image: ${e.message}` });
+    }
+    console.error("generateSponsorImage failed", e);
+    return back({
+      error: "AI generation failed unexpectedly. Try again.",
+    });
+  }
+
+  await prisma.sportsSponsor.update({
+    where: { id },
+    data: {
+      imageR2Key: generated.key,
+      imageShape: "SQUARE",
+      // Default alt text to a truncated version of the prompt — admin
+      // can edit it from the main form afterward.
+      imageAltText: prompt.slice(0, 240),
+    },
+  });
+
+  // Replace previous banner: delete the orphan R2 object (best-effort).
+  if (existing.imageR2Key && existing.imageR2Key !== generated.key) {
+    deleteObject(existing.imageR2Key).catch(() => {});
+  }
+
+  revalidatePath("/admin/sports/sponsors");
+  revalidatePath("/sports");
+  return back({
+    msg: `Generated a new banner for ${existing.name}.`,
+    edit: id,
+  });
+}
+
 /// Drop the banner image from a sponsor without touching the rest of
 /// its fields. Used by the admin form's "Remove image" affordance.
 export async function removeSponsorImage(fd: FormData): Promise<void> {
@@ -309,10 +392,18 @@ async function verifyAndSizeGuard(key: string): Promise<string | null> {
   }
 }
 
-function back(flash: { msg?: string; error?: string }): never {
+function back(flash: {
+  msg?: string;
+  error?: string;
+  /// If provided, the redirect lands back on the edit form for this
+  /// sponsor instead of the list. Used by `generateSponsorImage` so the
+  /// admin can immediately iterate or save.
+  edit?: string;
+}): never {
   const params = new URLSearchParams();
   if (flash.msg) params.set("msg", flash.msg);
   if (flash.error) params.set("error", flash.error);
+  if (flash.edit) params.set("edit", flash.edit);
   const qs = params.toString();
   redirect(qs ? `/admin/sports/sponsors?${qs}` : "/admin/sports/sponsors");
 }

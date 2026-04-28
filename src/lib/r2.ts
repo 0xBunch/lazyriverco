@@ -440,6 +440,71 @@ export async function deleteObject(key: string): Promise<void> {
 }
 
 // ---------------------------------------------------------------------------
+// Sponsor-banner direct PUT. Used by the AI generation flow (PR D —
+// Nano Banana Pro): server fetches generated image bytes from Gemini,
+// then drops them under the same `sponsors/<uuid>.<ext>` prefix the
+// admin-upload presign flow uses, so the SPONSOR_KEY_REGEX validator in
+// actions.ts accepts both upload paths and orphan-cleanup logic stays
+// uniform. 5 MB cap matches MAX_SPONSOR_BYTES — Nano Banana outputs are
+// well under this in practice.
+
+export type PutSponsorImageResult = {
+  sponsorMediaId: string;
+  key: string;
+  publicUrl: string;
+  contentType: string;
+  bytes: number;
+};
+
+export async function putSponsorImageBytes(
+  bytes: ArrayBuffer | Uint8Array,
+  contentType: string,
+): Promise<PutSponsorImageResult> {
+  if (!isAllowedContentType(contentType)) {
+    throw new R2UploadError(
+      `Sponsor image content-type "${contentType}" not in allowlist.`,
+    );
+  }
+  const byteLength = bytes.byteLength;
+  if (byteLength > MAX_SPONSOR_BYTES) {
+    throw new R2UploadError(
+      `Sponsor image is ${byteLength} bytes; exceeds cap of ${MAX_SPONSOR_BYTES}.`,
+    );
+  }
+
+  const bucketName = process.env.R2_BUCKET_NAME;
+  const publicBase = process.env.NEXT_PUBLIC_R2_PUBLIC_BASE_URL;
+  if (!bucketName || !publicBase) {
+    throw new R2UploadError(
+      "R2 not configured: set R2_BUCKET_NAME and NEXT_PUBLIC_R2_PUBLIC_BASE_URL before calling putSponsorImageBytes.",
+    );
+  }
+
+  const { sponsorMediaId, key } = newSponsorKey(contentType);
+  const body = bytes instanceof Uint8Array ? bytes : new Uint8Array(bytes);
+  const s3 = getS3Client();
+
+  await s3.send(
+    new PutObjectCommand({
+      Bucket: bucketName,
+      Key: key,
+      Body: body,
+      ContentType: contentType,
+      CacheControl: "public, max-age=604800, immutable",
+    }),
+  );
+
+  const base = publicBase.replace(/\/+$/, "");
+  return {
+    sponsorMediaId,
+    key,
+    publicUrl: `${base}/${key}`,
+    contentType,
+    bytes: byteLength,
+  };
+}
+
+// ---------------------------------------------------------------------------
 // Server-side copy: fetch a remote URL (OG image, YouTube thumbnail) and
 // PUT the bytes to R2. Used by the ingest layer (src/lib/ingest/index.ts)
 // to localize thumbnails so a grid tile keeps working even if the source
