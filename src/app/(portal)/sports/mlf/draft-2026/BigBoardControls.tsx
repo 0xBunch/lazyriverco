@@ -30,9 +30,9 @@ const POSITIONS = ["All", "QB", "RB", "WR", "TE"] as const;
 type Position = (typeof POSITIONS)[number];
 
 const SORT_OPTIONS = [
+  { key: "projection", label: "Proj" },
   { key: "rank", label: "Rank" },
   { key: "name", label: "Name" },
-  { key: "team", label: "NFL" },
 ] as const;
 type SortKey = (typeof SORT_OPTIONS)[number]["key"];
 
@@ -67,7 +67,7 @@ export function BigBoardControls({
 }: Props) {
   const [search, setSearch] = useState("");
   const [position, setPosition] = useState<Position>("All");
-  const [sortKey, setSortKey] = useState<SortKey>("rank");
+  const [sortKey, setSortKey] = useState<SortKey>("projection");
   const [page, setPage] = useState(0);
 
   // Reset to first page when any filter/sort changes — otherwise the
@@ -103,10 +103,15 @@ export function BigBoardControls({
         (a.player.fullName ?? "").localeCompare(b.player.fullName ?? ""),
       );
     }
-    if (sortKey === "team") {
-      return [...result].sort((a, b) =>
-        (a.player.team ?? "").localeCompare(b.player.team ?? ""),
-      );
+    if (sortKey === "projection") {
+      // Highest projection first; null/missing projections fall to the
+      // bottom so the top of the board is always the highest-scoring
+      // names available to draft.
+      return [...result].sort((a, b) => {
+        const ap = a.player.projection ?? -Infinity;
+        const bp = b.player.projection ?? -Infinity;
+        return bp - ap;
+      });
     }
     // sortKey === "rank" — pool is already in rank order.
     return result;
