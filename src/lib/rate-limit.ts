@@ -33,6 +33,10 @@ export type RateLimitBucket =
   // total; a legitimate admin should never trip this. Firing = stolen
   // cookie burning R2 egress.
   | "avatars.presign"
+  // Admin sponsor / banner-ad image uploads. Tight cap — banners are
+  // a handful of records, edited rarely. Firing = stolen cookie burning
+  // R2 PUT cost via repeat presigns.
+  | "sports.sponsor.presign"
   // Chat image generation (Replicate + R2). Much more expensive per call
   // than a text message, so gets its own tighter bucket on top of the
   // conversation.message limit.

@@ -47,6 +47,7 @@ const ALLOWED_CONTENT_TYPES = new Set<string>([
 
 export const MAX_UPLOAD_BYTES = 25 * 1024 * 1024; // 25 MB
 export const MAX_AVATAR_BYTES = 2 * 1024 * 1024; // 2 MB — avatar-specific cap
+export const MAX_SPONSOR_BYTES = 5 * 1024 * 1024; // 5 MB — sponsor banner cap
 export const PRESIGN_EXPIRY_SECONDS = 300; // 5 minutes
 
 export function isAllowedContentType(mimeType: string): boolean {
@@ -84,6 +85,24 @@ export function newMediaKey(contentType: string): { mediaId: string; key: string
 export function newAvatarKey(contentType: string): { avatarId: string; key: string } {
   const avatarId = randomUUID();
   return { avatarId, key: `avatars/${avatarId}.${extensionFor(contentType)}` };
+}
+
+export function newSponsorKey(contentType: string): { sponsorMediaId: string; key: string } {
+  const sponsorMediaId = randomUUID();
+  return { sponsorMediaId, key: `sponsors/${sponsorMediaId}.${extensionFor(contentType)}` };
+}
+
+/**
+ * Strict regex used by the admin actions to validate that an `imageR2Key`
+ * submitted via FormData was minted by `newSponsorKey()` and not pointing at
+ * media owned by another feature (avatars, library, generated). Mirror of
+ * the security boundary in the avatar flow — see PR C plan §B1.
+ */
+export const SPONSOR_KEY_REGEX =
+  /^sponsors\/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}\.(jpg|png|webp|gif)$/;
+
+export function isValidSponsorKey(key: string): boolean {
+  return SPONSOR_KEY_REGEX.test(key);
 }
 
 export function newGeneratedImageKey(contentType: string): { generatedId: string; key: string } {
@@ -209,6 +228,16 @@ export type PresignAvatarUploadResult = {
   maxBytes: number;
 };
 
+export type PresignSponsorUploadResult = {
+  sponsorMediaId: string;
+  key: string;
+  uploadUrl: string;
+  publicUrl: string;
+  contentType: string;
+  expiresIn: number;
+  maxBytes: number;
+};
+
 export async function presignAvatarUpload(
   input: PresignUploadInput,
 ): Promise<PresignAvatarUploadResult> {
@@ -249,6 +278,55 @@ export async function presignAvatarUpload(
     contentType: input.mimeType,
     expiresIn: PRESIGN_EXPIRY_SECONDS,
     maxBytes: MAX_AVATAR_BYTES,
+  };
+}
+
+/**
+ * Presign a sponsor / banner-ad image upload. Scoped to its own
+ * `sponsors/<uuid>.<ext>` key prefix so admin-set keys can't pin a
+ * sponsor card to media owned by another feature (avatars, library,
+ * generated images). Tighter 5 MB cap — banners don't need 25 MB.
+ */
+export async function presignSponsorUpload(
+  input: PresignUploadInput,
+): Promise<PresignSponsorUploadResult> {
+  if (!isAllowedContentType(input.mimeType)) {
+    throw new R2UploadError(
+      `Content-type "${input.mimeType}" is not in the upload allowlist. Allowed: ${listAllowedContentTypes().join(", ")}`,
+    );
+  }
+
+  const bucketName = process.env.R2_BUCKET_NAME;
+  const publicBase = process.env.NEXT_PUBLIC_R2_PUBLIC_BASE_URL;
+  if (!bucketName || !publicBase) {
+    throw new R2UploadError(
+      "R2 not configured: set R2_BUCKET_NAME and NEXT_PUBLIC_R2_PUBLIC_BASE_URL before calling presignSponsorUpload.",
+    );
+  }
+
+  const { sponsorMediaId, key } = newSponsorKey(input.mimeType);
+  const s3 = getS3Client();
+
+  const uploadUrl = await getSignedUrl(
+    s3,
+    new PutObjectCommand({
+      Bucket: bucketName,
+      Key: key,
+      ContentType: input.mimeType,
+    }),
+    { expiresIn: PRESIGN_EXPIRY_SECONDS },
+  );
+
+  const base = publicBase.replace(/\/+$/, "");
+
+  return {
+    sponsorMediaId,
+    key,
+    uploadUrl,
+    publicUrl: `${base}/${key}`,
+    contentType: input.mimeType,
+    expiresIn: PRESIGN_EXPIRY_SECONDS,
+    maxBytes: MAX_SPONSOR_BYTES,
   };
 }
 
