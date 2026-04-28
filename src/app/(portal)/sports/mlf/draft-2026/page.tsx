@@ -228,10 +228,6 @@ export default async function DraftPage({
       <TurfAmbient />
       <ShieldWatermark />
       <main className="relative mx-auto max-w-[1440px]">
-        <TopBar
-          seasonLabel={`${draft.season} · Rookie`}
-          user={user}
-        />
         {draft.status === "paused" && <PausedBanner />}
         {searchParams.error && <FlashRow kind="error" value={searchParams.error} />}
         {searchParams.msg === "locked" && <FlashRow kind="ok" value="Pick locked. Nice." />}
@@ -360,70 +356,8 @@ function MLFShield({ className = "h-full w-full" }: { className?: string }) {
 }
 
 // ---------------------------------------------------------------------------
-// Chrome + hero
+// Hero
 // ---------------------------------------------------------------------------
-
-function TopBar({
-  seasonLabel,
-  user,
-}: {
-  seasonLabel: string;
-  user: { displayName: string; role: string } | null;
-}) {
-  return (
-    <header
-      className="flex items-center justify-between gap-3 border-b px-4 py-3 md:px-6"
-      style={{ borderColor: NAVY_700, backgroundColor: `${NAVY_900}E6` }}
-    >
-      <Link
-        href="/sports"
-        className="group flex items-center gap-2 text-[10px] font-semibold tracking-[0.16em] transition md:gap-3 md:text-[11px]"
-        style={{ color: CREAM_200 }}
-      >
-        <span
-          className="inline-flex h-6 w-6 items-center justify-center rounded-sm border transition group-hover:scale-105"
-          style={{ borderColor: NAVY_600, color: CREAM_400 }}
-        >
-          ←
-        </span>
-        <span className="uppercase" style={{ color: CREAM_200 }}>
-          Lazy River Sports
-        </span>
-      </Link>
-
-      <div
-        className="hidden items-baseline gap-3 text-[11px] font-bold uppercase tracking-[0.24em] md:flex"
-        style={{ color: CREAM_400 }}
-      >
-        <span style={{ color: CREAM_200 }}>The Official</span>
-        <span style={{ color: CREAM_50 }}>Mens League of Football Draft</span>
-        <span style={{ color: "#385480" }}>·</span>
-        <span>{seasonLabel}</span>
-      </div>
-
-      {user ? (
-        <div
-          className="flex items-center gap-2 rounded-sm px-2 py-1 md:px-2.5 md:py-1.5"
-          style={{ backgroundColor: NAVY_800 }}
-        >
-          <span
-            className="inline-block h-1.5 w-1.5 rounded-full"
-            style={{ backgroundColor: user.role === "ADMIN" ? RED_500 : "#3D689E" }}
-          />
-          <span
-            className="text-[9px] font-semibold uppercase tracking-[0.14em] md:text-[10px] md:tracking-[0.16em]"
-            style={{ color: CREAM_50 }}
-          >
-            {user.displayName}
-            {user.role === "ADMIN" ? " · Commish" : ""}
-          </span>
-        </div>
-      ) : (
-        <span />
-      )}
-    </header>
-  );
-}
 
 function Hero({
   onClock,
