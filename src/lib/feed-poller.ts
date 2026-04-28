@@ -13,6 +13,8 @@ import {
   type PollOutcome,
   type PollError,
 } from "@/lib/feed-types";
+import { pollCalendarFeed } from "@/lib/calendar-providers";
+import { upsertSyncedEvents } from "@/lib/calendar-providers/upsert";
 
 // Core poll loop for a single Feed.
 //
@@ -111,9 +113,16 @@ export async function pollFeed(feedId: string): Promise<PollOutcome> {
   if (!leased) return { outcome: "skipped", reason: "locked" };
 
   try {
-    return await runPoll(leased, startedAt);
+    // Per-kind dispatch. RSS-shaped feeds (NEWS, MEDIA) go through the
+    // rss-parser path that writes NewsItem/Media. CALENDAR-kind feeds
+    // bypass rss-parser entirely and dispatch by providerType in
+    // src/lib/calendar-providers/index.ts. Each handler returns the
+    // same PollOutcome shape so the wrapper above stays kind-agnostic.
+    return leased.kind === "CALENDAR"
+      ? await runCalendarPoll(leased, startedAt)
+      : await runRssPoll(leased, startedAt);
   } catch (e) {
-    // Defense in depth — runPoll returns PollOutcome for every known
+    // Defense in depth — handlers return PollOutcome for every known
     // failure; reaching here means something threw unexpectedly.
     const message = e instanceof Error ? e.message : String(e);
     await recordFailure(leased, message.slice(0, ERROR_MESSAGE_CAP));
@@ -152,9 +161,10 @@ async function leaseFeed(feedId: string): Promise<Feed | null> {
 }
 
 // ---------------------------------------------------------------------------
-// Poll (network + parse + write)
+// RSS-shaped poll (NEWS + MEDIA): fetch → rss-parser → writeNewsItems |
+// writeMediaItems. Calendar poll lives in runCalendarPoll below.
 
-async function runPoll(feed: Feed, startedAt: Date): Promise<PollOutcome> {
+async function runRssPoll(feed: Feed, startedAt: Date): Promise<PollOutcome> {
   let body: string;
   try {
     body = await fetchFeedBody(feed.url);
@@ -235,6 +245,76 @@ async function runPoll(feed: Feed, startedAt: Date): Promise<PollOutcome> {
     skipped: skippedCount,
   });
   return { outcome: "success", inserted, skipped: skippedCount, durationMs };
+}
+
+// ---------------------------------------------------------------------------
+// Calendar poll (CALENDAR kind): per-providerType dispatch in
+// src/lib/calendar-providers/index.ts. Skips rss-parser entirely; the
+// handler returns SyncedEvent[] which we upsert into CalendarEntry
+// keyed on (source, externalId). PollOutcome shape is identical to
+// runRssPoll so the lease/breaker/log infra above doesn't care which
+// path produced it.
+//
+// `inserted` here means "events upserted" — both new rows and updates
+// of existing rows. There's no "skipped duplicates" concept like RSS
+// (every event the handler returns is a row we want).
+
+async function runCalendarPoll(
+  feed: Feed,
+  startedAt: Date,
+): Promise<PollOutcome> {
+  let events;
+  try {
+    events = await pollCalendarFeed(feed);
+  } catch (e) {
+    const message = e instanceof Error ? e.message : String(e);
+    await recordFailure(feed, message.slice(0, ERROR_MESSAGE_CAP));
+    const err: PollError = {
+      stage: "fetch",
+      message: message.slice(0, ERROR_MESSAGE_CAP),
+      sourceUrl: feed.url,
+    };
+    await writeLog(feed.id, startedAt, "failure", { errors: [err] });
+    return failure(startedAt, err);
+  }
+
+  const { upserted, latestAt, errors } = await upsertSyncedEvents(
+    events,
+    feed.id,
+  );
+
+  // Like RSS: only advance lastItemAt when we wrote something. A
+  // calendar feed that returns the same N events every poll keeps
+  // lastItemAt stable, which is exactly what STALE wants to detect.
+  await recordSuccess(feed, upserted > 0 ? latestAt : null);
+
+  const durationMs = Date.now() - startedAt.getTime();
+
+  if (errors.length > 0) {
+    const pollErrors: PollError[] = errors.map((message) => ({
+      stage: "write",
+      message: message.slice(0, ERROR_MESSAGE_CAP),
+      sourceUrl: feed.url,
+    }));
+    await writeLog(feed.id, startedAt, "partial", {
+      inserted: upserted,
+      skipped: events.length - upserted,
+      errors: pollErrors,
+    });
+    return {
+      outcome: "partial",
+      inserted: upserted,
+      skipped: events.length - upserted,
+      errors: pollErrors,
+      durationMs,
+    };
+  }
+
+  await writeLog(feed.id, startedAt, "success", {
+    inserted: upserted,
+    skipped: 0,
+  });
+  return { outcome: "success", inserted: upserted, skipped: 0, durationMs };
 }
 
 // ---------------------------------------------------------------------------
