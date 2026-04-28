@@ -43,7 +43,11 @@ export async function Dossier({ playerId }: { playerId: string }) {
 
   return (
     <DossierShell>
-      <PlayerProfileView profile={profile} partnersEnabled={isPartnersEnabled()} />
+      <PlayerProfileView
+        profile={profile}
+        partnersEnabled={isPartnersEnabled()}
+        variant="dossier"
+      />
     </DossierShell>
   );
 }
@@ -66,7 +70,7 @@ function DossierShell({ children }: { children: React.ReactNode }) {
           className="text-[11px] font-bold uppercase tracking-[0.22em]"
           style={{ color: CREAM_200 }}
         >
-          Dossier
+          Player Card
         </h2>
         <Link
           href="?"
