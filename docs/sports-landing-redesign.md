@@ -1,6 +1,13 @@
 # /sports landing redesign — implementation plan
 
-**Status:** Pre-implementation. Mockups landed in PR #71 (`mockups/sports-desktop.html`, `mockups/sports-mobile.html`). The schema, components, admin surfaces, and crons described below are not yet built.
+**Status:** Shipped, then partially superseded. The original PR 1 build landed as described below; subsequent changes have re-shaped the right rail and the sponsor surface. See `Subsequent changes` below before treating any module reference here as canonical.
+
+**Subsequent changes:**
+- `MlfTopThree` (top-3 strip) replaced by `MlfStandingsRail` — full league standings in the right rail, mobile collapses to top 5.
+- `getMlfTopThree` (later renamed `getMlfTopN`) replaced by `getMlfStandings()` in `src/lib/sleeper/standings.ts` — full overview, no slice.
+- `SponsorBreakRail` (full-bleed mid-page broadcast break) deleted; replaced by `SponsorRailSquare` rendered inside the right rail, beneath `TonightStrip`.
+- BILLBOARD ad shape retired across the runtime + admin. SQUARE is the only ad shape going forward; the `SponsorImageShape` Prisma enum still carries `BILLBOARD` for historical rows but the admin form no longer offers it.
+- Right-rail order: `MlfDraftBanner → TonightStrip → SponsorRailSquare → MlfStandingsRail`.
 
 ## Context
 

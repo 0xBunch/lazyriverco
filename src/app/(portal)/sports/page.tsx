@@ -1,25 +1,23 @@
 import { redirect } from "next/navigation";
 import { getCurrentUser } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
-import { getMlfTopN } from "@/lib/sleeper/standings";
+import { getMlfStandings } from "@/lib/sleeper/standings";
 import { getWagOfTheDay } from "@/lib/sports/wag-rotation";
 import { pickSponsorForToday } from "@/lib/sports/sponsor-rotation";
 import { WagOfTheDay } from "./_components/WagOfTheDay";
 import { MlfDraftBanner } from "./_components/MlfDraftBanner";
-import { MlfTopThree } from "./_components/MlfTopThree";
+import { MlfStandingsRail } from "./_components/MlfStandingsRail";
 import { TonightStrip } from "./_components/TonightStrip";
 import { HeadlinesRail } from "./_components/HeadlinesRail";
 import { HighlightsGrid } from "./_components/HighlightsGrid";
-import { SponsorBreakRail } from "./_components/SponsorBreakRail";
+import { SponsorRailSquare } from "./_components/SponsorRailSquare";
 
 export const dynamic = "force-dynamic";
 
-// /sports — daily clubhouse front page. Five modules: Headlines (RSS,
-// reads from shipped NewsItem WHERE feed.category=SPORTS), WAG of the
-// Day (editorial schedule), MLF Top 3 (Sleeper-backed, shipped),
-// TONIGHT (admin-curated schedule, PR 4 adds auto-sync), Highlights
-// (admin-curated YouTube, PR 3 adds auto-sync). Plus a rotating
-// sponsor in the mid-page break rail.
+// /sports — daily clubhouse front page. Right rail stacks Draft →
+// Tonight·Where-to-watch → Square Sponsor → Full MLF Standings;
+// Grid 2 (below) pairs Headlines and Highlights. Sponsors are
+// square-only as of the rail restructure — billboards retired.
 //
 // MlsnHeaderBar (red, in /sports/layout.tsx) sits above this page —
 // section-level branding lives in the bar, so this page goes
@@ -34,10 +32,10 @@ export default async function SportsLandingPage() {
   // its slice comes back empty/null, so a single missing data source
   // doesn't 500 the page.
   const now = new Date();
-  const [wag, mlf, headlines, highlights, schedule, sponsors] =
+  const [wag, mlfStandings, headlines, highlights, schedule, sponsors] =
     await Promise.all([
       getWagOfTheDay(),
-      getMlfTopN(3),
+      getMlfStandings(),
       prisma.newsItem.findMany({
         where: { hidden: false, feed: { category: "SPORTS", enabled: true } },
         orderBy: { publishedAt: "desc" },
@@ -54,15 +52,17 @@ export default async function SportsLandingPage() {
         orderBy: { gameTime: "asc" },
         take: 6,
       }),
+      // Square-only as of the rail restructure. Existing BILLBOARD or
+      // image-less sponsors fall out of rotation until they're
+      // re-uploaded as square art.
       prisma.sportsSponsor.findMany({
-        where: { active: true },
+        where: { active: true, imageShape: "SQUARE" },
         orderBy: { displayOrder: "asc" },
       }),
     ]);
 
   const pickedSponsor = pickSponsorForToday(sponsors);
   const sponsor = pickedSponsor?.sponsor ?? null;
-  const sponsorIndex = pickedSponsor?.index ?? -1;
 
   const headlineItems = headlines.map((row) => ({
     id: row.id,
@@ -78,24 +78,18 @@ export default async function SportsLandingPage() {
 
   return (
     <main className="w-full">
-      {/* Grid 1 — WAG + right-rail (MLF + TONIGHT) */}
+      {/* Grid 1 — WAG + right rail (Draft → Tonight → Sponsor → Standings) */}
       <section className="relative w-full">
         <div className="mx-auto grid max-w-7xl grid-cols-1 gap-6 px-4 py-8 md:grid-cols-12 md:gap-6 md:px-6 md:py-12 lg:gap-10 lg:px-10">
           <WagOfTheDay data={wag} isAdmin={isAdmin} />
           <div className="flex flex-col gap-6 md:col-span-5 lg:gap-10">
             <MlfDraftBanner />
-            <MlfTopThree data={mlf} />
             <TonightStrip games={schedule} isAdmin={isAdmin} />
+            <SponsorRailSquare sponsor={sponsor} />
+            <MlfStandingsRail data={mlfStandings} />
           </div>
         </div>
       </section>
-
-      {/* Mid-page broadcast break (renders nothing when no active sponsor) */}
-      <SponsorBreakRail
-        sponsor={sponsor}
-        totalActive={sponsors.length}
-        activeIndex={sponsorIndex}
-      />
 
       {/* Grid 2 — Headlines (cols 1-8) + Highlights (cols 9-12) */}
       <section className="relative w-full">

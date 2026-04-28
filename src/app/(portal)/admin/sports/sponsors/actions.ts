@@ -23,11 +23,6 @@ const MAX_TAGLINE = 140;
 const MAX_URL = 2048;
 const MAX_ALT = 280;
 
-const ALLOWED_SHAPES: ReadonlySet<SponsorImageShape> = new Set([
-  "BILLBOARD",
-  "SQUARE",
-]);
-
 type ImageFields = {
   imageR2Key: string | null;
   imageAltText: string | null;
@@ -331,9 +326,10 @@ function normalizeHref(raw: string | null): {
   return { value: parsed.toString() };
 }
 
-/// Pull the three image fields from FormData and validate them as a
-/// triple. Either all three are set (with valid shape and key prefix)
-/// or none — matching the SQL CHECK constraint on SportsSponsor.
+/// Pull image fields from FormData and validate. Either an image is
+/// set (key + auto-assigned SQUARE shape) or none — matching the SQL
+/// CHECK constraint on SportsSponsor. Sponsors are square-only since
+/// the rail restructure; BILLBOARD is no longer reachable from admin.
 type ImageFieldsResult =
   | { ok: true; fields: ImageFields }
   | { ok: false; error: string };
@@ -341,10 +337,8 @@ type ImageFieldsResult =
 function readImageFields(fd: FormData): ImageFieldsResult {
   const imageR2Key = readOptional(fd, "imageR2Key", 200);
   const imageAltText = readOptional(fd, "imageAltText", MAX_ALT);
-  const shapeRaw = readOptional(fd, "imageShape", 32);
 
   if (!imageR2Key) {
-    // No image submitted — clear everything.
     return {
       ok: true,
       fields: { imageR2Key: null, imageAltText: null, imageShape: null },
@@ -358,19 +352,12 @@ function readImageFields(fd: FormData): ImageFieldsResult {
     };
   }
 
-  if (!shapeRaw || !ALLOWED_SHAPES.has(shapeRaw as SponsorImageShape)) {
-    return {
-      ok: false,
-      error: "Pick an image shape (BILLBOARD or SQUARE) for the banner.",
-    };
-  }
-
   return {
     ok: true,
     fields: {
       imageR2Key,
       imageAltText,
-      imageShape: shapeRaw as SponsorImageShape,
+      imageShape: "SQUARE",
     },
   };
 }

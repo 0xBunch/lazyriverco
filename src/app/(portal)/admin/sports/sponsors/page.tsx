@@ -113,35 +113,6 @@ export default async function AdminSportsSponsorsPage({
               initialKey={editing?.imageR2Key ?? null}
               initialUrl={r2Url(editing?.imageR2Key)}
             />
-            <fieldset className="rounded-lg border border-bone-700 bg-bone-950/40 p-3">
-              <legend className="px-1 font-display text-[11px] font-semibold uppercase tracking-[0.2em] text-bone-400">
-                Banner shape
-              </legend>
-              <div className="flex flex-wrap gap-4 pt-1 text-sm text-bone-200">
-                <label className="flex items-center gap-2">
-                  <input
-                    type="radio"
-                    name="imageShape"
-                    value="BILLBOARD"
-                    defaultChecked={editing?.imageShape !== "SQUARE"}
-                    className="h-4 w-4 border-bone-700 bg-bone-950 text-claude-500 focus:ring-claude-500"
-                  />
-                  Billboard{" "}
-                  <span className="text-xs text-bone-500">~970×250</span>
-                </label>
-                <label className="flex items-center gap-2">
-                  <input
-                    type="radio"
-                    name="imageShape"
-                    value="SQUARE"
-                    defaultChecked={editing?.imageShape === "SQUARE"}
-                    className="h-4 w-4 border-bone-700 bg-bone-950 text-claude-500 focus:ring-claude-500"
-                  />
-                  Square{" "}
-                  <span className="text-xs text-bone-500">1:1, AI-friendly</span>
-                </label>
-              </div>
-            </fieldset>
             <input
               name="imageAltText"
               placeholder="Image alt text (a11y; falls back to brand name)"
@@ -254,11 +225,6 @@ export default async function AdminSportsSponsorsPage({
                     <span className="text-[0.7rem] uppercase tracking-widest text-bone-500">
                       sort {s.displayOrder} · {s.active ? "active" : "paused"}
                     </span>
-                    {s.imageShape && (
-                      <span className="rounded-full border border-claude-700/60 px-2 py-0.5 text-[0.65rem] font-semibold uppercase tracking-widest text-claude-200">
-                        {s.imageShape === "SQUARE" ? "Square" : "Billboard"}
-                      </span>
-                    )}
                   </div>
                   {s.tagline && (
                     <p className="mt-1 text-sm italic text-bone-300">
