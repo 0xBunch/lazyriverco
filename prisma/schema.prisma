@@ -1550,11 +1550,14 @@ model SportsScheduleGame {
 /// Active sponsors rotate by date hash — the same brand shows all day,
 /// then advances at UTC midnight.
 ///
-/// PR C adds optional banner-image fields. When `imageR2Key` is set,
-/// SponsorBreakRail renders the image at the configured `imageShape`;
-/// when null, the existing text treatment is used. A SQL CHECK
-/// constraint enforces that imageR2Key and imageShape are both set or
-/// both null (defense in depth — actions.ts also validates).
+/// PR C added optional banner-image fields. SponsorRailSquare renders
+/// the image when `imageR2Key` is set; sponsors without an image fall
+/// out of rotation (text-only mode was retired with the rail
+/// restructure). A SQL CHECK constraint enforces that imageR2Key and
+/// imageShape are both set or both null (defense in depth — actions.ts
+/// also validates). The runtime now only consumes `imageShape: SQUARE`;
+/// `BILLBOARD` remains in the enum for historical rows but is
+/// unreachable from the admin form.
 model SportsSponsor {
   id           String              @id @default(uuid())
   name         String
