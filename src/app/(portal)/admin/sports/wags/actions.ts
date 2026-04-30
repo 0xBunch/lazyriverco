@@ -4,7 +4,7 @@ import { redirect } from "next/navigation";
 import { revalidatePath } from "next/cache";
 import { prisma } from "@/lib/prisma";
 import { requireAdmin } from "@/lib/auth";
-import type { SportTag } from "@prisma/client";
+import { Prisma, type SportTag } from "@prisma/client";
 import { sanitizeInstagramHandle } from "@/lib/social/instagram";
 import {
   sanitizeLooseImageUrl,
@@ -46,10 +46,17 @@ function narrowConfidence(raw: string): Confidence {
 /// new SportsWag row carries an athleteId.
 ///
 /// `findFirst` rather than `findUnique`: Postgres treats NULL as distinct
-/// in unique indexes, so the composite key `(fullName, sport, team)`
+/// in regular unique indexes, so the composite `(fullName, sport, team)`
 /// can't match a team=null row via Prisma's findUnique. The findFirst
 /// pattern with explicit `team: null` translates to `team IS NULL` and
 /// works for both null and non-null team strings.
+///
+/// Race: two concurrent admin saves for the same (name, sport, team)
+/// can both miss the findFirst and both call create. Migration
+/// `20260430120000` adds a partial unique index for the team-IS-NULL
+/// case so the second create raises P2002. We catch it and re-run
+/// findFirst — at that point the first insert is committed, so the
+/// row is visible.
 async function resolveAthleteId(
   athleteName: string,
   sport: SportTag,
@@ -64,15 +71,29 @@ async function resolveAthleteId(
     select: { id: true },
   });
   if (existing) return existing.id;
-  const created = await prisma.athlete.create({
-    data: {
-      fullName: athleteName,
-      sport,
-      team,
-    },
-    select: { id: true },
-  });
-  return created.id;
+  try {
+    const created = await prisma.athlete.create({
+      data: {
+        fullName: athleteName,
+        sport,
+        team,
+      },
+      select: { id: true },
+    });
+    return created.id;
+  } catch (e) {
+    if (
+      e instanceof Prisma.PrismaClientKnownRequestError &&
+      e.code === "P2002"
+    ) {
+      const racer = await prisma.athlete.findFirst({
+        where: { fullName: athleteName, sport, team },
+        select: { id: true },
+      });
+      if (racer) return racer.id;
+    }
+    throw e;
+  }
 }
 
 // ---------------------------------------------------------------------------
