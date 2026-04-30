@@ -25,7 +25,8 @@ export function normalizeEspn(
     throw new Error(`espn event ${event.id} missing competitor (away/home)`);
   }
 
-  const status = mapEspnStatus(competition.status?.type.name ?? event.status.type.name);
+  const statusType = competition.status?.type ?? event.status.type;
+  const status = mapEspnStatus(statusType.name, statusType.state);
   const period = competition.status?.type.detail ?? event.status.type.detail;
   const clock = competition.status?.displayClock ?? event.status.displayClock;
   const seasonType = mapEspnSeasonType(event.season?.type);
@@ -128,7 +129,10 @@ export function normalizeMlb(game: MlbGame, syncedAt: Date): Game {
 
 // --- Status mappers ---
 
-function mapEspnStatus(name: string | undefined): GameStatus {
+function mapEspnStatus(
+  name: string | undefined,
+  state: string | undefined,
+): GameStatus {
   switch (name) {
     case "STATUS_SCHEDULED":
       return "SCHEDULED";
@@ -146,13 +150,30 @@ function mapEspnStatus(name: string | undefined): GameStatus {
     case "STATUS_CANCELED":
     case "STATUS_RAIN_DELAY":
       return "POSTPONED";
-    default:
-      // Unknown — treat as SCHEDULED so we don't accidentally render
-      // a stale FINAL. The provider modules' Zod validation lets
-      // unknown states through (passthrough), so this default
-      // protects the read path.
-      return "SCHEDULED";
   }
+  // Unknown name — fall back to `state` (pre/in/post). Per kieran's
+  // 2026-04-30 review: ESPN's `name` vocabulary expands over time
+  // (new "STATUS_END_OF_PERIOD" / "STATUS_FIRST_HALF" variants ship
+  // mid-season), but `state` has been stable. Without this fallback,
+  // an unrecognized live state silently routed to SCHEDULED — worse
+  // than misrouting to LIVE because score badges and the right-rail
+  // freshness hint would stop rendering for an actually-playing game.
+  switch (state) {
+    case "pre":
+      return "SCHEDULED";
+    case "in":
+      return "LIVE";
+    case "post":
+      return "FINAL";
+  }
+  // Surface the unknown so we catch upstream additions in the next
+  // sync log instead of waiting for a user report.
+  if (name) {
+    console.warn(
+      `[sports/normalize] unrecognized ESPN status name "${name}" (state="${state ?? "?"}"), defaulting to SCHEDULED`,
+    );
+  }
+  return "SCHEDULED";
 }
 
 function mapMlbStatus(detailedState: string): GameStatus {
