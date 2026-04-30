@@ -14,33 +14,36 @@ the cron-job.org → `/api/cron/*` HTTP cron pattern for scheduled work.
   2026-04-29 against `trigger.dev/pricing`: ~14.5k runs/mo (sports +
   feeds combined) against the $5/mo free credit, ~78% headroom.
 
-## One-time signup (KB)
+## Project
 
-1. Sign up at <https://trigger.dev>.
-2. Create a project named `lazyriverco`. Note the project reference
-   (looks like `proj_<random>`). It is **not a secret** and lives in
-   `trigger.config.ts`.
-3. Replace `TODO_REPLACE_WITH_TRIGGER_PROJECT_REF` in
-   `trigger.config.ts` with the real reference. Commit + push.
-4. From the Trigger.dev dashboard → API Keys, copy the production
-   `TRIGGER_SECRET_KEY` (starts with `tr_prod_`). This **is** a secret.
-5. In Railway env vars, set:
+Org `based-c2ff`, project ref `lazyriverco-G7K2`. Dashboard:
+<https://cloud.trigger.dev/orgs/based-c2ff/projects/lazyriverco-G7K2>
+
+The project ref is wired into `trigger.config.ts` (committed). The
+auth secret (`TRIGGER_SECRET_KEY`) is set in Railway env vars only.
+
+## Remaining KB actions
+
+1. From the Trigger.dev dashboard → API Keys, copy the production
+   secret key (starts with `tr_prod_`). This **is** a secret.
+2. In Railway env vars, set:
    - `TRIGGER_SECRET_KEY=tr_prod_...`
    - `FEEDS_SYNC_ENABLED=` (leave empty / unset for now — flip to
-     `true` only after step 7 below).
-6. From a local checkout, run:
+     `true` only after step 4 below).
+3. From a local checkout, log in once + deploy tasks:
    ```sh
+   pnpm dlx trigger.dev@latest login
    pnpm dlx trigger.dev@latest deploy
    ```
    This pushes the tasks defined in `src/trigger/` to Trigger.dev
    cloud. You'll see them register in the dashboard's Tasks list.
-7. From the Trigger.dev dashboard → Tasks → `poll-feeds-scheduled`,
+4. From the Trigger.dev dashboard → Tasks → `poll-feeds-scheduled`,
    click "Test run" with empty payload. Confirm the run completes
    successfully and ingests new `NewsItem` rows (it will short-circuit
-   to "skipped: disabled" until step 8).
-8. Once a manual test run is clean, set `FEEDS_SYNC_ENABLED=true` in
+   to "skipped: disabled" until step 5).
+5. Once a manual test run is clean, set `FEEDS_SYNC_ENABLED=true` in
    Railway. The scheduled task will fire on the next 15-minute mark.
-9. Watch the dashboard for 2–3 scheduled runs in a row. If green:
+6. Watch the dashboard for 2–3 scheduled runs in a row. If green:
    delete the cron-job.org entry that was hitting
    `https://lazyriver.co/api/cron/poll-feeds` on a 15-min schedule.
    The HTTP route stays as a manual-trigger fallback.
