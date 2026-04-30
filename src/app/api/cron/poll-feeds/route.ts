@@ -1,38 +1,33 @@
 import { NextResponse } from "next/server";
-import { prisma } from "@/lib/prisma";
-import { pollFeed } from "@/lib/feed-poller";
+import { pollTick } from "@/lib/feed-tick";
 
-// Cron entrypoint. Hit every 15 min by a Railway cron service (wire
-// via Railway UI: command `curl -H "x-cron-secret: $CRON_SECRET"
-// https://lazyriver.co/api/cron/poll-feeds`). Single-shot endpoint —
-// no retries, no queue. Failures surface in FeedPollLog.
+// Manual / fallback HTTP cron entrypoint for the RSS feed poller.
 //
-// Concurrency shape:
-//   - The whole tick is bounded to 10 minutes via the perFeedTimeout
-//     per-feed wrapper + MAX_BUDGET_MS overall. Past that budget we
-//     stop issuing new pollFeed calls; in-flight ones finish on their
-//     own.
-//   - Concurrency across feeds is capped at CONCURRENCY (5). Each
-//     pollFeed call already serializes its own work against a
-//     per-feed advisory lock, so we can't double-poll the same feed
-//     even if scheduler windows overlap.
+// Status (2026-04-29): this route used to be hit every 15 min by
+// cron-job.org. Scheduled polling has migrated to Trigger.dev
+// (src/trigger/feeds.ts). The HTTP route stays as:
+//   - a manual trigger for one-off polls during incident response,
+//   - a fallback if Trigger.dev is down,
+//   - a smoke-test target for deploys.
+//
+// Both call into the same pure function (pollTick) so the orchestration
+// stays in one place. Auth + transport are the only things this route
+// is responsible for.
 //
 // Auth: a shared CRON_SECRET header. Missing/wrong secret → 401. The
-// secret is set on Railway via `railway variables`; the cron curl is
-// configured there too. Rotating the secret is an env-var redeploy.
+// secret is set on Railway via `railway variables`; rotating it is an
+// env-var redeploy. Even though cron-job.org no longer calls this on
+// a schedule, the auth gate stays — it's HTTP-exposed.
 
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
-
-const CONCURRENCY = 5;
-const MAX_BUDGET_MS = 10 * 60 * 1000;
+export const maxDuration = 600; // 10 min, matches pollTick's MAX_BUDGET_MS
 
 export async function POST(req: Request) {
   return handle(req);
 }
 
-// GET supported so the Railway cron UI's "hit this URL" shape works
-// with the simplest command. Same auth, same work.
+// GET supported so the simplest "hit this URL" cron command shape works.
 export async function GET(req: Request) {
   return handle(req);
 }
@@ -50,55 +45,6 @@ async function handle(req: Request) {
     return NextResponse.json({ ok: false, error: "Unauthorized." }, { status: 401 });
   }
 
-  const startedAt = Date.now();
-
-  // Only pick up feeds that are (a) enabled, (b) not breaker-tripped,
-  // and (c) past their next-eligible gate. The eligibility check lets
-  // a backed-off feed stay quiet for the full backoff window even if
-  // the cron fires more often than the feed's pollIntervalMin.
-  const candidates = await prisma.feed.findMany({
-    where: {
-      enabled: true,
-      autoDisabledAt: null,
-      OR: [
-        { nextPollEligibleAt: null },
-        { nextPollEligibleAt: { lte: new Date() } },
-      ],
-    },
-    select: { id: true },
-  });
-
-  const summary = { attempted: 0, success: 0, partial: 0, failure: 0, skipped: 0 };
-  const queue = candidates.map((c) => c.id);
-  const workers = Array.from({ length: CONCURRENCY }, () => drain());
-
-  async function drain() {
-    while (queue.length > 0) {
-      if (Date.now() - startedAt > MAX_BUDGET_MS) return;
-      const id = queue.shift();
-      if (!id) return;
-      summary.attempted++;
-      try {
-        const outcome = await pollFeed(id);
-        if (outcome.outcome === "success") summary.success++;
-        else if (outcome.outcome === "partial") summary.partial++;
-        else if (outcome.outcome === "failure") summary.failure++;
-        else summary.skipped++;
-      } catch (e) {
-        // pollFeed's own try/catch should keep us from reaching here,
-        // but a bug inside it shouldn't take down the whole tick.
-        console.error("cron poll-feeds error", id, e);
-        summary.failure++;
-      }
-    }
-  }
-
-  await Promise.all(workers);
-
-  return NextResponse.json({
-    ok: true,
-    candidates: candidates.length,
-    elapsedMs: Date.now() - startedAt,
-    ...summary,
-  });
+  const summary = await pollTick();
+  return NextResponse.json({ ok: true, ...summary });
 }
