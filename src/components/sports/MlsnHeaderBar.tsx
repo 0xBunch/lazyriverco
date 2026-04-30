@@ -14,6 +14,10 @@ const SECTIONS = [
   { label: "NHL", href: "/sports/nhl" },
   { label: "NBA", href: "/sports/nba" },
   { label: "WNBA", href: "/sports/wnba" },
+  // Editorial content vertical — cross-sport partner archive. Sits as
+  // a top-level item because it's positioned as a differentiator for
+  // MLSN, not a sub-section of any league.
+  { label: "WAGs", href: "/sports/wags" },
 ] as const;
 
 const COLLEGE_HREF = "/sports/college";
