@@ -3,24 +3,24 @@ import { defineConfig } from "@trigger.dev/sdk";
 // Trigger.dev v4 project config. Tasks live in src/trigger/ and are
 // auto-discovered.
 //
-// Setup steps (one-time, KB action — see docs/trigger-dev-setup.md):
-//   1. Sign up at trigger.dev, create a "lazyriverco" project.
-//   2. Replace the project ref below with the real one (looks like
-//      "proj_<random>"). It's not a secret — committed to source.
-//   3. In Railway env vars, set TRIGGER_SECRET_KEY (from the project
-//      dashboard → API Keys). It IS a secret; do not commit.
-//   4. From a local checkout: `pnpm dlx trigger.dev@latest deploy`
-//      to push tasks to Trigger.dev cloud.
+// Project ref `lazyriverco-G7K2` lives under org `based-c2ff`:
+//   https://cloud.trigger.dev/orgs/based-c2ff/projects/lazyriverco-G7K2
+// The ref is not a secret. The auth secret is `TRIGGER_SECRET_KEY`,
+// set in Railway env vars (from project dashboard → API Keys).
 //
-// Until step 2 is done, Trigger.dev CLI commands (deploy/dev) will
-// fail with a clear error. The Next.js build is unaffected — this
-// file is only read by the Trigger.dev CLI.
+// Remaining one-time KB actions (see docs/trigger-dev-setup.md):
+//   1. Set `TRIGGER_SECRET_KEY=tr_prod_…` in Railway env.
+//   2. From a local checkout: `pnpm dlx trigger.dev@latest login`
+//      then `… deploy` to push tasks to Trigger.dev cloud.
+//   3. Test-run `poll-feeds-scheduled` from the dashboard.
+//   4. Once green, set `FEEDS_SYNC_ENABLED=true` in Railway and
+//      delete cron-job.org's existing 15-min hit.
 //
 // Runtime "node-22" matches our package.json `engines.node: >=20`.
 // Bumping major node versions in Trigger.dev is a config change, not
 // a deploy migration — safe to start here.
 export default defineConfig({
-  project: "TODO_REPLACE_WITH_TRIGGER_PROJECT_REF",
+  project: "lazyriverco-G7K2",
   runtime: "node-22",
   dirs: ["./src/trigger"],
   // Project-wide default — required by Trigger.dev v4. Each task can
