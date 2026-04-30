@@ -5,9 +5,17 @@ import { LEAGUES, type League, type Window } from "@/lib/sports/data/types";
 // Trigger.dev v4 scheduled tasks for the sports games domain. Three
 // schedules, fanned out across the 4 leagues internally:
 //
-//   sync-live-games   */5  * * * *   live in-progress games
-//   sync-today-games  */15 * * * *   today's slate (incl. live)
-//   sync-week-games   0    */6 * * *  next 7 days
+//   sync-live-games   0 * * * *      hourly — live in-progress games
+//   sync-today-games  0 13,22 * * *  2x/day — morning + evening today's slate
+//   sync-week-games   0 12 * * 1,4   2x/week — Mon + Thu, week-ahead schedule
+//
+// Tuned 2026-04-30 (KB call): the original */5/*15/*6h cadences were
+// over-fitted to a sportsbook-style use case. For a long-tail clubhouse
+// with ~7 users, 2x/day for the day's slate and 2x/week for the
+// schedule are plenty. Hourly live-game polling keeps "glance at the
+// score" usable during games without thrashing ESPN. ~95% reduction in
+// monthly run count vs the original cadence; ~$0.10 of the $5/mo
+// Trigger.dev free credit at the new rate.
 //
 // Architecture (per the 2026-04-29 plan-time architecture review):
 //   1. Internal per-league fan-out keeps us within free-tier's
@@ -140,7 +148,7 @@ function emptyResult(
 
 export const syncLiveGames = schedules.task({
   id: "sync-live-games",
-  cron: "*/5 * * * *",
+  cron: "0 * * * *", // hourly (top of the hour)
   queue: { name: liveQueue.name },
   retry: {
     maxAttempts: 2,
@@ -148,17 +156,16 @@ export const syncLiveGames = schedules.task({
     maxTimeoutInMs: 60_000,
     factor: 2,
   },
-  // 4 minutes — must stay under the 5-min cron interval so a stuck
-  // run gets cancelled before the next one would fire (concurrency
-  // limit handles the overlap, but maxDuration is the second line of
-  // defense for genuinely wedged runs).
-  maxDuration: 4 * 60,
+  // ~10 minutes — gives a 4-league fan-out plenty of headroom while
+  // staying well under the hourly interval. concurrencyLimit=1
+  // handles overlap protection.
+  maxDuration: 10 * 60,
   run: async () => fanoutAcrossLeagues("live"),
 });
 
 export const syncTodayGames = schedules.task({
   id: "sync-today-games",
-  cron: "*/15 * * * *",
+  cron: "0 13,22 * * *", // 13:00 UTC (≈9am ET) + 22:00 UTC (≈6pm ET)
   queue: { name: todayQueue.name },
   retry: {
     maxAttempts: 2,
@@ -172,7 +179,7 @@ export const syncTodayGames = schedules.task({
 
 export const syncWeekGames = schedules.task({
   id: "sync-week-games",
-  cron: "0 */6 * * *", // every 6 hours
+  cron: "0 12 * * 1,4", // Mon + Thu, 12:00 UTC (≈8am ET)
   queue: { name: weekQueue.name },
   retry: {
     maxAttempts: 2,
