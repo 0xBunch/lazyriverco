@@ -16,11 +16,18 @@ the cron-job.org → `/api/cron/*` HTTP cron pattern for scheduled work.
 
 ## Project
 
-Org `based-c2ff`, project ref `lazyriverco-G7K2`. Dashboard:
+Org `based-c2ff`. Dashboard:
 <https://cloud.trigger.dev/orgs/based-c2ff/projects/lazyriverco-G7K2>
 
-The project ref is wired into `trigger.config.ts` (committed). The
-auth secret (`TRIGGER_SECRET_KEY`) is set in Railway env vars only.
+Two identifiers worth knowing:
+- **URL slug** (`lazyriverco-G7K2`) — human-readable; appears in the
+  dashboard URL.
+- **Project ref** (`proj_kzugnhwlhgjriaibnigb`) — canonical identifier
+  the SDK/CLI uses; lives in `trigger.config.ts`. Found in the
+  dashboard's project settings page.
+
+Neither is a secret. The auth secret is `TRIGGER_SECRET_KEY` (starts
+with `tr_prod_`), set in Railway env vars only.
 
 ## Remaining KB actions
 
