@@ -48,8 +48,19 @@ export default async function SportsLandingPage() {
         orderBy: [{ sortOrder: "desc" }, { publishedAt: "desc" }],
         take: 6,
       }),
+      // ±6h kickoff window so LIVE games (kickoff in past, still
+      // playing) and recent FINALs stay visible. Without this, the
+      // score-badge code path on TonightStrip (PR #124) was
+      // unreachable — scores only render when status is LIVE/FINAL,
+      // and a strict `gameTime: { gte: now }` filter excluded those
+      // rows the moment kickoff passed. Chronological sort gives the
+      // natural read order: "what just finished, what's playing now,
+      // what's next."
       prisma.sportsScheduleGame.findMany({
-        where: { hidden: false, gameTime: { gte: now } },
+        where: {
+          hidden: false,
+          gameTime: { gte: new Date(now.getTime() - 6 * 60 * 60 * 1000) },
+        },
         orderBy: { gameTime: "asc" },
         take: 6,
       }),
