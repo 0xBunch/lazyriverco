@@ -3,10 +3,13 @@ import { defineConfig } from "@trigger.dev/sdk";
 // Trigger.dev v4 project config. Tasks live in src/trigger/ and are
 // auto-discovered.
 //
-// Project ref `lazyriverco-G7K2` lives under org `based-c2ff`:
+// Project lives under org `based-c2ff`:
 //   https://cloud.trigger.dev/orgs/based-c2ff/projects/lazyriverco-G7K2
-// The ref is not a secret. The auth secret is `TRIGGER_SECRET_KEY`,
-// set in Railway env vars (from project dashboard → API Keys).
+// The slug in the URL (`lazyriverco-G7K2`) is for human navigation;
+// the SDK/CLI uses the canonical ref `proj_kzugnhwlhgjriaibnigb`
+// shown below. Neither is a secret. The auth secret is
+// `TRIGGER_SECRET_KEY`, set in Railway env vars (from project
+// dashboard → API Keys).
 //
 // Remaining one-time KB actions (see docs/trigger-dev-setup.md):
 //   1. Set `TRIGGER_SECRET_KEY=tr_prod_…` in Railway env.
@@ -20,7 +23,7 @@ import { defineConfig } from "@trigger.dev/sdk";
 // Bumping major node versions in Trigger.dev is a config change, not
 // a deploy migration — safe to start here.
 export default defineConfig({
-  project: "lazyriverco-G7K2",
+  project: "proj_kzugnhwlhgjriaibnigb",
   runtime: "node-22",
   dirs: ["./src/trigger"],
   // Project-wide default — required by Trigger.dev v4. Each task can
