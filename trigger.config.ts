@@ -1,4 +1,5 @@
 import { defineConfig } from "@trigger.dev/sdk";
+import { prismaExtension } from "@trigger.dev/build/extensions/prisma";
 
 // Trigger.dev v4 project config. Tasks live in src/trigger/ and are
 // auto-discovered.
@@ -42,5 +43,21 @@ export default defineConfig({
       factor: 2,
       randomize: true,
     },
+  },
+  // Prisma build extension — copies the Linux query engine .so.node
+  // binary next to the deployed bundle. Without this, the bundler
+  // (esbuild) elides the engine and tasks throw
+  // PrismaClientInitializationError at runtime even when
+  // `binaryTargets = ["native", "debian-openssl-3.0.x"]` is set in
+  // schema.prisma. Lesson logged 2026-04-30 — first sync test run
+  // returned 11/11 skipped against MLB until both pieces (schema
+  // binaryTarget + this extension) were in place.
+  build: {
+    extensions: [
+      prismaExtension({
+        mode: "legacy",
+        schema: "prisma/schema.prisma",
+      }),
+    ],
   },
 });
