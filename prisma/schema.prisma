@@ -1539,11 +1539,6 @@ model SportsWag {
   /// at render time. Empty string is allowed only when imageR2Key is
   /// set — the proxy route prefers the R2 public URL when present.
   imageUrl        String
-  /// Legacy free-form Instagram URL. Kept alive during the rename
-  /// transition so the previously-deployed code still reads/writes a
-  /// valid column. New code prefers `instagramHandle`. A follow-up
-  /// migration drops this column once no live readers remain.
-  instagramUrl    String?
   /// Optional R2 object key (`wags/<uuid>.<ext>`) when the admin
   /// uploaded a permanent copy via the WagImageUpload component. When
   /// set, the image proxy resolves to the R2 public URL instead of
