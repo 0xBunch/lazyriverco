@@ -20,7 +20,7 @@ model User {
 
   /// Free-form prose blurb the admin curates per member. Injected verbatim
   /// into agent prompts as part of the "here's the crew" context block.
-  blurb        String?  @db.Text
+  blurb        String? @db.Text
   /// Optional structured fields the admin can fill in. Empty by default.
   city         String?
   favoriteTeam String?
@@ -33,24 +33,24 @@ model User {
   /// that tuple; no migration needed.
   betaFeatures String[] @default([])
 
-  messages            Message[]
-  picks               Pick[]
-  votes               Vote[]
-  rsvps               RSVP[]
-  media               Media[]
-  agentRelationships  AgentRelationship[]
-  conversations       Conversation[]
-  rateLimitHits       RateLimitHit[]
-  pins                Pin[]
-  comments            Comment[]
-  usageEvents         LLMUsageEvent[]
-  feeds               Feed[]
+  messages           Message[]
+  picks              Pick[]
+  votes              Vote[]
+  rsvps              RSVP[]
+  media              Media[]
+  agentRelationships AgentRelationship[]
+  conversations      Conversation[]
+  rateLimitHits      RateLimitHit[]
+  pins               Pin[]
+  comments           Comment[]
+  usageEvents        LLMUsageEvent[]
+  feeds              Feed[]
   // Draft 2026 back-relations. Named on DraftPick because it carries two
   // FKs to User (the picker vs the person who hit the Lock button — same
   // user in the normal case, different when admin picks on behalf).
-  draftSlots          DraftSlot[]
-  draftPicksMade      DraftPick[]         @relation("DraftPickMaker")
-  draftPicksLocked    DraftPick[]         @relation("DraftPickLocker")
+  draftSlots         DraftSlot[]
+  draftPicksMade     DraftPick[]         @relation("DraftPickMaker")
+  draftPicksLocked   DraftPick[]         @relation("DraftPickLocker")
 }
 
 enum Role {
@@ -96,14 +96,14 @@ model Character {
   displayOrder        Int      @default(0)
   createdAt           DateTime @default(now())
 
-  messages            Message[]
-  picks               Pick[]
-  agentChannels       AgentChannel[]
-  agentRelationships  AgentRelationship[]
-  conversations       Conversation[]
-  pins                Pin[]
-  playerTakes         PlayerAgentTake[]
-  draftReactions      DraftPickReaction[]
+  messages           Message[]
+  picks              Pick[]
+  agentChannels      AgentChannel[]
+  agentRelationships AgentRelationship[]
+  conversations      Conversation[]
+  pins               Pin[]
+  playerTakes        PlayerAgentTake[]
+  draftReactions     DraftPickReaction[]
 
   @@index([displayOrder])
 }
@@ -119,8 +119,8 @@ model Channel {
   isDefault   Boolean  @default(false)
   createdAt   DateTime @default(now())
 
-  messages    Message[]
-  agents      AgentChannel[]
+  messages Message[]
+  agents   AgentChannel[]
 }
 
 /// Join table — which agents are eligible to be summoned in which channels.
@@ -195,22 +195,22 @@ model Conversation {
 }
 
 model Message {
-  id             String      @id @default(uuid())
-  module         String      @default("chat")
+  id                   String     @id @default(uuid())
+  module               String     @default("chat")
   /// Legacy group-channel FK. Nullable because new rows written via the
   /// per-user Conversation path set `conversationId` instead. Exactly one
   /// of channelId/conversationId is set — enforced at the DB level by a
   /// raw-SQL CHECK constraint added in the phase-1 migration (Prisma can't
   /// model CHECK in schema.prisma, so it lives in the migration file).
-  channelId      String?
+  channelId            String?
   /// Per-user conversation FK, new in phase 1 of the lazy-river refactor.
-  conversationId String?
-  authorType     AuthorType
-  userId         String?
-  characterId    String?
-  content        String      @db.Text
-  mediaUrl       String?
-  parentId       String?
+  conversationId       String?
+  authorType           AuthorType
+  userId               String?
+  characterId          String?
+  content              String     @db.Text
+  mediaUrl             String?
+  parentId             String?
   /// MLChat (PR 2): when this row is an agent reply, points at the USER
   /// message that summoned it. NULL for user messages and for legacy
   /// 1:1 Conversation replies. ON DELETE SET NULL — deleting the trigger
@@ -220,8 +220,8 @@ model Message {
   /// message @-mentioned. PR 1 always writes []; PR 2's POST handler
   /// populates from extractMentions() so the listener can fan out agent
   /// replies without a Prisma round-trip. Defaults to empty array.
-  mentionedAgentIds String[] @default([])
-  createdAt      DateTime    @default(now())
+  mentionedAgentIds    String[]   @default([])
+  createdAt            DateTime   @default(now())
 
   channel          Channel?      @relation(fields: [channelId], references: [id], onDelete: Restrict)
   conversation     Conversation? @relation(fields: [conversationId], references: [id], onDelete: Cascade)
@@ -274,14 +274,14 @@ model SleeperPlayer {
   draftYear        Int?
   updatedAt        DateTime @updatedAt
 
-  stats            PlayerSeasonStats[]
-  projections      PlayerSeasonProjection[]
-  agentTakes       PlayerAgentTake[]
-  partnerInfo      PlayerPartnerInfo?
-  draftPicks       DraftPick[]
-  draftPool        DraftPoolPlayer[]
-  shadowPicks      DraftShadowPick[]
-  scoutingReport   RookieScoutingReport?
+  stats          PlayerSeasonStats[]
+  projections    PlayerSeasonProjection[]
+  agentTakes     PlayerAgentTake[]
+  partnerInfo    PlayerPartnerInfo?
+  draftPicks     DraftPick[]
+  draftPool      DraftPoolPlayer[]
+  shadowPicks    DraftShadowPick[]
+  scoutingReport RookieScoutingReport?
 
   @@index([team])
   @@index([position])
@@ -297,19 +297,19 @@ model SleeperPlayer {
 /// found (relationship = "not_found"), so we don't re-query the web
 /// every page view. Admin re-rolls by deleting the row.
 model PlayerPartnerInfo {
-  id            String   @id @default(uuid())
-  playerId      String   @unique
-  name          String?
+  id              String   @id @default(uuid())
+  playerId        String   @unique
+  name            String?
   /// One of: 'wife' | 'fiancee' | 'girlfriend' | 'partner' | 'not_found'.
   /// Stored as text rather than enum so future additions (e.g. "spouse",
   /// "divorced") don't require a migration.
-  relationship  String
-  notableFact   String?  @db.Text
+  relationship    String
+  notableFact     String?  @db.Text
   /// Hotlink URL. Whitelist-validated at write time (Wikimedia / a small
   /// set of CDNs that the UI tolerates). Nullable when no usable image
   /// was returned or the URL failed validation.
-  imageUrl      String?
-  sourceUrl     String?
+  imageUrl        String?
+  sourceUrl       String?
   /// Instagram username with no leading @. Validated at write time
   /// against Instagram's handle rules (1-30 chars, alphanumeric +
   /// underscore + period). Nullable when Gemini couldn't find one.
@@ -317,12 +317,12 @@ model PlayerPartnerInfo {
   instagramHandle String?
   /// 'low' | 'medium' | 'high'. Surfaces on the card when < high so
   /// viewers don't read soft-confidence data as gospel.
-  confidence    String   @default("low")
-  checkedAt     DateTime @default(now())
-  createdAt     DateTime @default(now())
-  updatedAt     DateTime @updatedAt
+  confidence      String   @default("low")
+  checkedAt       DateTime @default(now())
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
 
-  player        SleeperPlayer @relation(fields: [playerId], references: [playerId], onDelete: Cascade)
+  player SleeperPlayer @relation(fields: [playerId], references: [playerId], onDelete: Cascade)
 }
 
 /// Per-player per-season totals from the undocumented
@@ -330,21 +330,21 @@ model PlayerPartnerInfo {
 /// PPR points as a JSON array for sparkline rendering on the player
 /// profile page.
 model PlayerSeasonStats {
-  id           String   @id @default(uuid())
-  playerId     String
-  season       String
-  ptsPpr       Float    @default(0)
-  ptsHalfPpr   Float    @default(0)
-  ptsStd       Float    @default(0)
-  gamesPlayed  Int      @default(0)
-  rankPpr      Int?
-  posRankPpr   Int?
+  id          String   @id @default(uuid())
+  playerId    String
+  season      String
+  ptsPpr      Float    @default(0)
+  ptsHalfPpr  Float    @default(0)
+  ptsStd      Float    @default(0)
+  gamesPlayed Int      @default(0)
+  rankPpr     Int?
+  posRankPpr  Int?
   /// Week-by-week PPR points: [{week: 1, pts: 20.5}, ...]. Empty when
   /// per-week endpoint hasn't been synced for this season yet.
-  weeklyPpr    Json     @default("[]")
-  updatedAt    DateTime @updatedAt
+  weeklyPpr   Json     @default("[]")
+  updatedAt   DateTime @updatedAt
 
-  player       SleeperPlayer @relation(fields: [playerId], references: [playerId], onDelete: Cascade)
+  player SleeperPlayer @relation(fields: [playerId], references: [playerId], onDelete: Cascade)
 
   @@unique([playerId, season])
   @@index([season, ptsPpr(sort: Desc)])
@@ -354,18 +354,18 @@ model PlayerSeasonStats {
 /// Separate from stats because semantics differ (ADP only meaningful for
 /// projections; projected totals can exist for players who never played).
 model PlayerSeasonProjection {
-  id           String   @id @default(uuid())
-  playerId     String
-  season       String
-  ptsPpr       Float    @default(0)
-  ptsHalfPpr   Float    @default(0)
-  gamesPlayed  Int      @default(0)
+  id          String   @id @default(uuid())
+  playerId    String
+  season      String
+  ptsPpr      Float    @default(0)
+  ptsHalfPpr  Float    @default(0)
+  gamesPlayed Int      @default(0)
   /// ADP (average draft position) in PPR leagues. 999 = effectively undrafted.
-  adpPpr       Float?
-  adpHalfPpr   Float?
-  updatedAt    DateTime @updatedAt
+  adpPpr      Float?
+  adpHalfPpr  Float?
+  updatedAt   DateTime @updatedAt
 
-  player       SleeperPlayer @relation(fields: [playerId], references: [playerId], onDelete: Cascade)
+  player SleeperPlayer @relation(fields: [playerId], references: [playerId], onDelete: Cascade)
 
   @@unique([playerId, season])
   @@index([season, ptsPpr(sort: Desc)])
@@ -376,14 +376,14 @@ model PlayerSeasonProjection {
 /// cached so subsequent views are free. Uniqueness is per (player, character)
 /// so we can re-roll later by deleting the row.
 model PlayerAgentTake {
-  id          String    @id @default(uuid())
+  id          String   @id @default(uuid())
   playerId    String
   characterId String
-  take        String    @db.Text
-  createdAt   DateTime  @default(now())
+  take        String   @db.Text
+  createdAt   DateTime @default(now())
 
-  player      SleeperPlayer @relation(fields: [playerId], references: [playerId], onDelete: Cascade)
-  character   Character     @relation(fields: [characterId], references: [id], onDelete: Cascade)
+  player    SleeperPlayer @relation(fields: [playerId], references: [playerId], onDelete: Cascade)
+  character Character     @relation(fields: [characterId], references: [id], onDelete: Cascade)
 
   @@unique([playerId, characterId])
   @@index([playerId])
@@ -394,11 +394,11 @@ model PlayerAgentTake {
 /// historical chain hop just fetches/generates fresh. Regenerate by
 /// deleting the row.
 model LeagueSeasonNarrative {
-  id         String   @id @default(uuid())
-  leagueId   String
-  season     String
-  body       String   @db.Text
-  createdAt  DateTime @default(now())
+  id        String   @id @default(uuid())
+  leagueId  String
+  season    String
+  body      String   @db.Text
+  createdAt DateTime @default(now())
 
   @@unique([leagueId, season])
 }
@@ -417,8 +417,8 @@ model Pick {
   resolvedAt  DateTime?
   createdAt   DateTime   @default(now())
 
-  user        User?      @relation(fields: [userId], references: [id])
-  character   Character? @relation(fields: [characterId], references: [id])
+  user      User?      @relation(fields: [userId], references: [id])
+  character Character? @relation(fields: [characterId], references: [id])
 }
 
 enum PickResult {
@@ -437,7 +437,7 @@ model Bracket {
   createdBy   String
   createdAt   DateTime @default(now())
 
-  matchups    Matchup[]
+  matchups Matchup[]
 }
 
 model Matchup {
@@ -455,8 +455,8 @@ model Matchup {
   active    Boolean  @default(false)
   createdAt DateTime @default(now())
 
-  bracket   Bracket  @relation(fields: [bracketId], references: [id], onDelete: Cascade)
-  votes     Vote[]
+  bracket Bracket @relation(fields: [bracketId], references: [id], onDelete: Cascade)
+  votes   Vote[]
 }
 
 model Vote {
@@ -466,8 +466,8 @@ model Vote {
   choice    String
   createdAt DateTime @default(now())
 
-  matchup   Matchup  @relation(fields: [matchupId], references: [id], onDelete: Cascade)
-  user      User     @relation(fields: [userId], references: [id])
+  matchup Matchup @relation(fields: [matchupId], references: [id], onDelete: Cascade)
+  user    User    @relation(fields: [userId], references: [id])
 
   @@unique([matchupId, userId])
 }
@@ -535,14 +535,14 @@ model Media {
   /// can distinguish AI-applied tags from human-applied ones and reprocess
   /// selectively. Merged into the render-time tag list in the UI + into the
   /// FTS text at read-side. Slug-shape (TAG_SHAPE regex) same as `tags`.
-  aiTags         String[]    @default([])
+  aiTags         String[]  @default([])
   /// Timestamp of the last successful vision run. Null = never analyzed;
   /// set on both success and soft-failure (see aiAnalysisNote).
   aiAnalyzedAt   DateTime?
   /// One of: null = success, "skipped: <reason>", "failed: <reason>".
   /// Lets the admin sweeper re-target rows with transient failures
   /// (rate-limit, 5xx) while leaving permanent skips (policy blocks) alone.
-  aiAnalysisNote String?     @db.Text
+  aiAnalysisNote String?   @db.Text
 
   /// When non-null, the item was inserted by a MEDIA-kind Feed poll
   /// rather than a user paste. Used by the library "show auto-feed
@@ -550,13 +550,20 @@ model Media {
   /// per-feed item browser. SetNull on feed delete so the Media row
   /// survives as a plain curated entry — we never want a feed
   /// deletion to cascade-delete the library.
-  feedId          String?
-  feed            Feed?                @relation(fields: [feedId], references: [id], onDelete: SetNull)
+  feedId String?
+  feed   Feed?   @relation(fields: [feedId], references: [id], onDelete: SetNull)
 
   uploadedBy      User                 @relation(fields: [uploadedById], references: [id])
   calendarEntries CalendarEntryMedia[]
   comments        Comment[]
+  // Full-text search: functional GIN index on to_tsvector(caption+origin*+tags),
+  // created in the migration SQL (Prisma can't model expression indexes).
+  // Queries in src/lib/library-search.ts must use the same expression in
+  // WHERE to hit this index. Stored columns via GENERATED STORED tripped
+  // Postgres's IMMUTABLE check (to_tsvector is STABLE, not IMMUTABLE) — the
+  // functional index is the idiomatic Postgres FTS pattern and dodges it.
 
+  @@unique([feedId, sourceUrl], map: "Media_feedId_sourceUrl_key")
   // Media retrieval path for buildRichContext: filter to READY, hall-of-
   // fame first, then most recent. Composite matches the ORDER BY so
   // Postgres can serve it as an index scan once the table grows.
@@ -571,13 +578,6 @@ model Media {
   // common for direct uploads; Postgres treats NULL as distinct in
   // a compound unique, so that case is unaffected.
   @@index([feedId])
-  @@unique([feedId, sourceUrl], map: "Media_feedId_sourceUrl_key")
-  // Full-text search: functional GIN index on to_tsvector(caption+origin*+tags),
-  // created in the migration SQL (Prisma can't model expression indexes).
-  // Queries in src/lib/library-search.ts must use the same expression in
-  // WHERE to hit this index. Stored columns via GENERATED STORED tripped
-  // Postgres's IMMUTABLE check (to_tsvector is STABLE, not IMMUTABLE) — the
-  // functional index is the idiomatic Postgres FTS pattern and dodges it.
 }
 
 enum MediaStatus {
@@ -637,14 +637,14 @@ model TaxonomyBucket {
 /// and keeping a counter in sync across write paths is the kind of
 /// drift the admin page just fought against for arrays.
 model Tag {
-  id          String   @id @default(uuid())
-  slug        String   @unique
+  id          String          @id @default(uuid())
+  slug        String          @unique
   label       String?
-  description String?  @db.Text
+  description String?         @db.Text
   bucketId    String?
   bucket      TaxonomyBucket? @relation(fields: [bucketId], references: [id], onDelete: SetNull)
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
+  createdAt   DateTime        @default(now())
+  updatedAt   DateTime        @updatedAt
 
   @@index([bucketId])
 }
@@ -672,7 +672,7 @@ model Event {
   createdBy   String
   createdAt   DateTime  @default(now())
 
-  rsvps       RSVP[]
+  rsvps RSVP[]
 }
 
 model RSVP {
@@ -681,8 +681,8 @@ model RSVP {
   userId  String
   status  String
 
-  event   Event  @relation(fields: [eventId], references: [id], onDelete: Cascade)
-  user    User   @relation(fields: [userId], references: [id])
+  event Event @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  user  User  @relation(fields: [userId], references: [id])
 
   @@unique([eventId, userId])
 }
@@ -760,21 +760,21 @@ model Lore {
 /// planning logistics, not agent knowledge). Admin-managed via
 /// /admin/calendar.
 model CalendarEntry {
-  id            String   @id @default(uuid())
+  id            String    @id @default(uuid())
   title         String
-  date          DateTime @db.Date
+  date          DateTime  @db.Date
   /// Optional free-form time-of-day string (e.g. "7:00 PM", "Noon").
   /// Intentionally a string, not @db.Time — no TZ math, admins write what
   /// they mean. Null = all-day/untimed (birthdays, trip start dates, etc).
   /// Rendered only in the list view; the month grid ignores it.
   time          String?
-  recurrence    String   @default("none")
-  tags          String[] @default([])
+  recurrence    String    @default("none")
+  tags          String[]  @default([])
   /// Short summary shown in admin list + agent context. Keep <200 chars.
-  description   String?  @db.Text
+  description   String?   @db.Text
   /// Long-form markdown body rendered on /calendar/[id]. Not injected into
   /// agent context (description is — keeping that channel tight).
-  body          String?  @db.Text
+  body          String?   @db.Text
   /// YouTube or Vimeo URL. Rendered as an iframe embed on the detail page.
   /// URL-only; video *upload* is intentionally not supported (cost + moderation).
   videoEmbedUrl String?
@@ -798,11 +798,11 @@ model CalendarEntry {
   /// Powers _count.calendarEntries on /admin/memory/feeds and lets the
   /// admin "delete a feed but keep its events" if they want.
   feedId        String?
-  feed          Feed?    @relation(fields: [feedId], references: [id], onDelete: SetNull)
-  createdAt     DateTime @default(now())
-  updatedAt     DateTime @updatedAt
+  feed          Feed?     @relation(fields: [feedId], references: [id], onDelete: SetNull)
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
 
-  media         CalendarEntryMedia[]
+  media CalendarEntryMedia[]
 
   @@unique([source, externalId])
   @@index([date])
@@ -818,21 +818,21 @@ model CalendarEntry {
 /// unique indexes aren't modeled in Prisma; if drift becomes a problem,
 /// add a raw-SQL partial index in a follow-up migration).
 model CalendarEntryMedia {
-  id              String        @id @default(uuid())
+  id              String   @id @default(uuid())
   calendarEntryId String
   mediaId         String
   /// 0-indexed position within the entry's library. Ties broken by createdAt.
-  position        Int           @default(0)
+  position        Int      @default(0)
   /// At most one row per entry should carry isCover=true. App enforces.
-  isCover         Boolean       @default(false)
+  isCover         Boolean  @default(false)
   /// Per-attachment caption, distinct from Media.caption (which is the
   /// "global" caption injected into agent context). Leave null to fall
   /// back to Media.caption on the detail page.
-  caption         String?       @db.Text
-  createdAt       DateTime      @default(now())
+  caption         String?  @db.Text
+  createdAt       DateTime @default(now())
 
-  calendarEntry   CalendarEntry @relation(fields: [calendarEntryId], references: [id], onDelete: Cascade)
-  media           Media         @relation(fields: [mediaId], references: [id], onDelete: Cascade)
+  calendarEntry CalendarEntry @relation(fields: [calendarEntryId], references: [id], onDelete: Cascade)
+  media         Media         @relation(fields: [mediaId], references: [id], onDelete: Cascade)
 
   @@unique([calendarEntryId, mediaId])
   @@index([calendarEntryId, position])
@@ -961,7 +961,7 @@ model LLMUsageEvent {
   errorCode           String?
   createdAt           DateTime @default(now())
 
-  user    User?         @relation(fields: [userId],    references: [id], onDelete: SetNull)
+  user    User?         @relation(fields: [userId], references: [id], onDelete: SetNull)
   pricing ModelPricing? @relation(fields: [pricingId], references: [id], onDelete: SetNull)
 
   // Primary read path for /admin/usage: "all events for a user, newest first".
@@ -1019,15 +1019,15 @@ model ModelPricing {
 /// and the inputs (lastPolledAt, lastSuccessAt, lastError,
 /// consecutivePollFailures, autoDisabledAt) are cheap to read.
 model Feed {
-  id                      String        @id @default(uuid())
+  id                      String                @id @default(uuid())
   name                    String
-  url                     String        @unique
+  url                     String                @unique
   kind                    FeedKind
   /// Editorial category. GENERAL feeds power the library /news surface;
   /// SPORTS feeds power the /sports landing's headlines rail. Defaults
   /// to GENERAL — feeds shipped before the sports landing migration
   /// keep their existing semantics.
-  category                FeedCategory  @default(GENERAL)
+  category                FeedCategory          @default(GENERAL)
   /// Optional sport tag. Only meaningful when category=SPORTS — the
   /// poller propagates this to NewsItem.sport on insert so per-sport
   /// filtering on /sports works without an extra per-item write. Null
@@ -1044,13 +1044,13 @@ model Feed {
   ///   ICAL_URL → user-pasted .ics URL, parsed by node-ical with a
   ///     90-day RRULE expansion horizon (Feed.url is load-bearing).
   providerType            CalendarProviderType?
-  enabled                 Boolean       @default(true)
+  enabled                 Boolean               @default(true)
   /// Minimum minutes between polls. Enforced by a CHECK constraint in
   /// the migration (5..1440). Exponential backoff on failure multiplies
   /// this value, capped at 24h — see feed-poller.ts.
-  pollIntervalMin         Int           @default(30)
+  pollIntervalMin         Int                   @default(30)
   ownerId                 String
-  owner                   User          @relation(fields: [ownerId], references: [id], onDelete: Restrict)
+  owner                   User                  @relation(fields: [ownerId], references: [id], onDelete: Restrict)
   /// When the last poll actually started. Strictly observational —
   /// the cron's "can I poll now" gate reads `nextPollEligibleAt`, not
   /// this. Admin UIs show "last polled X min ago" from this column.
@@ -1072,20 +1072,20 @@ model Feed {
   lastItemAt              DateTime?
   /// Last error message, truncated to 2000 chars at write time so a
   /// 10MB HTML error response can't land in a text column.
-  lastError               String?       @db.VarChar(2000)
-  consecutivePollFailures Int           @default(0)
+  lastError               String?               @db.VarChar(2000)
+  consecutivePollFailures Int                   @default(0)
   /// Set when the breaker trips (failures ≥ 5). Admin must flip
   /// `enabled` back on to clear. Distinct from `enabled=false` because
   /// we want to distinguish "admin turned it off" (DISABLED) from
   /// "system turned it off after errors" (FAILED).
   autoDisabledAt          DateTime?
-  createdAt               DateTime      @default(now())
-  updatedAt               DateTime      @updatedAt
+  createdAt               DateTime              @default(now())
+  updatedAt               DateTime              @updatedAt
 
-  items                   NewsItem[]
-  mediaItems              Media[]
-  calendarEntries         CalendarEntry[]
-  pollLogs                FeedPollLog[]
+  items           NewsItem[]
+  mediaItems      Media[]
+  calendarEntries CalendarEntry[]
+  pollLogs        FeedPollLog[]
 }
 
 enum FeedKind {
@@ -1172,6 +1172,10 @@ model NewsItem {
   /// /sports/news filter uses.
   tags        String[]  @default([])
 
+  // Secondary dedupe: same feed, same <guid> = same item even if URLs
+  // differ by tracking params we didn't strip. Null guids allowed many
+  // (Postgres null != null in compound unique).
+  @@unique([feedId, guid], map: "NewsItem_feedId_guid_key")
   // Keyset pagination on /news: ORDER BY publishedAt DESC, id DESC.
   @@index([publishedAt(sort: Desc), id(sort: Desc)])
   // Per-feed item list on /admin/feeds/[id].
@@ -1180,10 +1184,6 @@ model NewsItem {
   @@index([sport, publishedAt(sort: Desc)])
   // Tag filter on /sports/news — GIN index for `tags @> ARRAY[...]`.
   @@index([tags], type: Gin)
-  // Secondary dedupe: same feed, same <guid> = same item even if URLs
-  // differ by tracking params we didn't strip. Null guids allowed many
-  // (Postgres null != null in compound unique).
-  @@unique([feedId, guid], map: "NewsItem_feedId_guid_key")
 }
 
 /// Append-only log of every pollFeed invocation. One row per call.
@@ -1195,17 +1195,17 @@ model NewsItem {
 /// migration. Current values: "success" | "partial" | "failure" |
 /// "skipped". The admin dashboards query by this column directly.
 model FeedPollLog {
-  id            String   @id @default(uuid())
-  feedId        String
-  feed          Feed     @relation(fields: [feedId], references: [id], onDelete: Cascade)
-  startedAt     DateTime
-  durationMs    Int
-  outcome       String
-  inserted      Int      @default(0)
-  skipped       Int      @default(0)
+  id         String   @id @default(uuid())
+  feedId     String
+  feed       Feed     @relation(fields: [feedId], references: [id], onDelete: Cascade)
+  startedAt  DateTime
+  durationMs Int
+  outcome    String
+  inserted   Int      @default(0)
+  skipped    Int      @default(0)
   /// Serialized PollError[]. Null for success rows (Postgres doesn't
   /// love storing JSON defaults for null-meaning-absent semantics).
-  errors        Json?
+  errors     Json?
 
   // Per-feed sparkline + detail-page history.
   @@index([feedId, startedAt(sort: Desc)])
@@ -1233,38 +1233,38 @@ model FeedPollLog {
 // ---------------------------------------------------------------------------
 
 model DraftRoom {
-  id             String    @id @default(uuid())
+  id           String    @id @default(uuid())
   /// Stable slug for URL + cross-reference. v1 = "mlf-2026".
-  slug           String    @unique
+  slug         String    @unique
   /// Human name, e.g., "MLF Rookie Draft 2026".
-  name           String
+  name         String
   /// Season string matching PlayerSeasonStats.season semantics — "2026".
-  season         String
-  totalRounds    Int       @default(3)
-  totalSlots     Int       @default(8)
-  snake          Boolean   @default(true)
+  season       String
+  totalRounds  Int       @default(3)
+  totalSlots   Int       @default(8)
+  snake        Boolean   @default(true)
   /// One of: "setup" | "live" | "paused" | "complete". Text not enum so
   /// we can add transitional states without a migration. Validated by
   /// CHECK constraint in the migration.
-  status         String    @default("setup")
+  status       String    @default("setup")
   /// Soft-clock duration per pick in seconds. Default 24h (86400).
   /// "Soft" = UI turns red at zero, no auto-pick. Commissioner nudges.
-  pickClockSec   Int       @default(86400)
-  openedAt       DateTime?
-  closedAt       DateTime?
+  pickClockSec Int       @default(86400)
+  openedAt     DateTime?
+  closedAt     DateTime?
   /// User ID snapshot of whoever created this draft. Plain string (not
   /// FK) so deleting the creator user doesn't orphan the draft — audit
   /// only, the admin UI resolves it to a display name at read time.
-  createdBy      String
-  createdAt      DateTime  @default(now())
-  updatedAt      DateTime  @updatedAt
+  createdBy    String
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
 
-  slots          DraftSlot[]
-  picks          DraftPick[]
-  pool           DraftPoolPlayer[]
-  announcerImgs  DraftAnnouncerImage[]
-  sponsors       DraftSponsor[]
-  shadowPicks    DraftShadowPick[]
+  slots         DraftSlot[]
+  picks         DraftPick[]
+  pool          DraftPoolPlayer[]
+  announcerImgs DraftAnnouncerImage[]
+  sponsors      DraftSponsor[]
+  shadowPicks   DraftShadowPick[]
 
   @@index([status])
 }
@@ -1274,11 +1274,11 @@ model DraftRoom {
 /// time so the Goodell caption reads from a stable source even if
 /// Sleeper mutates. Admin can override teamName in setup.
 model DraftSlot {
-  id         String    @id @default(uuid())
-  draftId    String
-  slotOrder  Int
-  userId     String
-  teamName   String?
+  id        String   @id @default(uuid())
+  draftId   String
+  slotOrder Int
+  userId    String
+  teamName  String?
   /// True when this seat is shadow-managed by the commissioner (Joey /
   /// OORFV case). Shadow slots are held by a User with passwordHash=null;
   /// their picks are pre-seeded via DraftShadowPick and lock at openDraft
@@ -1286,8 +1286,8 @@ model DraftSlot {
   /// behavior stays explicit — one can imagine real managers with OAuth-
   /// only accounts in the future, and the semantic "this slot is not
   /// staffed by a real participant" shouldn't collide with that.
-  isShadow   Boolean   @default(false)
-  createdAt  DateTime  @default(now())
+  isShadow  Boolean  @default(false)
+  createdAt DateTime @default(now())
 
   draft       DraftRoom         @relation(fields: [draftId], references: [id], onDelete: Cascade)
   user        User              @relation(fields: [userId], references: [id], onDelete: Restrict)
@@ -1304,33 +1304,33 @@ model DraftSlot {
 /// locks) → locked (when user commits). `undoneAt` is non-null for picks
 /// that were rolled back; the row stays for audit.
 model DraftPick {
-  id            String    @id @default(uuid())
-  draftId       String
-  round         Int
-  pickInRound   Int
-  overallPick   Int
-  slotId        String
+  id          String    @id @default(uuid())
+  draftId     String
+  round       Int
+  pickInRound Int
+  overallPick Int
+  slotId      String
   /// User who owns this slot (denormalized from DraftSlot.userId).
-  userId        String
-  playerId      String?
+  userId      String
+  playerId    String?
   /// One of: "pending" | "onClock" | "locked". CHECK-constrained in SQL.
-  status        String    @default("pending")
-  onClockAt     DateTime?
-  lockedAt      DateTime?
+  status      String    @default("pending")
+  onClockAt   DateTime?
+  lockedAt    DateTime?
   /// User who actually clicked Lock. Usually equals userId. Different
   /// when admin picks on behalf of an AFK manager.
-  lockedById    String?
-  undoneAt      DateTime?
-  createdAt     DateTime  @default(now())
-  updatedAt     DateTime  @updatedAt
+  lockedById  String?
+  undoneAt    DateTime?
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
 
-  draft         DraftRoom            @relation(fields: [draftId], references: [id], onDelete: Cascade)
-  slot          DraftSlot            @relation(fields: [slotId], references: [id], onDelete: Cascade)
-  user          User                 @relation("DraftPickMaker", fields: [userId], references: [id], onDelete: Restrict)
-  lockedBy      User?                @relation("DraftPickLocker", fields: [lockedById], references: [id], onDelete: SetNull)
-  player        SleeperPlayer?       @relation(fields: [playerId], references: [playerId], onDelete: SetNull)
-  reaction      DraftPickReaction?
-  announcerImg  DraftAnnouncerImage?
+  draft        DraftRoom            @relation(fields: [draftId], references: [id], onDelete: Cascade)
+  slot         DraftSlot            @relation(fields: [slotId], references: [id], onDelete: Cascade)
+  user         User                 @relation("DraftPickMaker", fields: [userId], references: [id], onDelete: Restrict)
+  lockedBy     User?                @relation("DraftPickLocker", fields: [lockedById], references: [id], onDelete: SetNull)
+  player       SleeperPlayer?       @relation(fields: [playerId], references: [playerId], onDelete: SetNull)
+  reaction     DraftPickReaction?
+  announcerImg DraftAnnouncerImage?
 
   @@unique([draftId, overallPick])
   @@index([draftId, status])
@@ -1342,18 +1342,18 @@ model DraftPick {
 /// Admin can add UDFA surprises manually and soft-remove with a note.
 /// `removed=true` rows stay for audit (who removed, when, why).
 model DraftPoolPlayer {
-  id         String    @id @default(uuid())
-  draftId    String
-  playerId   String
+  id        String   @id @default(uuid())
+  draftId   String
+  playerId  String
   /// User ID snapshot (plain string, not FK) — audit only.
-  addedBy    String
-  removed    Boolean   @default(false)
-  note       String?   @db.Text
-  createdAt  DateTime  @default(now())
-  updatedAt  DateTime  @updatedAt
+  addedBy   String
+  removed   Boolean  @default(false)
+  note      String?  @db.Text
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
-  draft      DraftRoom     @relation(fields: [draftId], references: [id], onDelete: Cascade)
-  player     SleeperPlayer @relation(fields: [playerId], references: [playerId], onDelete: Cascade)
+  draft  DraftRoom     @relation(fields: [draftId], references: [id], onDelete: Cascade)
+  player SleeperPlayer @relation(fields: [playerId], references: [playerId], onDelete: Cascade)
 
   @@unique([draftId, playerId])
   @@index([draftId, removed])
@@ -1365,19 +1365,19 @@ model DraftPoolPlayer {
 /// by deleting the row (generateRookieScoutingReport re-populates on next
 /// view via single-flight in src/lib/sleeper-ai.ts).
 model RookieScoutingReport {
-  id         String   @id @default(uuid())
-  playerId   String   @unique
-  body       String   @db.Text
+  id        String   @id @default(uuid())
+  playerId  String   @unique
+  body      String   @db.Text
   /// One of: "analyst" | "scout" | "goodell". Admin-chosen default in
   /// DraftRoom settings; per-player override later if useful.
-  voice      String   @default("analyst")
+  voice     String   @default("analyst")
   /// Full model id the report was generated with (e.g., "claude-sonnet-4-6").
   /// Lets us audit generations after a model bump and re-roll if needed.
-  model      String
-  createdAt  DateTime @default(now())
-  updatedAt  DateTime @updatedAt
+  model     String
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
-  player     SleeperPlayer @relation(fields: [playerId], references: [playerId], onDelete: Cascade)
+  player SleeperPlayer @relation(fields: [playerId], references: [playerId], onDelete: Cascade)
 }
 
 /// Per-pick AI reaction cached from Claude Sonnet 4.6. Fires fire-and-forget
@@ -1386,16 +1386,16 @@ model RookieScoutingReport {
 /// AI-only, no manual authoring). `characterId` null in v1 (neutral "MLF
 /// draft announcer" voice); reserved for v1.1 character personas.
 model DraftPickReaction {
-  id           String    @id @default(uuid())
-  draftPickId  String    @unique
-  body         String    @db.Text
-  characterId  String?
-  model        String
-  createdAt    DateTime  @default(now())
-  updatedAt    DateTime  @updatedAt
+  id          String   @id @default(uuid())
+  draftPickId String   @unique
+  body        String   @db.Text
+  characterId String?
+  model       String
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
 
-  pick         DraftPick  @relation(fields: [draftPickId], references: [id], onDelete: Cascade)
-  character    Character? @relation(fields: [characterId], references: [id], onDelete: SetNull)
+  pick      DraftPick  @relation(fields: [draftPickId], references: [id], onDelete: Cascade)
+  character Character? @relation(fields: [characterId], references: [id], onDelete: SetNull)
 }
 
 /// Goodell-box image pool. Commissioner uploads ~30+ images pre-draft;
@@ -1405,22 +1405,22 @@ model DraftPickReaction {
 /// same image can't be reused within a single cycle. Clearing via admin
 /// reset nulls consumedPickId back out for reuse. See Q12 (revised).
 model DraftAnnouncerImage {
-  id               String     @id @default(uuid())
-  draftId          String
-  r2Key            String
+  id             String   @id @default(uuid())
+  draftId        String
+  r2Key          String
   /// Optional short label, e.g., "Joyce in a Bears jersey". Admin-only,
   /// shown in the image-pool management UI; not rendered publicly.
-  label            String?
+  label          String?
   /// User ID snapshot — plain string, audit only.
-  uploadedBy       String
+  uploadedBy     String
   /// FK to the DraftPick this image fired for. Null when unused.
   /// Setting this to non-null burns the image for the remainder of the
   /// rotation cycle. Admin "reset rotation" clears these back to null.
-  consumedPickId   String?    @unique
-  createdAt        DateTime   @default(now())
+  consumedPickId String?  @unique
+  createdAt      DateTime @default(now())
 
-  draft            DraftRoom  @relation(fields: [draftId], references: [id], onDelete: Cascade)
-  consumedPick     DraftPick? @relation(fields: [consumedPickId], references: [id], onDelete: SetNull)
+  draft        DraftRoom  @relation(fields: [draftId], references: [id], onDelete: Cascade)
+  consumedPick DraftPick? @relation(fields: [consumedPickId], references: [id], onDelete: SetNull)
 
   // "Pick a random unused image for this draft" — the pool-rotation query.
   @@index([draftId, consumedPickId])
@@ -1432,18 +1432,18 @@ model DraftAnnouncerImage {
 /// swaps). `displayOrder` drives the rotation sequence; admin can reorder.
 /// `imageR2Key` + `linkUrl` reserved for v2; v1 renders text-only.
 model DraftSponsor {
-  id            String   @id @default(uuid())
-  draftId       String
-  name          String
-  tagline       String?
-  imageR2Key    String?
-  linkUrl       String?
-  displayOrder  Int      @default(0)
-  active        Boolean  @default(true)
-  createdAt     DateTime @default(now())
-  updatedAt     DateTime @updatedAt
+  id           String   @id @default(uuid())
+  draftId      String
+  name         String
+  tagline      String?
+  imageR2Key   String?
+  linkUrl      String?
+  displayOrder Int      @default(0)
+  active       Boolean  @default(true)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
 
-  draft         DraftRoom @relation(fields: [draftId], references: [id], onDelete: Cascade)
+  draft DraftRoom @relation(fields: [draftId], references: [id], onDelete: Cascade)
 
   @@index([draftId, active, displayOrder])
 }
@@ -1459,18 +1459,18 @@ model DraftSponsor {
 /// field convention used on DraftRoom.createdBy and
 /// DraftAnnouncerImage.uploadedBy.
 model DraftShadowPick {
-  id         String   @id @default(uuid())
-  draftId    String
-  slotId     String
-  round      Int
-  playerId   String
-  addedBy    String
-  createdAt  DateTime @default(now())
-  updatedAt  DateTime @updatedAt
+  id        String   @id @default(uuid())
+  draftId   String
+  slotId    String
+  round     Int
+  playerId  String
+  addedBy   String
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
-  draft      DraftRoom     @relation(fields: [draftId], references: [id], onDelete: Cascade)
-  slot       DraftSlot     @relation(fields: [slotId], references: [id], onDelete: Cascade)
-  player     SleeperPlayer @relation(fields: [playerId], references: [playerId], onDelete: Cascade)
+  draft  DraftRoom     @relation(fields: [draftId], references: [id], onDelete: Cascade)
+  slot   DraftSlot     @relation(fields: [slotId], references: [id], onDelete: Cascade)
+  player SleeperPlayer @relation(fields: [playerId], references: [playerId], onDelete: Cascade)
 
   @@unique([draftId, slotId, round])
   @@index([draftId, slotId])
@@ -1494,7 +1494,7 @@ model DraftShadowPick {
 /// Human-in-the-loop — the Gemini result auto-fills the form, KB confirms
 /// or edits before save.
 model SportsWag {
-  id           String             @id @default(uuid())
+  id           String   @id @default(uuid())
   /// Partner's full name as displayed.
   name         String
   /// Athlete the partner is associated with — display field, not a FK.
@@ -1510,13 +1510,13 @@ model SportsWag {
   /// PlayerPartnerInfo convention.
   instagramUrl String?
   /// Editorial 1-liner shown beneath the name lockup.
-  caption      String?            @db.VarChar(280)
+  caption      String?  @db.VarChar(280)
   /// Soft delete. Hidden WAGs don't render even if scheduled.
-  hidden       Boolean            @default(false)
-  createdAt    DateTime           @default(now())
-  updatedAt    DateTime           @updatedAt
+  hidden       Boolean  @default(false)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
 
-  features     SportsWagFeature[]
+  features SportsWagFeature[]
 
   @@index([hidden])
 }
@@ -1561,9 +1561,21 @@ model SportsHighlight {
   @@index([hidden, publishedAt(sort: Desc)])
 }
 
-/// Scheduled game with where-to-watch info. Populated manually in PR 1
-/// via /admin/sports/schedule. PR 4 adds a TheSportsDB / ESPN cron that
-/// upserts via heuristic match on (sport, teams, gameTime ±6h).
+/// Scheduled game with where-to-watch info. Two write paths:
+///   - admin entry (`/admin/sports/schedule`) — leaves externalId null,
+///     fills score/period/clock manually if anyone bothers.
+///   - sports-data sync (PR 2 of the sports data layer — Trigger.dev
+///     `sync-games` task) — pulls from ESPN hidden API + MLB statsapi,
+///     upserts via the [sport, externalId] unique. The (sport,
+///     awayTeam, homeTeam, gameTime) helper index lets the sync's
+///     heuristic merge catch manual rows first to avoid duplicates.
+///
+/// Pick'em columns (season/seasonType/week) — added 2026-04-30 with
+/// PR 1 of the sports data layer. Architect's call to push these onto
+/// a separate SportsSeason model when standings ship (D4) is noted; for
+/// lean v1 they live here so getGames(league, week) and the future
+/// pick'em UI don't need a JOIN. Nullable for backfill safety; admin
+/// entries don't have to fill them.
 model SportsScheduleGame {
   id          String         @id @default(uuid())
   sport       SportTag
@@ -1575,22 +1587,53 @@ model SportsScheduleGame {
   network     String?
   watchUrl    String?
   status      ScheduleStatus @default(SCHEDULED)
-  /// External provider ID (TheSportsDB or ESPN), populated by PR 4 sync.
-  /// Admin-entered rows leave this null; PR 4's heuristic merge fills it
-  /// when the synced row matches an existing manual entry.
+  /// External provider ID (ESPN event ID, MLB gamePk, etc.), populated
+  /// by the PR 2 sync task (Trigger.dev `sync-games`). Admin-entered
+  /// rows leave this null; the sync's heuristic merge fills it when a
+  /// synced row matches an existing manual entry.
   externalId  String?
+  /// Final or in-progress scores. Null pre-sync (or for admin-entered
+  /// rows where nobody filled them in). Status === "FINAL" + non-null
+  /// scores triggers the score-badge render path on TonightStrip (PR 3).
+  awayScore   Int?
+  homeScore   Int?
+  /// Free-form period label. "Q3" / "Top 7" / "P2" / "H2" — leagues
+  /// format these differently and we don't want to lose the source's
+  /// rendering. Null when status === "SCHEDULED".
+  period      String?
+  /// Free-form clock string ("8:42") or null. ESPN/MLB return strings;
+  /// don't try to parse to seconds.
+  clock       String?
+  /// Last upstream-sync timestamp. Null for admin-only rows. Drives
+  /// staleness eviction in the right-rail "data X minutes old" hint.
+  syncedAt    DateTime?
+  /// Season (year) the game belongs to. NFL: the year the season
+  /// STARTS in (2026 season runs Aug 2026–Feb 2027). MLB/NBA/NHL: the
+  /// year the regular season starts. Future-proofs week-grouped reads
+  /// for pick'em + standings.
+  season      Int?
+  /// "REG" | "POST" | "PRE" — free-form for now to absorb provider
+  /// variance (ESPN: 1=pre, 2=reg, 3=post; MLB: R/P/S/E). Normalized
+  /// at write time by the provider clients.
+  seasonType  String?
+  /// Week number (NFL/CFB regular season; null for daily-schedule
+  /// sports like MLB/NBA/NHL). Lets the future pick'em UI query
+  /// `where: { sport: "NFL", season: 2026, week: 12 }`.
+  week        Int?
   hidden      Boolean        @default(false)
   createdAt   DateTime       @default(now())
   updatedAt   DateTime       @updatedAt
 
   /// NULLs distinct in Postgres → admin (null externalId) and synced rows
-  /// for the same game can coexist briefly until PR 4's merge runs.
+  /// for the same game can coexist briefly until the sync's merge runs.
   @@unique([sport, externalId])
   @@index([hidden, gameTime])
   @@index([sport, gameTime])
-  /// Helper for PR 4's heuristic merge: find a manual row matching teams +
-  /// game window before inserting a synced duplicate.
+  /// Helper for the sync's heuristic merge: find a manual row matching
+  /// teams + game window before inserting a synced duplicate.
   @@index([sport, awayTeam, homeTeam, gameTime])
+  /// Pick'em / week-grouped reads.
+  @@index([sport, season, week])
 }
 
 /// Rotating fake sponsor for the /sports landing. Mirrors DraftSponsor
@@ -1607,23 +1650,23 @@ model SportsScheduleGame {
 /// `BILLBOARD` remains in the enum for historical rows but is
 /// unreachable from the admin form.
 model SportsSponsor {
-  id           String              @id @default(uuid())
+  id           String             @id @default(uuid())
   name         String
   /// Italic 1-liner displayed in quotes beneath the brand name.
-  tagline      String?             @db.VarChar(140)
+  tagline      String?            @db.VarChar(140)
   /// Optional click-through URL. Mockups use # for fake-ad mode.
   href         String?
   /// R2 key under the `sponsors/<uuid>.<ext>` prefix. Null = text-only sponsor.
   imageR2Key   String?
   /// Alt text for the banner image. Falls back to `name` if null.
-  imageAltText String?             @db.VarChar(280)
+  imageAltText String?            @db.VarChar(280)
   /// Layout used to render the banner. Null when `imageR2Key` is null.
   imageShape   SponsorImageShape?
-  active       Boolean             @default(true)
+  active       Boolean            @default(true)
   /// Sort order within active set. Drives stable rotation across days.
-  displayOrder Int                 @default(0)
-  createdAt    DateTime            @default(now())
-  updatedAt    DateTime            @updatedAt
+  displayOrder Int                @default(0)
+  createdAt    DateTime           @default(now())
+  updatedAt    DateTime           @updatedAt
 
   @@index([active, displayOrder])
 }
