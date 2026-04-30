@@ -59,6 +59,7 @@ export default async function PlayerProfilePage({
       <PlayerProfileView
         profile={profile}
         partnersEnabled={isPartnersEnabled()}
+        isAdmin={user.role === "ADMIN"}
       />
     </div>
   );

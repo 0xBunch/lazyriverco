@@ -2,7 +2,7 @@ import { redirect } from "next/navigation";
 import { getCurrentUser } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { getMlfStandings } from "@/lib/sleeper/standings";
-import { getWagOfTheDay } from "@/lib/sports/wag-rotation";
+import { getWagOfTheDay, getWagSerial } from "@/lib/sports/wag-rotation";
 import { pickSponsorForToday } from "@/lib/sports/sponsor-rotation";
 import { WagOfTheDay } from "./_components/WagOfTheDay";
 import { MlfDraftBanner } from "./_components/MlfDraftBanner";
@@ -32,9 +32,10 @@ export default async function SportsLandingPage() {
   // its slice comes back empty/null, so a single missing data source
   // doesn't 500 the page.
   const now = new Date();
-  const [wag, mlfStandings, headlines, highlights, schedule, sponsors] =
+  const [wag, wagSerial, mlfStandings, headlines, highlights, schedule, sponsors] =
     await Promise.all([
       getWagOfTheDay(),
+      getWagSerial(),
       getMlfStandings(),
       prisma.newsItem.findMany({
         where: { hidden: false, feed: { category: "SPORTS", enabled: true } },
@@ -81,7 +82,7 @@ export default async function SportsLandingPage() {
       {/* Grid 1 — WAG + right rail (Draft → Tonight → Sponsor → Standings) */}
       <section className="relative w-full">
         <div className="mx-auto grid max-w-7xl grid-cols-1 gap-6 px-4 py-8 md:grid-cols-12 md:gap-6 md:px-6 md:py-12 lg:gap-10 lg:px-10">
-          <WagOfTheDay data={wag} isAdmin={isAdmin} />
+          <WagOfTheDay data={wag} isAdmin={isAdmin} serial={wagSerial} />
           <div className="flex flex-col gap-6 md:col-span-5 lg:gap-10">
             <MlfDraftBanner />
             <TonightStrip games={schedule} isAdmin={isAdmin} />

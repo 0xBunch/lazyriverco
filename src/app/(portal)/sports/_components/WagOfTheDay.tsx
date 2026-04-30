@@ -1,27 +1,27 @@
+import Image from "next/image";
 import Link from "next/link";
 import type { WagOfTheDay as WagOfTheDayData } from "@/lib/sports/wag-rotation";
+import { InstagramLink } from "@/components/social/InstagramLink";
 
 /// Editorial cover tile for today's WAG. Full-bleed image inside its
 /// grid column on desktop (cols 1-7); 4:5 aspect on mobile. Name lockup
 /// and caption pinned bottom-left with a soft gradient overlay.
 ///
 /// Empty state when nothing is scheduled: "On break today." Admin-
-/// visible variant adds a CTA link to the queue UI (queue admin ships
-/// in the next commit). Mirrors mockups/sports-desktop.html.
+/// visible variant adds a CTA link to the queue UI.
 ///
 /// Per the rams a11y pass: real <article> + <h2 className="sr-only">,
 /// image carries a descriptive alt (not decorative alt="").
 export function WagOfTheDay({
   data,
   isAdmin,
-  /// Sequence number shown in the top-right callsign. The plan calls
-  /// for this to be derived from "how many WAG features have been
-  /// published"; until that count exists in a follow-up admin page,
-  /// callers can pass a static number or leave undefined to omit.
   serial,
 }: {
   data: WagOfTheDayData | null;
   isAdmin: boolean;
+  /// Sequence number shown in the top-right callsign. Computed by
+  /// getWagSerial(today) on the server. Falls back to undefined to
+  /// preserve the empty-callsign state on day zero.
   serial?: number;
 }) {
   if (!data) {
@@ -54,20 +54,25 @@ export function WagOfTheDay({
     );
   }
 
-  const { wag, caption } = data;
+  const { wag, caption, imageRenderUrl } = data;
   const altText = `${wag.name}, partner of ${wag.athleteName}`;
+  const sourceHost = wag.sourceUrl ? safeHost(wag.sourceUrl) : null;
 
   return (
     <article className="relative col-span-1 aspect-[4/5] overflow-hidden rounded-sm bg-bone-100 ring-1 ring-bone-200 md:col-span-7 md:aspect-[7/8]">
-      {/* Image — eslint-disable-next-line because next/image needs the
-          host allow-listed in next.config.mjs (deferred to a follow-up
-          PR that extends the partner-photo proxy + remotePatterns). */}
-      {/* eslint-disable-next-line @next/next/no-img-element */}
-      <img
-        src={wag.imageUrl}
+      {/* imageRenderUrl is either the R2 public URL (when an admin
+          uploaded a permanent copy via /admin/sports/wags) or the
+          same-origin /api/sports/wag/image proxy route. Both work
+          with next/image — the R2 host is in next.config.mjs
+          remotePatterns; the proxy is same-origin so it's allowed
+          without extra config. */}
+      <Image
+        src={imageRenderUrl}
         alt={altText}
-        loading="eager"
-        className="absolute inset-0 h-full w-full object-cover"
+        fill
+        priority
+        sizes="(max-width: 768px) 100vw, 60vw"
+        className="object-cover"
       />
       <div
         aria-hidden="true"
@@ -109,20 +114,33 @@ export function WagOfTheDay({
               {wag.team ? ` · ${wag.team}` : ""}
             </span>
           </span>
-          {wag.instagramUrl ? (
+          <InstagramLink handle={wag.instagramHandle} tone="muted" />
+          {wag.sourceUrl && sourceHost ? (
             <a
-              href={wag.instagramUrl}
+              href={wag.sourceUrl}
               target="_blank"
               rel="noopener noreferrer"
-              className="text-claude-700 underline decoration-claude-700 underline-offset-4 transition-colors hover:text-claude-800 focus:outline-none focus-visible:ring-2 focus-visible:ring-claude-500"
+              className="text-bone-700 underline decoration-bone-400 underline-offset-4 transition-colors hover:text-bone-900 focus:outline-none focus-visible:ring-2 focus-visible:ring-bone-400"
+              title="Source for the editorial copy on this WAG"
             >
-              Instagram
+              source · {sourceHost}
             </a>
+          ) : null}
+          {wag.confidence === "low" ? (
+            <span className="italic text-bone-700">low confidence</span>
           ) : null}
         </div>
       </div>
     </article>
   );
+}
+
+function safeHost(url: string): string | null {
+  try {
+    return new URL(url).hostname.replace(/^www\./, "");
+  } catch {
+    return null;
+  }
 }
 
 /// Top-corner callsign pinned absolute over the cover tile. Pulled out
@@ -139,7 +157,7 @@ function SectionHeaderEyebrow({
       <span className="font-display text-[10px] font-semibold uppercase tracking-[0.28em] text-bone-700">
         {label}
       </span>
-      {typeof serial === "number" ? (
+      {typeof serial === "number" && serial > 0 ? (
         <span className="font-display text-[10px] font-semibold uppercase tracking-[0.28em] tabular-nums text-bone-700">
           № {String(serial).padStart(3, "0")}
         </span>

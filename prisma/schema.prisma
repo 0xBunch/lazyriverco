@@ -282,6 +282,7 @@ model SleeperPlayer {
   draftPool      DraftPoolPlayer[]
   shadowPicks    DraftShadowPick[]
   scoutingReport RookieScoutingReport?
+  athlete        Athlete?
 
   @@index([team])
   @@index([position])
@@ -1488,37 +1489,103 @@ model DraftShadowPick {
 // Headlines and MLF reuse shipped infrastructure. The four models below
 // are everything net-new for the landing.
 
-/// Curated cross-sport WAG roster. Population path: admin form at
-/// /admin/sports/wags with a "Find partner" button that calls the
-/// generatePartnerByName helper extracted from src/lib/player-partner.ts.
-/// Human-in-the-loop — the Gemini result auto-fills the form, KB confirms
-/// or edits before save.
-model SportsWag {
-  id           String   @id @default(uuid())
-  /// Partner's full name as displayed.
-  name         String
-  /// Athlete the partner is associated with — display field, not a FK.
-  /// Free-form so non-Sleeper athletes (NBA/MLB/NHL/MMA) work too.
-  athleteName  String
-  sport        SportTag
-  team         String?
-  /// External image URL. Until the image proxy's host allow-list is
-  /// extended (verified at PR 1 implementation), favor R2-uploaded URLs
-  /// to keep next/image happy.
-  imageUrl     String
-  /// Instagram handle without the @. Matches the existing
-  /// PlayerPartnerInfo convention.
-  instagramUrl String?
-  /// Editorial 1-liner shown beneath the name lockup.
-  caption      String?  @db.VarChar(280)
-  /// Soft delete. Hidden WAGs don't render even if scheduled.
-  hidden       Boolean  @default(false)
-  createdAt    DateTime @default(now())
-  updatedAt    DateTime @updatedAt
+/// Lightweight canonical athlete record. Bridges cross-sport surfaces
+/// (SportsWag, future SportsHighlight associations) with the Sleeper-
+/// native player model. `sleeperPlayerId` is optional — populated for
+/// NFL athletes that have a row in SleeperPlayer; null for non-Sleeper
+/// sports (NBA/MLB/NHL/MLS/UFC) that we'll populate manually.
+///
+/// Deduplication: the partial unique index for team-IS-NULL rows
+/// (added in migration 20260430120000) closes the Postgres NULL-
+/// distinct race that the application-side `findFirst` cannot.
+model Athlete {
+  id              String         @id @default(uuid())
+  fullName        String
+  sport           SportTag
+  team            String?
+  sleeperPlayerId String?        @unique
+  sleeperPlayer   SleeperPlayer? @relation(fields: [sleeperPlayerId], references: [playerId])
+  wags            SportsWag[]
+  createdAt       DateTime       @default(now())
+  updatedAt       DateTime       @updatedAt
 
-  features SportsWagFeature[]
+  @@unique([fullName, sport, team])
+  @@index([sport])
+  @@index([fullName])
+}
+
+/// Curated cross-sport WAG roster. Population path: admin form at
+/// /admin/sports/wags. Admins can paste an athlete name, click
+/// "Auto-fill from athlete name", and the Gemini-backed
+/// generatePartnerByName helper from src/lib/player-partner.ts pre-
+/// populates the form for human review before save.
+model SportsWag {
+  id              String             @id @default(uuid())
+  /// Partner's full name as displayed.
+  name            String
+  /// Canonical athlete the partner is associated with. Optional during
+  /// the backfill window; targeted to become non-null once
+  /// scripts/backfill-sports-wag-athletes.ts has run against prod.
+  athleteId       String?
+  athlete         Athlete?           @relation(fields: [athleteId], references: [id])
+  /// Display string — kept alongside athleteId for query-free rendering
+  /// and so legacy rows still render correctly during the migration.
+  /// New writes always go through Athlete and mirror the canonical name.
+  athleteName     String
+  sport           SportTag
+  team            String?
+  /// External image URL. Served via the shared image proxy at
+  /// /api/sports/wag/image so cross-origin hotlink blockers don't apply
+  /// at render time. Empty string is allowed only when imageR2Key is
+  /// set — the proxy route prefers the R2 public URL when present.
+  imageUrl        String
+  /// Legacy free-form Instagram URL. Kept alive during the rename
+  /// transition so the previously-deployed code still reads/writes a
+  /// valid column. New code prefers `instagramHandle`. A follow-up
+  /// migration drops this column once no live readers remain.
+  instagramUrl    String?
+  /// Optional R2 object key (`wags/<uuid>.<ext>`) when the admin
+  /// uploaded a permanent copy via the WagImageUpload component. When
+  /// set, the image proxy resolves to the R2 public URL instead of
+  /// re-fetching the original. Lets the editorial cover survive the
+  /// original source going 404 / hotlink-blocked.
+  imageR2Key      String?
+  /// Instagram handle without the @. Validated with the same regex as
+  /// PlayerPartnerInfo.instagramHandle (1-30 chars, lowercase letters
+  /// + digits + underscore + period). UI renders as `@handle` linking
+  /// to instagram.com/{handle}.
+  instagramHandle String?
+  /// Editorial 1-liner shown beneath the name lockup.
+  caption         String?            @db.VarChar(280)
+  /// Single short fact about the partner (career, public profile, etc).
+  /// Mirrored from PlayerPartnerInfo.notableFact when an admin promotes
+  /// a WAGFINDER hit; editable in the admin form. Surfaces on the
+  /// future per-WAG profile page (Track C); not rendered on the
+  /// editorial cover.
+  notableFact     String?            @db.VarChar(240)
+  /// Optional source URL backing the editorial copy. Whitelist-
+  /// validated by sanitizeSourceUrl on write so an attacker-controlled
+  /// domain can't land here. Rendered as a small "source · domain" link
+  /// on the cover when present.
+  sourceUrl       String?
+  /// Editorial confidence in the data. Surfaces a small "low confidence"
+  /// pill on the cover when "low"; medium and high render with no
+  /// extra UI. Defaults to "high" because admin-curated entries are
+  /// trusted by default; auto-fill / promote paths set the value
+  /// explicitly from the Gemini result.
+  confidence      String             @default("high")
+  /// Last verified-by-AI timestamp. Set by the auto-fill action; null
+  /// for admin-only manual entries until the next auto-fill is run.
+  checkedAt       DateTime?
+  /// Soft delete. Hidden WAGs don't render even if scheduled.
+  hidden          Boolean            @default(false)
+  createdAt       DateTime           @default(now())
+  updatedAt       DateTime           @updatedAt
+
+  features        SportsWagFeature[]
 
   @@index([hidden])
+  @@index([athleteId])
 }
 
 /// Editorial schedule pinning a SportsWag to a calendar date. One WAG per
