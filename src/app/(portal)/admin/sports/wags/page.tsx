@@ -1,11 +1,11 @@
 import { prisma } from "@/lib/prisma";
-import { createWag, deleteWag, toggleWagHidden, updateWag } from "./actions";
+import { deleteWag, toggleWagHidden } from "./actions";
+import { WagForm } from "./WagForm";
+import { isPartnersEnabled } from "@/lib/player-partner";
 
 export const dynamic = "force-dynamic";
 
 type SearchParams = { msg?: string; error?: string; edit?: string };
-
-const SPORTS = ["NFL", "NBA", "MLB", "NHL", "MLS", "UFC"] as const;
 
 export default async function AdminSportsWagsPage({
   searchParams,
@@ -46,95 +46,26 @@ export default async function AdminSportsWagsPage({
           queue
         </a>
         . Hidden entries are skipped even when scheduled.
+        {isPartnersEnabled() ? (
+          <>
+            {" "}
+            Click <strong className="font-semibold text-bone-100">
+              Auto-fill from athlete name
+            </strong>{" "}
+            after entering an athlete to pre-populate from the same
+            Gemini + Google Search pipeline that powers WAGFINDER.
+          </>
+        ) : (
+          <>
+            {" "}
+            <span className="italic text-bone-400">
+              Auto-fill is disabled (SLEEPER_PARTNERS_ENABLED is off).
+            </span>
+          </>
+        )}
       </p>
 
-      {/* Create / edit form */}
-      <form
-        action={editing ? updateWag : createWag}
-        className="space-y-3 rounded-2xl border border-bone-700 bg-bone-900 p-5"
-      >
-        <p className="font-display text-sm font-semibold text-bone-50">
-          {editing ? `Edit ${editing.name}` : "Add a WAG"}
-        </p>
-        {editing && <input type="hidden" name="id" value={editing.id} />}
-        <div className="grid gap-3 sm:grid-cols-2">
-          <input
-            name="name"
-            placeholder="Partner name (e.g. Ciara Wilson)"
-            required
-            maxLength={120}
-            defaultValue={editing?.name ?? ""}
-            className={inputCls}
-          />
-          <input
-            name="athleteName"
-            placeholder="Athlete name (e.g. Russell Wilson)"
-            required
-            maxLength={120}
-            defaultValue={editing?.athleteName ?? ""}
-            className={inputCls}
-          />
-          <select
-            name="sport"
-            required
-            defaultValue={editing?.sport ?? "NFL"}
-            className={inputCls}
-          >
-            {SPORTS.map((s) => (
-              <option key={s} value={s}>
-                {s}
-              </option>
-            ))}
-          </select>
-          <input
-            name="team"
-            placeholder="Team (optional, e.g. Pittsburgh Steelers)"
-            maxLength={80}
-            defaultValue={editing?.team ?? ""}
-            className={inputCls}
-          />
-          <input
-            name="imageUrl"
-            type="url"
-            placeholder="https://… image URL"
-            required
-            maxLength={2048}
-            defaultValue={editing?.imageUrl ?? ""}
-            className={`${inputCls} sm:col-span-2`}
-          />
-          <input
-            name="instagramUrl"
-            type="url"
-            placeholder="Instagram URL (optional)"
-            maxLength={80}
-            defaultValue={editing?.instagramUrl ?? ""}
-            className={inputCls}
-          />
-          <input
-            name="caption"
-            placeholder="Editorial caption (optional, ≤280 chars)"
-            maxLength={280}
-            defaultValue={editing?.caption ?? ""}
-            className={inputCls}
-          />
-        </div>
-        <div className="flex justify-end gap-2">
-          {editing && (
-            <a
-              href="/admin/sports/wags"
-              className="rounded-lg border border-bone-700 px-4 py-2 text-sm text-bone-300 hover:bg-bone-800"
-            >
-              Cancel
-            </a>
-          )}
-          <button
-            type="submit"
-            className="rounded-lg bg-claude-600 px-4 py-2 text-sm font-medium text-bone-50 hover:bg-claude-500 focus:outline-none focus-visible:ring-2 focus-visible:ring-claude-400"
-          >
-            {editing ? "Save changes" : "Add WAG"}
-          </button>
-        </div>
-      </form>
+      <WagForm editing={editing} />
 
       {/* List */}
       {wags.length === 0 ? (
@@ -210,8 +141,6 @@ export default async function AdminSportsWagsPage({
   );
 }
 
-const inputCls =
-  "rounded-lg border border-bone-700 bg-bone-950 px-3 py-2 text-sm text-bone-50 placeholder-bone-500 focus:border-claude-500 focus:outline-none focus:ring-1 focus:ring-claude-500";
 const btnCls =
   "inline-flex items-center rounded-md border border-bone-700 bg-bone-800 px-3 py-1.5 text-xs font-medium text-bone-100 hover:bg-bone-700 focus:outline-none focus-visible:ring-2 focus-visible:ring-claude-500";
 const btnDangerCls =

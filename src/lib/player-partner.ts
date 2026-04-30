@@ -2,6 +2,11 @@ import "server-only";
 import { GoogleGenAI } from "@google/genai";
 import { prisma } from "@/lib/prisma";
 import { trackedGeminiCall } from "@/lib/usage";
+import { sanitizeInstagramHandle } from "@/lib/social/instagram";
+import {
+  sanitizeImageUrl,
+  sanitizeSourceUrl,
+} from "@/lib/url-sanitize";
 
 // Player partner ("WAG") lookup — Gemini 2.5 Flash with Google Search
 // grounding. Lazily populates PlayerPartnerInfo on first profile view;
@@ -48,29 +53,9 @@ const WIKIPEDIA_TIMEOUT_MS = 5_000;
 // Extension gate on the URL below catches Claude hallucinating HTML as
 // an image — that's the one check we keep.
 
-// Whitelist of reputable sources we'll render as a clickable "source" link
-// on the card. A plain protocol check isn't enough — Claude pulls live web
-// content, so an attacker-controlled domain could land in sourceUrl via
-// prompt injection and phish members from our origin's trust context.
-// Matched by eTLD+1 suffix so subdomains of allowed sites pass.
-const SOURCE_DOMAIN_WHITELIST = [
-  "wikipedia.org",
-  "wikimedia.org",
-  "espn.com",
-  "nfl.com",
-  "si.com",
-  "sportsillustrated.com",
-  "yahoo.com",
-  "nytimes.com",
-  "washingtonpost.com",
-  "theathletic.com",
-  "people.com",
-  "usatoday.com",
-  "foxsports.com",
-  "cbssports.com",
-  "bleacherreport.com",
-  "usmagazine.com",
-];
+// Source-link whitelist + URL sanitizers live in src/lib/url-sanitize.ts so
+// the SportsWag admin write paths (auto-fill + manual save) apply the same
+// guarantees as the WAGFINDER pipeline.
 
 export function isPartnersEnabled(): boolean {
   return process.env.SLEEPER_PARTNERS_ENABLED?.toLowerCase().trim() === "true";
@@ -209,7 +194,7 @@ export async function generatePartnerByName(
   if (!fullName.trim()) return null;
 
   const sport = opts.sport ?? "NFL";
-  const systemInstruction = buildSystemPrompt();
+  const systemInstruction = buildSystemPrompt(sport);
   const userPrompt = buildUserPrompt(fullName, opts.position ?? null, opts.team ?? null, sport);
 
   let replyText = "";
@@ -346,11 +331,17 @@ async function runGenerate(playerId: string): Promise<PartnerRow | null> {
   }
 }
 
-function buildSystemPrompt(): string {
+function buildSystemPrompt(sport: string): string {
+  // Sport-specific descriptor in the lead sentence and the "search broadly"
+  // prompt. For NFL we keep the original prompt verbatim so the public
+  // WAGFINDER (which still hardcodes sport: "NFL" in runGenerate) gets the
+  // same behavior it shipped with. For NBA/MLB/NHL/MLS/UFC we swap in a
+  // matching descriptor and league-appropriate outlet hints.
+  const descriptor = sportDescriptor(sport);
   return [
-    "You are a lookup assistant that finds the current, publicly-known romantic partner of an NFL player and returns a strict JSON object. No prose, no markdown fences, no commentary — only JSON.",
+    `You are a lookup assistant that finds the current, publicly-known romantic partner of ${descriptor.athleteNoun} and returns a strict JSON object. No prose, no markdown fences, no commentary — only JSON.`,
     "",
-    "You MAY call the web_search tool up to twice. Search broadly: Wikipedia, ESPN, People, US Weekly, team sites, Instagram profile mentions, sports news outlets, anything the web surfaces. Whichever source is clearest wins.",
+    `You MAY call the web_search tool up to twice. Search broadly: Wikipedia, ${descriptor.outlets.join(", ")}, People, US Weekly, team sites, Instagram profile mentions, sports news outlets, anything the web surfaces. Whichever source is clearest wins.`,
     "",
     "Rules:",
     "- If the player has a publicly-known wife, fiancée, long-term girlfriend, or partner and you can find a reliable source, fill every field.",
@@ -375,6 +366,32 @@ function buildSystemPrompt(): string {
     "",
     "Output ONLY the JSON object. No markdown fences. No text before or after.",
   ].join("\n");
+}
+
+function sportDescriptor(sport: string): {
+  athleteNoun: string;
+  outlets: readonly string[];
+} {
+  // League-appropriate outlets nudge Gemini's search toward the right
+  // beat reporters. The NFL row matches the original prompt 1:1 so the
+  // public WAGFINDER lookup behavior on Sleeper player profiles is
+  // unchanged. Cross-sport hints are admin-only today (the SportsWag
+  // auto-fill action passes the form's sport through).
+  switch (sport.toUpperCase()) {
+    case "NBA":
+      return { athleteNoun: "an NBA player", outlets: ["ESPN", "The Athletic", "Bleacher Report"] };
+    case "MLB":
+      return { athleteNoun: "an MLB player", outlets: ["ESPN", "MLB.com", "The Athletic"] };
+    case "NHL":
+      return { athleteNoun: "an NHL player", outlets: ["ESPN", "The Athletic", "NHL.com"] };
+    case "MLS":
+      return { athleteNoun: "an MLS player", outlets: ["ESPN", "MLSsoccer.com", "The Athletic"] };
+    case "UFC":
+      return { athleteNoun: "a UFC fighter", outlets: ["ESPN", "MMA Fighting", "Sherdog"] };
+    case "NFL":
+    default:
+      return { athleteNoun: "an NFL player", outlets: ["ESPN"] };
+  }
 }
 
 function buildUserPrompt(
@@ -501,7 +518,7 @@ function validate(raw: unknown): Validated {
       ? clip(o.notableFact.trim(), 240)
       : null;
   const sourceUrl =
-    typeof o.sourceUrl === "string" ? sanitizeHttpUrl(o.sourceUrl) : null;
+    typeof o.sourceUrl === "string" ? sanitizeSourceUrl(o.sourceUrl) : null;
   const imageUrl =
     typeof o.imageUrl === "string" ? sanitizeImageUrl(o.imageUrl) : null;
   const instagramHandle =
@@ -525,21 +542,6 @@ function validate(raw: unknown): Validated {
   };
 }
 
-/** Instagram handle: lowercase, 1-30 chars, letters/digits/underscore/period.
- *  Strip a leading @ if Claude/Gemini snuck one in despite the system
- *  prompt. Returns null on anything that doesn't match so we never store
- *  a bogus value that builds a broken instagram.com URL. */
-function sanitizeInstagramHandle(raw: string): string | null {
-  const trimmed = raw.trim().replace(/^@+/, "").toLowerCase();
-  if (!/^[a-z0-9_.]{1,30}$/.test(trimmed)) return null;
-  // Reject a few obviously-broken patterns: all dots, leading/trailing dot,
-  // consecutive dots — Instagram itself rejects these, so they're noise.
-  if (/^[.]+$/.test(trimmed)) return null;
-  if (trimmed.startsWith(".") || trimmed.endsWith(".")) return null;
-  if (trimmed.includes("..")) return null;
-  return trimmed;
-}
-
 function clip(s: string, max: number): string {
   // Strip C0 control characters (\x00-\x1f, \x7f), zero-width codepoints,
   // bidi overrides, and other rendering-manipulation characters before
@@ -555,36 +557,3 @@ function clip(s: string, max: number): string {
   return cleaned.length > max ? cleaned.slice(0, max - 1) + "…" : cleaned;
 }
 
-function sanitizeHttpUrl(raw: string): string | null {
-  try {
-    const u = new URL(raw);
-    if (u.protocol !== "https:" && u.protocol !== "http:") return null;
-    if (u.username || u.password) return null; // drop userinfo phishing vectors
-    if (raw.length > 512) return null;
-    const host = u.hostname.toLowerCase();
-    const onList = SOURCE_DOMAIN_WHITELIST.some(
-      (d) => host === d || host.endsWith("." + d),
-    );
-    if (!onList) return null;
-    return u.toString();
-  } catch {
-    return null;
-  }
-}
-
-function sanitizeImageUrl(raw: string): string | null {
-  try {
-    const u = new URL(raw);
-    if (u.protocol !== "https:") return null;
-    if (u.username || u.password) return null;
-    if (raw.length > 2048) return null;
-    // Require a real image extension. Stops Claude from mis-labeling an
-    // HTML page URL as an image; also filters out the tracking-pixel
-    // nonsense you sometimes get in wire-service photo pages.
-    const path = u.pathname.toLowerCase();
-    if (!/\.(jpe?g|png|webp|gif|avif)(\?|$)/.test(path)) return null;
-    return u.toString();
-  } catch {
-    return null;
-  }
-}

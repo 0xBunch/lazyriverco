@@ -1,5 +1,7 @@
+import Image from "next/image";
 import Link from "next/link";
 import type { WagOfTheDay as WagOfTheDayData } from "@/lib/sports/wag-rotation";
+import { InstagramLink } from "@/components/social/InstagramLink";
 
 /// Editorial cover tile for today's WAG. Full-bleed image inside its
 /// grid column on desktop (cols 1-7); 4:5 aspect on mobile. Name lockup
@@ -59,15 +61,18 @@ export function WagOfTheDay({
 
   return (
     <article className="relative col-span-1 aspect-[4/5] overflow-hidden rounded-sm bg-bone-100 ring-1 ring-bone-200 md:col-span-7 md:aspect-[7/8]">
-      {/* Image — eslint-disable-next-line because next/image needs the
-          host allow-listed in next.config.mjs (deferred to a follow-up
-          PR that extends the partner-photo proxy + remotePatterns). */}
-      {/* eslint-disable-next-line @next/next/no-img-element */}
-      <img
-        src={wag.imageUrl}
+      {/* Same-origin image proxy: /api/sports/wag/image fetches the
+          remote bytes server-side (cross-origin hotlink blockers,
+          referrer policies, CORS — all handled there). next/image is
+          happy because the URL it sees is same-origin, no
+          remotePatterns extension needed. */}
+      <Image
+        src={`/api/sports/wag/image?wagId=${encodeURIComponent(wag.id)}`}
         alt={altText}
-        loading="eager"
-        className="absolute inset-0 h-full w-full object-cover"
+        fill
+        priority
+        sizes="(max-width: 768px) 100vw, 60vw"
+        className="object-cover"
       />
       <div
         aria-hidden="true"
@@ -109,16 +114,7 @@ export function WagOfTheDay({
               {wag.team ? ` · ${wag.team}` : ""}
             </span>
           </span>
-          {wag.instagramUrl ? (
-            <a
-              href={wag.instagramUrl}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="text-claude-700 underline decoration-claude-700 underline-offset-4 transition-colors hover:text-claude-800 focus:outline-none focus-visible:ring-2 focus-visible:ring-claude-500"
-            >
-              Instagram
-            </a>
-          ) : null}
+          <InstagramLink handle={wag.instagramHandle} />
         </div>
       </div>
     </article>

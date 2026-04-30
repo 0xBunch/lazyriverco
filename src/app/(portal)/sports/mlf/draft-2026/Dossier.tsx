@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { getPlayerProfile, isSleeperEnabled, type PlayerProfile } from "@/lib/sleeper";
 import { isPartnersEnabled } from "@/lib/player-partner";
+import { getCurrentUser } from "@/lib/auth";
 import { PlayerProfileView } from "../players/[playerId]/PlayerProfileView";
 
 // Right-side draft-room dossier. Reuses PlayerProfileView so the dossier
@@ -41,11 +42,14 @@ export async function Dossier({ playerId }: { playerId: string }) {
     );
   }
 
+  const user = await getCurrentUser();
+
   return (
     <DossierShell>
       <PlayerProfileView
         profile={profile}
         partnersEnabled={isPartnersEnabled()}
+        isAdmin={user?.role === "ADMIN"}
         variant="dossier"
       />
     </DossierShell>

@@ -21,7 +21,8 @@
     "db:validate": "dotenv -e .env.local -- prisma validate",
     "db:update-bibles": "dotenv -e .env.local -- tsx prisma/update-bibles.ts",
     "eval:injection": "tsx scripts/evals/library-injection.ts",
-    "backfill:ai-tags": "dotenv -e .env.local -- tsx scripts/backfill-ai-tags.ts"
+    "backfill:ai-tags": "dotenv -e .env.local -- tsx scripts/backfill-ai-tags.ts",
+    "backfill:wag-athletes": "dotenv -e .env.local -- tsx scripts/backfill-sports-wag-athletes.ts"
   },
   "prisma": {
     "seed": "dotenv -e .env.local -- tsx prisma/seed.ts"

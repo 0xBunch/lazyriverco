@@ -6,6 +6,8 @@ import Link from "next/link";
 import { cn } from "@/lib/utils";
 import type { PlayerProfile } from "@/lib/sleeper";
 import type { PartnerRow } from "@/lib/player-partner";
+import { InstagramLink } from "@/components/social/InstagramLink";
+import { promotePartnerToWag } from "@/app/(portal)/admin/sports/wags/actions";
 
 type TakeRow = {
   characterId: string;
@@ -19,10 +21,12 @@ type Variant = "page" | "dossier";
 export function PlayerProfileView({
   profile,
   partnersEnabled,
+  isAdmin = false,
   variant = "page",
 }: {
   profile: PlayerProfile;
   partnersEnabled: boolean;
+  isAdmin?: boolean;
   variant?: Variant;
 }) {
   if (profile.notFound) {
@@ -62,7 +66,7 @@ export function PlayerProfileView({
           }
         >
           <AgentTakes playerId={profile.playerId} />
-          <PartnerCard playerId={profile.playerId} />
+          <PartnerCard playerId={profile.playerId} isAdmin={isAdmin} />
         </div>
       ) : (
         <AgentTakes playerId={profile.playerId} />
@@ -513,7 +517,13 @@ const WAG_SEARCH_PHASES = [
 ];
 const WAG_PHASE_INTERVAL_MS = 3500;
 
-function PartnerCard({ playerId }: { playerId: string }) {
+function PartnerCard({
+  playerId,
+  isAdmin,
+}: {
+  playerId: string;
+  isAdmin: boolean;
+}) {
   const [partner, setPartner] = useState<PartnerRow | null | undefined>(
     undefined,
   );
@@ -629,6 +639,7 @@ function PartnerCard({ playerId }: { playerId: string }) {
           partner={partner}
           imageBroken={imageBroken}
           onImageBroken={() => setImageBroken(true)}
+          isAdmin={isAdmin}
         />
       )}
     </section>
@@ -755,11 +766,13 @@ function WagResult({
   partner,
   imageBroken,
   onImageBroken,
+  isAdmin,
 }: {
   playerId: string;
   partner: PartnerRow;
   imageBroken: boolean;
   onImageBroken: () => void;
+  isAdmin: boolean;
 }) {
   return (
     <div className="mt-4 flex items-start gap-4">
@@ -805,14 +818,9 @@ function WagResult({
           </p>
         ) : null}
         {partner.instagramHandle ? (
-          <a
-            href={`https://instagram.com/${partner.instagramHandle}`}
-            target="_blank"
-            rel="noopener noreferrer"
-            className="mt-1.5 inline-block text-sm text-claude-700 underline-offset-2 hover:text-claude-800 hover:underline focus:outline-none focus-visible:ring-2 focus-visible:ring-claude-500"
-          >
-            @{partner.instagramHandle}
-          </a>
+          <div className="mt-1.5 text-sm">
+            <InstagramLink handle={partner.instagramHandle} />
+          </div>
         ) : null}
         <div className="mt-2 flex items-center gap-3 text-[11px] text-bone-500">
           {partner.sourceUrl ? (
@@ -829,6 +837,18 @@ function WagResult({
             <span className="italic text-bone-500">low confidence</span>
           ) : null}
         </div>
+        {isAdmin ? (
+          <form action={promotePartnerToWag} className="mt-3">
+            <input type="hidden" name="playerId" value={playerId} />
+            <button
+              type="submit"
+              className="inline-flex items-center gap-1.5 rounded-md border border-bone-300 bg-bone-50 px-2.5 py-1 text-[11px] font-medium uppercase tracking-wider text-bone-700 transition-colors hover:border-claude-500 hover:text-claude-800 focus:outline-none focus-visible:ring-2 focus-visible:ring-claude-500"
+              title="Create a hidden SportsWag draft pre-filled from this WAGFINDER row, then jump to the editor."
+            >
+              + Add to WAG roster
+            </button>
+          </form>
+        ) : null}
       </div>
     </div>
   );

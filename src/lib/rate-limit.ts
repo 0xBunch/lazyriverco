@@ -55,7 +55,13 @@ export type RateLimitBucket =
   // MLF player partner lookup — each cold-cache hit fires a Claude call
   // with the server-side web_search tool (more expensive per call than
   // takes). Tighter cap since a scripted sweep would burn search quota.
-  | "player.partner";
+  | "player.partner"
+  // Admin WAG roster auto-fill — admin clicks "Auto-fill from athlete
+  // name" on /admin/sports/wags and the same Gemini + Google Search
+  // pipeline runs against an arbitrary athlete (any sport). Tight cap
+  // since a stolen admin cookie pointed at this could burn AI spend on
+  // a scripted sweep.
+  | "wag.lookup";
 
 export type RateLimitOptions = {
   maxPerMinute: number;
