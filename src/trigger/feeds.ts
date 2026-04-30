@@ -32,7 +32,10 @@ export const pollFeedsScheduled = schedules.task({
     maxTimeoutInMs: 60_000,
     factor: 2,
   },
-  // Allow up to ~12 min total (10-min budget + slack for DB writes).
+  // Allow up to ~12 min total (Trigger.dev v4 maxDuration is in
+  // SECONDS — verified against @trigger.dev/core types). Must stay
+  // >= pollTick's internal MAX_BUDGET_MS (10 min) plus DB-write
+  // slack. See cross-reference at src/lib/feed-tick.ts.
   maxDuration: 12 * 60,
   run: async () => {
     if (process.env.FEEDS_SYNC_ENABLED !== "true") {

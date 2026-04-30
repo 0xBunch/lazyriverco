@@ -21,6 +21,14 @@ import { pollFeed } from "@/lib/feed-poller";
 //     double-poll the same feed.
 
 const CONCURRENCY = 5;
+// 10-minute internal budget. Bumping this means bumping every outer
+// bound that wraps pollTick — they must remain >= MAX_BUDGET_MS:
+//   - src/app/api/cron/poll-feeds/route.ts `export const maxDuration`
+//     (Next.js, in seconds)
+//   - src/trigger/feeds.ts `maxDuration` on the schedules.task
+//     (Trigger.dev v4, in seconds)
+//   - trigger.config.ts top-level `maxDuration` (project default,
+//     in seconds — overridden per-task above)
 const MAX_BUDGET_MS = 10 * 60 * 1000;
 
 export type PollTickSummary = {
