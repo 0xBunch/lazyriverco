@@ -30,9 +30,9 @@ const POSITIONS = ["All", "QB", "RB", "WR", "TE"] as const;
 type Position = (typeof POSITIONS)[number];
 
 const SORT_OPTIONS = [
+  { key: "projection", label: "Proj" },
   { key: "rank", label: "Rank" },
   { key: "name", label: "Name" },
-  { key: "team", label: "NFL" },
 ] as const;
 type SortKey = (typeof SORT_OPTIONS)[number]["key"];
 
@@ -44,6 +44,9 @@ export type PoolItem = {
     fullName: string | null;
     position: string | null;
     team: string | null;
+    /// 2026 PPR projection — drives the rightmost column on the board.
+    /// Null when no projection row exists for the draft's season yet.
+    projection: number | null;
   };
 };
 
@@ -64,7 +67,7 @@ export function BigBoardControls({
 }: Props) {
   const [search, setSearch] = useState("");
   const [position, setPosition] = useState<Position>("All");
-  const [sortKey, setSortKey] = useState<SortKey>("rank");
+  const [sortKey, setSortKey] = useState<SortKey>("projection");
   const [page, setPage] = useState(0);
 
   // Reset to first page when any filter/sort changes — otherwise the
@@ -100,10 +103,15 @@ export function BigBoardControls({
         (a.player.fullName ?? "").localeCompare(b.player.fullName ?? ""),
       );
     }
-    if (sortKey === "team") {
-      return [...result].sort((a, b) =>
-        (a.player.team ?? "").localeCompare(b.player.team ?? ""),
-      );
+    if (sortKey === "projection") {
+      // Highest projection first; null/missing projections fall to the
+      // bottom so the top of the board is always the highest-scoring
+      // names available to draft.
+      return [...result].sort((a, b) => {
+        const ap = a.player.projection ?? -Infinity;
+        const bp = b.player.projection ?? -Infinity;
+        return bp - ap;
+      });
     }
     // sortKey === "rank" — pool is already in rank order.
     return result;
@@ -372,9 +380,10 @@ function PoolRow({
   alt: boolean;
 }) {
   const name = player.fullName ?? player.playerId;
+  const proj = player.projection != null ? player.projection.toFixed(1) : null;
   return (
     <div
-      className="grid grid-cols-[28px_1fr_auto] items-center gap-3 border-b px-3 py-3 text-[13px] tabular-nums transition duration-150 md:grid-cols-[40px_minmax(0,2fr)_50px_50px_140px] md:px-4 md:py-2.5 md:hover:translate-x-px"
+      className="grid grid-cols-[28px_1fr_auto] items-center gap-3 border-b px-3 py-3 text-[13px] tabular-nums transition duration-150 md:grid-cols-[40px_minmax(0,2fr)_50px_50px_56px_140px] md:px-4 md:py-2.5 md:hover:translate-x-px"
       style={{
         borderColor: `${NAVY_700}40`,
         backgroundColor: selected
@@ -404,6 +413,12 @@ function PoolRow({
           <span>{player.position ?? "?"}</span>
           <span style={{ color: CREAM_400 }}>·</span>
           <span>{player.team ?? "FA"}</span>
+          {proj ? (
+            <>
+              <span style={{ color: CREAM_400 }}>·</span>
+              <span style={{ color: CREAM_50 }}>{proj}</span>
+            </>
+          ) : null}
         </div>
       </div>
       <span className="hidden font-semibold md:inline" style={{ color: CREAM_200 }}>
@@ -411,6 +426,13 @@ function PoolRow({
       </span>
       <span className="hidden font-semibold md:inline" style={{ color: CREAM_200 }}>
         {player.team ?? "FA"}
+      </span>
+      <span
+        className="hidden text-right font-semibold md:inline"
+        style={{ color: proj ? CREAM_50 : CREAM_400 }}
+        title={proj ? "2026 PPR projection" : "No 2026 projection yet"}
+      >
+        {proj ?? "—"}
       </span>
       <div className="flex items-center justify-end">
         {youCanPick && onClockPickId ? (

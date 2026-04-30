@@ -14,32 +14,38 @@ type TakeRow = {
   take: string;
 };
 
+type Variant = "page" | "dossier";
+
 export function PlayerProfileView({
   profile,
   partnersEnabled,
+  variant = "page",
 }: {
   profile: PlayerProfile;
   partnersEnabled: boolean;
+  variant?: Variant;
 }) {
   if (profile.notFound) {
     return (
-      <div className="rounded-lg border border-bone-200 bg-bone-100 p-6 text-center">
-        <h1 className="font-display text-lg font-semibold text-bone-900">
-          Player not found
-        </h1>
-        <p className="mt-2 text-sm text-bone-600">
-          Sleeper id <code className="text-bone-800">{profile.playerId}</code>{" "}
-          isn&apos;t in the MLF database yet. If this looks wrong, an admin can
-          re-sync from the /fantasy page.
-        </p>
+      <div data-variant={variant}>
+        <div className="rounded-lg border border-bone-200 bg-bone-100 p-6 text-center">
+          <h1 className="font-display text-lg font-semibold text-bone-900">
+            Player not found
+          </h1>
+          <p className="mt-2 text-sm text-bone-600">
+            Sleeper id <code className="text-bone-800">{profile.playerId}</code>{" "}
+            isn&apos;t in the MLF database yet. If this looks wrong, an admin
+            can re-sync from the /fantasy page.
+          </p>
+        </div>
       </div>
     );
   }
 
   return (
-    <div className="space-y-6">
-      <HeaderBlock profile={profile} />
-      <StatCards profile={profile} />
+    <div data-variant={variant} className="space-y-6">
+      <HeaderBlock profile={profile} variant={variant} />
+      <StatCards profile={profile} variant={variant} />
       {profile.stats && profile.stats.weeklyPpr.length > 1 ? (
         <WeeklySparkline
           season={profile.stats.season}
@@ -48,7 +54,13 @@ export function PlayerProfileView({
       ) : null}
       <RosterBadges profile={profile} />
       {partnersEnabled ? (
-        <div className="grid gap-6 md:grid-cols-2">
+        <div
+          className={
+            variant === "dossier"
+              ? "flex flex-col gap-6"
+              : "grid gap-6 md:grid-cols-2"
+          }
+        >
           <AgentTakes playerId={profile.playerId} />
           <PartnerCard playerId={profile.playerId} />
         </div>
@@ -59,28 +71,37 @@ export function PlayerProfileView({
   );
 }
 
-function HeaderBlock({ profile }: { profile: PlayerProfile }) {
-  const avatar = buildHeadshot(profile.playerId);
+function HeaderBlock({
+  profile,
+  variant,
+}: {
+  profile: PlayerProfile;
+  variant: Variant;
+}) {
+  const showAvatar = variant !== "dossier";
+  const avatar = showAvatar ? buildHeadshot(profile.playerId) : null;
   return (
-    <header className="flex items-start gap-4">
-      {avatar ? (
-        <Image
-          src={avatar}
-          alt=""
-          width={72}
-          height={72}
-          className="h-18 w-18 rounded-full border border-bone-200 bg-bone-100 object-cover"
-          unoptimized
-        />
-      ) : (
-        <div
-          aria-hidden="true"
-          className="flex h-18 w-18 items-center justify-center rounded-full border border-bone-200 bg-bone-100 text-2xl text-bone-600"
-        >
-          {initials(profile.fullName)}
-        </div>
-      )}
-      <div className="min-w-0 flex-1">
+    <header className={showAvatar ? "flex items-start gap-4" : undefined}>
+      {showAvatar ? (
+        avatar ? (
+          <Image
+            src={avatar}
+            alt=""
+            width={72}
+            height={72}
+            className="h-18 w-18 rounded-full border border-bone-200 bg-bone-100 object-cover"
+            unoptimized
+          />
+        ) : (
+          <div
+            aria-hidden="true"
+            className="flex h-18 w-18 items-center justify-center rounded-full border border-bone-200 bg-bone-100 text-2xl text-bone-600"
+          >
+            {initials(profile.fullName)}
+          </div>
+        )
+      ) : null}
+      <div className={showAvatar ? "min-w-0 flex-1" : undefined}>
         <h1 className="font-display text-3xl font-semibold tracking-tight text-bone-950 text-balance">
           {profile.fullName}
         </h1>
@@ -118,19 +139,44 @@ function HeaderBlock({ profile }: { profile: PlayerProfile }) {
   );
 }
 
-function StatCards({ profile }: { profile: PlayerProfile }) {
-  const cards: {
+function StatCards({
+  profile,
+  variant,
+}: {
+  profile: PlayerProfile;
+  variant: Variant;
+}) {
+  type Card = {
     label: string;
     primary: string;
     secondary: string | null;
-  }[] = [];
-  if (profile.stats) {
-    cards.push({
-      label: `${profile.stats.season} PPR`,
-      primary: profile.stats.ptsPpr.toFixed(1),
-      secondary: `${profile.stats.gamesPlayed} games`,
-    });
-    if (profile.stats.rankPpr) {
+    span?: 2;
+  };
+  const cards: Card[] = [];
+
+  if (variant === "dossier") {
+    // Dossier-only ordering: 2026 Projection (double-wide) → ADP → Overall rank.
+    // Skip the prior-season PPR card — pre-season none of these will have
+    // meaningful data, and KB called it out as noise.
+    if (profile.projection) {
+      cards.push({
+        label: `${profile.projection.season} projection`,
+        primary: profile.projection.ptsPpr.toFixed(1),
+        secondary: `${profile.projection.gamesPlayed} games proj.`,
+        span: 2,
+      });
+      if (
+        profile.projection.adpPpr != null &&
+        profile.projection.adpPpr < 999
+      ) {
+        cards.push({
+          label: "ADP (PPR)",
+          primary: profile.projection.adpPpr.toFixed(1),
+          secondary: null,
+        });
+      }
+    }
+    if (profile.stats?.rankPpr) {
       cards.push({
         label: "Overall rank",
         primary: `#${profile.stats.rankPpr}`,
@@ -140,21 +186,43 @@ function StatCards({ profile }: { profile: PlayerProfile }) {
             : null,
       });
     }
-  }
-  if (profile.projection) {
-    cards.push({
-      label: `${profile.projection.season} projection`,
-      primary: profile.projection.ptsPpr.toFixed(1),
-      secondary: `${profile.projection.gamesPlayed} games proj.`,
-    });
-    if (profile.projection.adpPpr != null && profile.projection.adpPpr < 999) {
+  } else {
+    if (profile.stats) {
       cards.push({
-        label: "ADP (PPR)",
-        primary: profile.projection.adpPpr.toFixed(1),
-        secondary: null,
+        label: `${profile.stats.season} PPR`,
+        primary: profile.stats.ptsPpr.toFixed(1),
+        secondary: `${profile.stats.gamesPlayed} games`,
       });
+      if (profile.stats.rankPpr) {
+        cards.push({
+          label: "Overall rank",
+          primary: `#${profile.stats.rankPpr}`,
+          secondary:
+            profile.stats.posRankPpr && profile.position
+              ? `${profile.position}${profile.stats.posRankPpr}`
+              : null,
+        });
+      }
+    }
+    if (profile.projection) {
+      cards.push({
+        label: `${profile.projection.season} projection`,
+        primary: profile.projection.ptsPpr.toFixed(1),
+        secondary: `${profile.projection.gamesPlayed} games proj.`,
+      });
+      if (
+        profile.projection.adpPpr != null &&
+        profile.projection.adpPpr < 999
+      ) {
+        cards.push({
+          label: "ADP (PPR)",
+          primary: profile.projection.adpPpr.toFixed(1),
+          secondary: null,
+        });
+      }
     }
   }
+
   if (cards.length === 0) {
     return (
       <p className="text-sm text-bone-600">
@@ -168,7 +236,10 @@ function StatCards({ profile }: { profile: PlayerProfile }) {
       {cards.map((c, i) => (
         <div
           key={`${c.label}-${i}`}
-          className="rounded-lg border border-bone-200 bg-bone-100 p-3"
+          className={cn(
+            "rounded-lg border border-bone-200 bg-bone-100 p-3",
+            c.span === 2 && "col-span-2",
+          )}
         >
           <div className="text-[11px] uppercase tracking-wider text-bone-600">
             {c.label}

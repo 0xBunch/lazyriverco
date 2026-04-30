@@ -52,3 +52,50 @@
 .no-scrollbar::-webkit-scrollbar {
   display: none;
 }
+
+/* Dossier (Player Card popup) — dark navy variant for PlayerProfileView.
+   The view is shared between the popup and the standalone /sports/mlf/
+   players/[id] page; the popup wrapper sets data-variant="dossier" on
+   its content root, and these rules flip the bone palette to navy
+   without prop-drilling theme through every sub-component. Specificity
+   beats Tailwind utilities by an extra attribute selector. */
+[data-variant="dossier"] .bg-bone-100 {
+  background-color: #152d55;
+}
+[data-variant="dossier"] .bg-bone-200\/50 {
+  background-color: rgba(27, 58, 102, 0.4);
+}
+[data-variant="dossier"] .border-bone-200 {
+  border-color: #1b3a66;
+}
+[data-variant="dossier"] .divide-bone-200\/60 > :not([hidden]) ~ :not([hidden]) {
+  border-color: rgba(27, 58, 102, 0.6);
+}
+/* Mapping (text-bone-X → bone-Y on #152D55 bg, contrast ratio):
+   - 950, 900 → 50  (12.5:1, AAA — primary headings, names)
+   - 800–500  → 200 (7.2:1, AAA — body, section headings, labels, button text)
+   - 400      → 400 (2.3:1, decorative — aria-hidden `·` separators only)
+   The light palette's 8-step hierarchy (950→300) collapses to 3 steps on
+   navy: there's no AA-passing stop between bone-200 (7.2:1) and bone-300
+   (4.3:1, fails AA body). Mapping 800–500 to bone-200 trades nuance for
+   compliance — every body string lands at AAA. */
+[data-variant="dossier"] .text-bone-950,
+[data-variant="dossier"] .text-bone-900 {
+  color: theme("colors.bone.50");
+}
+[data-variant="dossier"] .text-bone-800,
+[data-variant="dossier"] .text-bone-700,
+[data-variant="dossier"] .text-bone-600,
+[data-variant="dossier"] .text-bone-500 {
+  color: theme("colors.bone.200");
+}
+[data-variant="dossier"] .text-bone-400 {
+  color: theme("colors.bone.400");
+}
+[data-variant="dossier"] .hover\:text-bone-700:hover {
+  color: theme("colors.bone.50");
+}
+[data-variant="dossier"] .before\:text-bone-500::before,
+[data-variant="dossier"] .after\:text-bone-500::after {
+  color: theme("colors.bone.200");
+}

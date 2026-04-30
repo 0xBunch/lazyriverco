@@ -778,12 +778,36 @@ model CalendarEntry {
   /// YouTube or Vimeo URL. Rendered as an iframe embed on the detail page.
   /// URL-only; video *upload* is intentionally not supported (cost + moderation).
   videoEmbedUrl String?
+  /// Origin tag for cron-synced rows (e.g. "nager-us", "usno-moon",
+  /// "espn-nfl"). NULL for hand-curated entries. Pairs with externalId
+  /// to form the dedupe key for syncs. Existing manual rows leave both
+  /// columns NULL — Postgres treats NULLs as distinct in unique
+  /// indexes, so no conflicts.
+  source        String?
+  /// Provider's stable ID for a given event ("2026-12-25-christmas-day",
+  /// "day-2026-09-13"). NULL for manual entries. Combined with `source`
+  /// as the upsert key in src/lib/calendar-providers/upsert.ts.
+  externalId    String?
+  /// Last cron sync timestamp; NULL for manual entries. Useful for
+  /// debugging "why isn't this updating" — if syncedAt is fresh but the
+  /// row looks stale, the upstream changed.
+  syncedAt      DateTime?
+  /// Foreign key to the Feed that produced this row. NULL for hand-
+  /// curated entries and for any synced row whose parent Feed has been
+  /// deleted (onDelete: SetNull preserves the user-visible event).
+  /// Powers _count.calendarEntries on /admin/memory/feeds and lets the
+  /// admin "delete a feed but keep its events" if they want.
+  feedId        String?
+  feed          Feed?    @relation(fields: [feedId], references: [id], onDelete: SetNull)
   createdAt     DateTime @default(now())
   updatedAt     DateTime @updatedAt
 
   media         CalendarEntryMedia[]
 
+  @@unique([source, externalId])
   @@index([date])
+  @@index([feedId])
+  @@index([source])
 }
 
 /// Join between CalendarEntry and the shared Media bank. A Media row can
@@ -1010,6 +1034,16 @@ model Feed {
   /// on GENERAL feeds; admin UI clears it automatically when the
   /// category flips back to GENERAL.
   sport                   SportTag?
+  /// Calendar-only routing discriminator. Required when kind=CALENDAR,
+  /// must be NULL otherwise — enforced by a CHECK constraint in the
+  /// migration. Selects which provider code path runs:
+  ///   NAGER, USNO_MOON, USNO_SEASON, ESPN_NFL → built-in handler in
+  ///     src/lib/calendar-providers/ (Feed.url is identity-only; the
+  ///     handler constructs its own real fetch URL with the current
+  ///     year and runs its own assertUrlSafePublic).
+  ///   ICAL_URL → user-pasted .ics URL, parsed by node-ical with a
+  ///     90-day RRULE expansion horizon (Feed.url is load-bearing).
+  providerType            CalendarProviderType?
   enabled                 Boolean       @default(true)
   /// Minimum minutes between polls. Enforced by a CHECK constraint in
   /// the migration (5..1440). Exponential backoff on failure multiplies
@@ -1050,12 +1084,26 @@ model Feed {
 
   items                   NewsItem[]
   mediaItems              Media[]
+  calendarEntries         CalendarEntry[]
   pollLogs                FeedPollLog[]
 }
 
 enum FeedKind {
   NEWS
   MEDIA
+  CALENDAR
+}
+
+/// Discriminator for kind=CALENDAR feeds. Built-in providers
+/// (NAGER/USNO_MOON/USNO_SEASON/ESPN_NFL) route to hardcoded handlers
+/// that ignore Feed.url and construct their own fetch URL. ICAL_URL
+/// uses Feed.url verbatim and parses the body as iCal/ICS.
+enum CalendarProviderType {
+  NAGER
+  USNO_MOON
+  USNO_SEASON
+  ESPN_NFL
+  ICAL_URL
 }
 
 /// Editorial category for a Feed. Drives where the feed's items surface:
