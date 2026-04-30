@@ -3,8 +3,15 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
+// `binaryTargets` includes the Linux engine used by Trigger.dev's
+// task runtime (Debian + OpenSSL 3.0). Without it, deploying from
+// macOS/Windows bundles only the local-OS query engine and every
+// task call throws PrismaClientInitializationError. Lesson logged
+// 2026-04-30 — first sports sync test run returned 11/11 skipped
+// against MLB until this was added.
 generator client {
-  provider = "prisma-client-js"
+  provider      = "prisma-client-js"
+  binaryTargets = ["native", "debian-openssl-3.0.x"]
 }
 
 model User {
