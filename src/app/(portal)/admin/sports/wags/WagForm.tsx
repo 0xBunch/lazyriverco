@@ -7,6 +7,7 @@ import {
   updateWag,
   type WagLookupResponse,
 } from "./actions";
+import { WagImageUpload } from "./WagImageUpload";
 
 // Client-component WAG form. Holds form state so the "Auto-fill from
 // athlete name" button can pre-populate fields without a full page
@@ -14,16 +15,21 @@ import {
 // actions. The list below the form stays server-rendered.
 
 const SPORTS = ["NFL", "NBA", "MLB", "NHL", "MLS", "UFC"] as const;
+const CONFIDENCE = ["high", "medium", "low"] as const;
 
-type EditingWag = {
+export type EditingWag = {
   id: string;
   name: string;
   athleteName: string;
   sport: string;
   team: string | null;
   imageUrl: string;
+  imageR2Key: string | null;
   instagramHandle: string | null;
   caption: string | null;
+  notableFact: string | null;
+  sourceUrl: string | null;
+  confidence: string;
 };
 
 type FormState = {
@@ -32,8 +38,16 @@ type FormState = {
   sport: string;
   team: string;
   imageUrl: string;
+  imageR2Key: string;
   instagramHandle: string;
   caption: string;
+  notableFact: string;
+  sourceUrl: string;
+  confidence: string;
+  /// Only set when the auto-fill action succeeds. Submitted as a
+  /// hidden field so the create/update action can stamp checkedAt
+  /// on the new row. Empty string means "no fresh AI verification."
+  aiCheckedAt: string;
 };
 
 function blank(editing: EditingWag | null): FormState {
@@ -43,12 +57,27 @@ function blank(editing: EditingWag | null): FormState {
     sport: editing?.sport ?? "NFL",
     team: editing?.team ?? "",
     imageUrl: editing?.imageUrl ?? "",
+    imageR2Key: editing?.imageR2Key ?? "",
     instagramHandle: editing?.instagramHandle ?? "",
     caption: editing?.caption ?? "",
+    notableFact: editing?.notableFact ?? "",
+    sourceUrl: editing?.sourceUrl ?? "",
+    confidence: editing?.confidence ?? "high",
+    aiCheckedAt: "",
   };
 }
 
-export function WagForm({ editing }: { editing: EditingWag | null }) {
+export function WagForm({
+  editing,
+  r2PublicBase,
+}: {
+  editing: EditingWag | null;
+  /// NEXT_PUBLIC_R2_PUBLIC_BASE_URL forwarded from the server. Empty
+  /// string when R2 isn't configured; the upload widget still renders
+  /// but the presign endpoint will return a clean error and the widget
+  /// surfaces it.
+  r2PublicBase: string;
+}) {
   const [form, setForm] = useState<FormState>(() => blank(editing));
   const [isLooking, startLookup] = useTransition();
   const [lookupNote, setLookupNote] = useState<{
@@ -97,12 +126,19 @@ export function WagForm({ editing }: { editing: EditingWag | null }) {
         imageUrl: f.imageUrl || r.imageUrl || "",
         instagramHandle: f.instagramHandle || r.instagramHandle || "",
         caption: f.caption || r.notableFact?.slice(0, 280) || "",
+        notableFact: f.notableFact || r.notableFact || "",
+        sourceUrl: f.sourceUrl || r.sourceUrl || "",
+        // Always overwrite confidence + stamp the verification time —
+        // those are the freshest signals from the lookup.
+        confidence: r.confidence,
+        aiCheckedAt: new Date().toISOString(),
       }));
       const filled = [
         r.name ? "name" : null,
         r.imageUrl ? "image" : null,
         r.instagramHandle ? "@handle" : null,
-        r.notableFact ? "caption" : null,
+        r.notableFact ? "caption + notable fact" : null,
+        r.sourceUrl ? "source" : null,
       ]
         .filter(Boolean)
         .join(", ");
@@ -114,6 +150,11 @@ export function WagForm({ editing }: { editing: EditingWag | null }) {
       });
     });
   }
+
+  const initialPublicUrl =
+    editing?.imageR2Key && r2PublicBase
+      ? `${r2PublicBase.replace(/\/+$/, "")}/${editing.imageR2Key}`
+      : null;
 
   return (
     <form
@@ -148,6 +189,8 @@ export function WagForm({ editing }: { editing: EditingWag | null }) {
         </p>
       )}
       {editing && <input type="hidden" name="id" value={editing.id} />}
+      <input type="hidden" name="imageR2Key" value={form.imageR2Key} />
+      <input type="hidden" name="aiCheckedAt" value={form.aiCheckedAt} />
       <div className="grid gap-3 sm:grid-cols-2">
         <input
           name="name"
@@ -191,12 +234,20 @@ export function WagForm({ editing }: { editing: EditingWag | null }) {
         <input
           name="imageUrl"
           type="url"
-          placeholder="https://… image URL"
+          placeholder="https://… image URL (or use the upload below)"
           required
           maxLength={2048}
           value={form.imageUrl}
           onChange={(e) => update("imageUrl", e.target.value)}
           className={`${inputCls} sm:col-span-2`}
+        />
+        <WagImageUpload
+          initialKey={editing?.imageR2Key ?? null}
+          initialPublicUrl={initialPublicUrl}
+          onUploaded={({ key, publicUrl }) =>
+            setForm((f) => ({ ...f, imageR2Key: key, imageUrl: publicUrl }))
+          }
+          onCleared={() => setForm((f) => ({ ...f, imageR2Key: "" }))}
         />
         <input
           name="instagramHandle"
@@ -215,6 +266,37 @@ export function WagForm({ editing }: { editing: EditingWag | null }) {
           onChange={(e) => update("caption", e.target.value)}
           className={inputCls}
         />
+        <input
+          name="notableFact"
+          placeholder="Notable fact (optional, ≤240 chars — public-facing)"
+          maxLength={240}
+          value={form.notableFact}
+          onChange={(e) => update("notableFact", e.target.value)}
+          className={`${inputCls} sm:col-span-2`}
+        />
+        <input
+          name="sourceUrl"
+          type="url"
+          placeholder="Source URL (optional, whitelisted domains only)"
+          maxLength={512}
+          value={form.sourceUrl}
+          onChange={(e) => update("sourceUrl", e.target.value)}
+          className={inputCls}
+        />
+        <select
+          name="confidence"
+          required
+          value={form.confidence}
+          onChange={(e) => update("confidence", e.target.value)}
+          className={inputCls}
+          title="High = admin-curated or Wikipedia. Medium = reputable outlet. Low = thin sourcing — surfaces a 'low confidence' pill on /sports."
+        >
+          {CONFIDENCE.map((c) => (
+            <option key={c} value={c}>
+              confidence: {c}
+            </option>
+          ))}
+        </select>
       </div>
       <div className="flex justify-end gap-2">
         {editing && (

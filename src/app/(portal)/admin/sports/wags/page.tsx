@@ -65,7 +65,10 @@ export default async function AdminSportsWagsPage({
         )}
       </p>
 
-      <WagForm editing={editing} />
+      <WagForm
+        editing={editing}
+        r2PublicBase={process.env.NEXT_PUBLIC_R2_PUBLIC_BASE_URL ?? ""}
+      />
 
       {/* List */}
       {wags.length === 0 ? (

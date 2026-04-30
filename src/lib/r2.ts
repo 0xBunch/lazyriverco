@@ -105,6 +105,24 @@ export function isValidSponsorKey(key: string): boolean {
   return SPONSOR_KEY_REGEX.test(key);
 }
 
+export function newWagKey(contentType: string): { wagMediaId: string; key: string } {
+  const wagMediaId = randomUUID();
+  return { wagMediaId, key: `wags/${wagMediaId}.${extensionFor(contentType)}` };
+}
+
+/**
+ * Same posture as SPONSOR_KEY_REGEX — the admin form submits a WAG
+ * imageR2Key via FormData and we want to be sure it was minted by
+ * `newWagKey()` rather than re-pointed at media owned by another
+ * feature.
+ */
+export const WAG_KEY_REGEX =
+  /^wags\/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}\.(jpg|png|webp|gif)$/;
+
+export function isValidWagKey(key: string): boolean {
+  return WAG_KEY_REGEX.test(key);
+}
+
 export function newGeneratedImageKey(contentType: string): { generatedId: string; key: string } {
   const generatedId = randomUUID();
   return { generatedId, key: `generated/${generatedId}.${extensionFor(contentType)}` };
@@ -238,6 +256,16 @@ export type PresignSponsorUploadResult = {
   maxBytes: number;
 };
 
+export type PresignWagUploadResult = {
+  wagMediaId: string;
+  key: string;
+  uploadUrl: string;
+  publicUrl: string;
+  contentType: string;
+  expiresIn: number;
+  maxBytes: number;
+};
+
 export async function presignAvatarUpload(
   input: PresignUploadInput,
 ): Promise<PresignAvatarUploadResult> {
@@ -321,6 +349,55 @@ export async function presignSponsorUpload(
 
   return {
     sponsorMediaId,
+    key,
+    uploadUrl,
+    publicUrl: `${base}/${key}`,
+    contentType: input.mimeType,
+    expiresIn: PRESIGN_EXPIRY_SECONDS,
+    maxBytes: MAX_SPONSOR_BYTES,
+  };
+}
+
+/**
+ * Presign a SportsWag image upload. Scoped to its own `wags/<uuid>.<ext>`
+ * key prefix so admin-set keys can't pin a WAG row to media owned by
+ * another feature. Same 5 MB cap as sponsors — partner photos are
+ * editorial covers, not source-sized originals.
+ */
+export async function presignWagUpload(
+  input: PresignUploadInput,
+): Promise<PresignWagUploadResult> {
+  if (!isAllowedContentType(input.mimeType)) {
+    throw new R2UploadError(
+      `Content-type "${input.mimeType}" is not in the upload allowlist. Allowed: ${listAllowedContentTypes().join(", ")}`,
+    );
+  }
+
+  const bucketName = process.env.R2_BUCKET_NAME;
+  const publicBase = process.env.NEXT_PUBLIC_R2_PUBLIC_BASE_URL;
+  if (!bucketName || !publicBase) {
+    throw new R2UploadError(
+      "R2 not configured: set R2_BUCKET_NAME and NEXT_PUBLIC_R2_PUBLIC_BASE_URL before calling presignWagUpload.",
+    );
+  }
+
+  const { wagMediaId, key } = newWagKey(input.mimeType);
+  const s3 = getS3Client();
+
+  const uploadUrl = await getSignedUrl(
+    s3,
+    new PutObjectCommand({
+      Bucket: bucketName,
+      Key: key,
+      ContentType: input.mimeType,
+    }),
+    { expiresIn: PRESIGN_EXPIRY_SECONDS },
+  );
+
+  const base = publicBase.replace(/\/+$/, "");
+
+  return {
+    wagMediaId,
     key,
     uploadUrl,
     publicUrl: `${base}/${key}`,

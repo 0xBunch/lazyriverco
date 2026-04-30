@@ -1536,13 +1536,20 @@ model SportsWag {
   team            String?
   /// External image URL. Served via the shared image proxy at
   /// /api/sports/wag/image so cross-origin hotlink blockers don't apply
-  /// at render time.
+  /// at render time. Empty string is allowed only when imageR2Key is
+  /// set — the proxy route prefers the R2 public URL when present.
   imageUrl        String
   /// Legacy free-form Instagram URL. Kept alive during the rename
   /// transition so the previously-deployed code still reads/writes a
   /// valid column. New code prefers `instagramHandle`. A follow-up
   /// migration drops this column once no live readers remain.
   instagramUrl    String?
+  /// Optional R2 object key (`wags/<uuid>.<ext>`) when the admin
+  /// uploaded a permanent copy via the WagImageUpload component. When
+  /// set, the image proxy resolves to the R2 public URL instead of
+  /// re-fetching the original. Lets the editorial cover survive the
+  /// original source going 404 / hotlink-blocked.
+  imageR2Key      String?
   /// Instagram handle without the @. Validated with the same regex as
   /// PlayerPartnerInfo.instagramHandle (1-30 chars, lowercase letters
   /// + digits + underscore + period). UI renders as `@handle` linking
@@ -1550,6 +1557,26 @@ model SportsWag {
   instagramHandle String?
   /// Editorial 1-liner shown beneath the name lockup.
   caption         String?            @db.VarChar(280)
+  /// Single short fact about the partner (career, public profile, etc).
+  /// Mirrored from PlayerPartnerInfo.notableFact when an admin promotes
+  /// a WAGFINDER hit; editable in the admin form. Surfaces on the
+  /// future per-WAG profile page (Track C); not rendered on the
+  /// editorial cover.
+  notableFact     String?            @db.VarChar(240)
+  /// Optional source URL backing the editorial copy. Whitelist-
+  /// validated by sanitizeSourceUrl on write so an attacker-controlled
+  /// domain can't land here. Rendered as a small "source · domain" link
+  /// on the cover when present.
+  sourceUrl       String?
+  /// Editorial confidence in the data. Surfaces a small "low confidence"
+  /// pill on the cover when "low"; medium and high render with no
+  /// extra UI. Defaults to "high" because admin-curated entries are
+  /// trusted by default; auto-fill / promote paths set the value
+  /// explicitly from the Gemini result.
+  confidence      String             @default("high")
+  /// Last verified-by-AI timestamp. Set by the auto-fill action; null
+  /// for admin-only manual entries until the next auto-fill is run.
+  checkedAt       DateTime?
   /// Soft delete. Hidden WAGs don't render even if scheduled.
   hidden          Boolean            @default(false)
   createdAt       DateTime           @default(now())

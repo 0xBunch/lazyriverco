@@ -6,7 +6,11 @@ import { prisma } from "@/lib/prisma";
 import { requireAdmin } from "@/lib/auth";
 import type { SportTag } from "@prisma/client";
 import { sanitizeInstagramHandle } from "@/lib/social/instagram";
-import { sanitizeLooseImageUrl } from "@/lib/url-sanitize";
+import {
+  sanitizeLooseImageUrl,
+  sanitizeSourceUrl,
+} from "@/lib/url-sanitize";
+import { isValidWagKey } from "@/lib/r2";
 import {
   generatePartnerByName,
   isPartnersEnabled,
@@ -24,9 +28,18 @@ const MAX_NAME = 120;
 const MAX_ATHLETE = 120;
 const MAX_TEAM = 80;
 const MAX_URL = 2048;
+const MAX_SOURCE_URL = 512;
 const MAX_HANDLE = 80;
 const MAX_CAPTION = 280;
+const MAX_NOTABLE = 240;
+const MAX_R2_KEY = 200;
 const SPORTS = ["NFL", "NBA", "MLB", "NHL", "MLS", "UFC"] as const satisfies readonly SportTag[];
+const CONFIDENCE = ["low", "medium", "high"] as const;
+type Confidence = (typeof CONFIDENCE)[number];
+
+function narrowConfidence(raw: string): Confidence {
+  return CONFIDENCE.includes(raw as Confidence) ? (raw as Confidence) : "high";
+}
 
 /// Resolve or create the canonical Athlete row for a (name, sport, team)
 /// tuple, then return its id. Called from create/update/promote so every
@@ -67,49 +80,32 @@ async function resolveAthleteId(
 export async function createWag(fd: FormData): Promise<void> {
   await requireAdmin();
 
-  const name = readField(fd, "name", MAX_NAME);
-  const athleteName = readField(fd, "athleteName", MAX_ATHLETE);
-  const sportRaw = (fd.get("sport") ?? "").toString();
-  const team = readOptionalField(fd, "team", MAX_TEAM);
-  const imageUrlRaw = readField(fd, "imageUrl", MAX_URL);
-  const instagramRaw = readOptionalField(fd, "instagramHandle", MAX_HANDLE);
-  const caption = readOptionalField(fd, "caption", MAX_CAPTION);
-
-  if (!name) return back({ error: "Partner name is required." });
-  if (!athleteName) return back({ error: "Athlete name is required." });
-  if (!SPORTS.includes(sportRaw as SportTag)) {
-    return back({ error: "Sport must be one of NFL/NBA/MLB/NHL/MLS/UFC." });
-  }
-  const imageUrl = sanitizeLooseImageUrl(imageUrlRaw);
-  if (!imageUrl) {
-    return back({ error: "Image URL must be a valid http(s) URL." });
-  }
-  // Empty input is fine; non-empty input that doesn't look like a handle
-  // or a recognizable instagram.com URL is rejected so we never store a
-  // bogus value that builds a broken @-link.
-  let instagramHandle: string | null = null;
-  if (instagramRaw) {
-    instagramHandle = sanitizeInstagramHandle(instagramRaw);
-    if (!instagramHandle) {
-      return back({
-        error: "Instagram must be a handle (no @) or an instagram.com URL.",
-      });
-    }
-  }
+  const parsed = parseWagFormData(fd);
+  if ("error" in parsed) return back({ error: parsed.error });
 
   try {
-    const sport = sportRaw as SportTag;
-    const athleteId = await resolveAthleteId(athleteName, sport, team);
+    const athleteId = await resolveAthleteId(
+      parsed.athleteName,
+      parsed.sport,
+      parsed.team,
+    );
     await prisma.sportsWag.create({
       data: {
-        name,
+        name: parsed.name,
         athleteId,
-        athleteName,
-        sport,
-        team,
-        imageUrl,
-        instagramHandle,
-        caption,
+        athleteName: parsed.athleteName,
+        sport: parsed.sport,
+        team: parsed.team,
+        imageUrl: parsed.imageUrl,
+        imageR2Key: parsed.imageR2Key,
+        instagramHandle: parsed.instagramHandle,
+        caption: parsed.caption,
+        notableFact: parsed.notableFact,
+        sourceUrl: parsed.sourceUrl,
+        confidence: parsed.confidence,
+        // Only stamp on create if the admin used auto-fill in this
+        // session; null otherwise (admin can still save manually).
+        checkedAt: parsed.checkedAt,
       },
     });
   } catch (e) {
@@ -119,7 +115,8 @@ export async function createWag(fd: FormData): Promise<void> {
 
   revalidatePath("/admin/sports/wags");
   revalidatePath("/admin/sports/wags/queue");
-  return back({ msg: `Added ${name}.` });
+  revalidatePath("/sports");
+  return back({ msg: `Added ${parsed.name}.` });
 }
 
 // ---------------------------------------------------------------------------
@@ -130,47 +127,34 @@ export async function updateWag(fd: FormData): Promise<void> {
   const id = (fd.get("id") ?? "").toString();
   if (!id) return back({ error: "Missing WAG id." });
 
-  const name = readField(fd, "name", MAX_NAME);
-  const athleteName = readField(fd, "athleteName", MAX_ATHLETE);
-  const sportRaw = (fd.get("sport") ?? "").toString();
-  const team = readOptionalField(fd, "team", MAX_TEAM);
-  const imageUrlRaw = readField(fd, "imageUrl", MAX_URL);
-  const instagramRaw = readOptionalField(fd, "instagramHandle", MAX_HANDLE);
-  const caption = readOptionalField(fd, "caption", MAX_CAPTION);
-
-  if (!name) return back({ error: "Partner name is required." });
-  if (!athleteName) return back({ error: "Athlete name is required." });
-  if (!SPORTS.includes(sportRaw as SportTag)) {
-    return back({ error: "Sport must be one of NFL/NBA/MLB/NHL/MLS/UFC." });
-  }
-  const imageUrl = sanitizeLooseImageUrl(imageUrlRaw);
-  if (!imageUrl) {
-    return back({ error: "Image URL must be a valid http(s) URL." });
-  }
-  let instagramHandle: string | null = null;
-  if (instagramRaw) {
-    instagramHandle = sanitizeInstagramHandle(instagramRaw);
-    if (!instagramHandle) {
-      return back({
-        error: "Instagram must be a handle (no @) or an instagram.com URL.",
-      });
-    }
-  }
+  const parsed = parseWagFormData(fd);
+  if ("error" in parsed) return back({ error: parsed.error });
 
   try {
-    const sport = sportRaw as SportTag;
-    const athleteId = await resolveAthleteId(athleteName, sport, team);
+    const athleteId = await resolveAthleteId(
+      parsed.athleteName,
+      parsed.sport,
+      parsed.team,
+    );
     await prisma.sportsWag.update({
       where: { id },
       data: {
-        name,
+        name: parsed.name,
         athleteId,
-        athleteName,
-        sport,
-        team,
-        imageUrl,
-        instagramHandle,
-        caption,
+        athleteName: parsed.athleteName,
+        sport: parsed.sport,
+        team: parsed.team,
+        imageUrl: parsed.imageUrl,
+        imageR2Key: parsed.imageR2Key,
+        instagramHandle: parsed.instagramHandle,
+        caption: parsed.caption,
+        notableFact: parsed.notableFact,
+        sourceUrl: parsed.sourceUrl,
+        confidence: parsed.confidence,
+        // Only refresh checkedAt when this save round-tripped through
+        // auto-fill. Saving a row by hand without re-running auto-fill
+        // shouldn't claim it was AI-verified again.
+        ...(parsed.checkedAt ? { checkedAt: parsed.checkedAt } : {}),
       },
     });
   } catch (e) {
@@ -180,7 +164,103 @@ export async function updateWag(fd: FormData): Promise<void> {
 
   revalidatePath("/admin/sports/wags");
   revalidatePath("/admin/sports/wags/queue");
-  return back({ msg: `Updated ${name}.` });
+  revalidatePath("/sports");
+  return back({ msg: `Updated ${parsed.name}.` });
+}
+
+type ParsedWag = {
+  name: string;
+  athleteName: string;
+  sport: SportTag;
+  team: string | null;
+  imageUrl: string;
+  imageR2Key: string | null;
+  instagramHandle: string | null;
+  caption: string | null;
+  notableFact: string | null;
+  sourceUrl: string | null;
+  confidence: Confidence;
+  /// ISO timestamp from the form's hidden aiCheckedAt input. Set when
+  /// the admin used auto-fill in the same form session. Null when the
+  /// admin saved without running auto-fill.
+  checkedAt: Date | null;
+};
+
+function parseWagFormData(fd: FormData): ParsedWag | { error: string } {
+  const name = readField(fd, "name", MAX_NAME);
+  const athleteName = readField(fd, "athleteName", MAX_ATHLETE);
+  const sportRaw = (fd.get("sport") ?? "").toString();
+  const team = readOptionalField(fd, "team", MAX_TEAM);
+  const imageUrlRaw = readField(fd, "imageUrl", MAX_URL);
+  const imageR2KeyRaw = readOptionalField(fd, "imageR2Key", MAX_R2_KEY);
+  const instagramRaw = readOptionalField(fd, "instagramHandle", MAX_HANDLE);
+  const caption = readOptionalField(fd, "caption", MAX_CAPTION);
+  const notableFact = readOptionalField(fd, "notableFact", MAX_NOTABLE);
+  const sourceUrlRaw = readOptionalField(fd, "sourceUrl", MAX_SOURCE_URL);
+  const confidenceRaw = (fd.get("confidence") ?? "high").toString();
+
+  if (!name) return { error: "Partner name is required." };
+  if (!athleteName) return { error: "Athlete name is required." };
+  if (!SPORTS.includes(sportRaw as SportTag)) {
+    return { error: "Sport must be one of NFL/NBA/MLB/NHL/MLS/UFC." };
+  }
+  const imageUrl = sanitizeLooseImageUrl(imageUrlRaw);
+  if (!imageUrl) {
+    return { error: "Image URL must be a valid http(s) URL." };
+  }
+  let imageR2Key: string | null = null;
+  if (imageR2KeyRaw) {
+    if (!isValidWagKey(imageR2KeyRaw)) {
+      return {
+        error: "imageR2Key isn't a valid wags/<uuid>.<ext> key.",
+      };
+    }
+    imageR2Key = imageR2KeyRaw;
+  }
+  let instagramHandle: string | null = null;
+  if (instagramRaw) {
+    instagramHandle = sanitizeInstagramHandle(instagramRaw);
+    if (!instagramHandle) {
+      return {
+        error: "Instagram must be a handle (no @) or an instagram.com URL.",
+      };
+    }
+  }
+  let sourceUrl: string | null = null;
+  if (sourceUrlRaw) {
+    sourceUrl = sanitizeSourceUrl(sourceUrlRaw);
+    if (!sourceUrl) {
+      return {
+        error:
+          "Source URL must be on the editorial allowlist (Wikipedia, ESPN, SI, etc.).",
+      };
+    }
+  }
+  const confidence = narrowConfidence(confidenceRaw);
+
+  // Parse hidden aiCheckedAt. Empty string is the "no fresh AI check"
+  // signal; an invalid date string is silently dropped to null.
+  const checkedAtRaw = (fd.get("aiCheckedAt") ?? "").toString().trim();
+  let checkedAt: Date | null = null;
+  if (checkedAtRaw) {
+    const d = new Date(checkedAtRaw);
+    if (!Number.isNaN(d.getTime())) checkedAt = d;
+  }
+
+  return {
+    name,
+    athleteName,
+    sport: sportRaw as SportTag,
+    team,
+    imageUrl,
+    imageR2Key,
+    instagramHandle,
+    caption,
+    notableFact,
+    sourceUrl,
+    confidence,
+    checkedAt,
+  };
 }
 
 // ---------------------------------------------------------------------------
@@ -339,6 +419,10 @@ export async function promotePartnerToWag(fd: FormData): Promise<void> {
         imageUrl: partner.imageUrl,
         instagramHandle: partner.instagramHandle,
         caption: partner.notableFact?.slice(0, 280) ?? null,
+        notableFact: partner.notableFact,
+        sourceUrl: partner.sourceUrl,
+        confidence: narrowConfidence(partner.confidence),
+        checkedAt: new Date(),
         hidden: true,
       },
     });

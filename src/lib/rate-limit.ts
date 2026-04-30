@@ -61,7 +61,11 @@ export type RateLimitBucket =
   // pipeline runs against an arbitrary athlete (any sport). Tight cap
   // since a stolen admin cookie pointed at this could burn AI spend on
   // a scripted sweep.
-  | "wag.lookup";
+  | "wag.lookup"
+  // Admin SportsWag image uploads (R2 presign). Same posture as
+  // sports.sponsor.presign — banner uploads are rare; firing the cap
+  // signals a stolen cookie burning R2 PUT cost.
+  | "sports.wag.presign";
 
 export type RateLimitOptions = {
   maxPerMinute: number;
